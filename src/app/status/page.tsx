@@ -6,6 +6,7 @@
 //   ② 그 값으로 실제 Supabase에 접속이 되는가
 //   ③ 2단계에서 만든 데이터 창고의 표 9개가 모두 있는가
 //   ④ 5단계 추가 SQL(0002: 희망 동 저장 칸)이 실행되었는가
+//   ⑤ 6단계 추가 SQL(0003: 추첨 저장 함수)이 실행되었는가
 // 값 자체는 보여주지 않으므로 로그인 없이 열 수 있습니다.
 // ─────────────────────────────────────────────────────────────
 import { connection } from "next/server";
@@ -65,6 +66,24 @@ async function checkMigration0002(): Promise<Check> {
   return { ok: true, message: "희망 동(post_id) 칸 있음" };
 }
 
+// 6단계 추가 SQL(0003)을 실행했는지: record_draw 함수가 있는지 확인.
+// 날짜를 비워서(null) 부르면, 함수가 있을 때는 "날짜 없음" 오류로 아무것도 저장되지 않고 끝나며,
+// 함수가 없을 때는 "함수를 찾을 수 없음"(PGRST202) 오류가 납니다.
+async function checkMigration0003(): Promise<Check> {
+  const { error } = await getSupabaseAdmin().rpc("record_draw", {
+    p_duty_date: null,
+    p_triggered_by: "manual",
+    p_executed_by: null,
+    p_clinic_shortage: 0,
+    p_general_shortage: 0,
+    p_assignments: [],
+  });
+  if (error?.code === "PGRST202") {
+    return { ok: false, message: "supabase/migrations/0003_record_draw.sql 을 SQL Editor에서 실행해 주세요." };
+  }
+  return { ok: true, message: "추첨 저장 함수(record_draw) 있음" };
+}
+
 export default async function Home() {
   // 이 화면을 열 때마다 서버에서 새로 확인하도록 합니다(미리 만들어 두지 않음).
   await connection();
@@ -78,6 +97,7 @@ export default async function Home() {
     ? await checkTables()
     : { ok: false, message: "접속이 되어야 확인할 수 있습니다." };
   const m0002 = tables.ok ? await checkMigration0002() : { ok: false, message: "표가 먼저 있어야 합니다." };
+  const m0003 = tables.ok ? await checkMigration0003() : { ok: false, message: "표가 먼저 있어야 합니다." };
 
   return (
     <main className="mx-auto w-full max-w-md px-4 py-8">
@@ -90,13 +110,14 @@ export default async function Home() {
         <StatusRow label="Supabase 실제 접속" ok={conn.ok} detail={conn.message} />
         <StatusRow label="데이터 창고 (2단계 표)" ok={tables.ok} detail={tables.message} />
         <StatusRow label="5단계 추가 SQL (0002)" ok={m0002.ok} detail={m0002.message} />
+        <StatusRow label="6단계 추가 SQL (0003)" ok={m0003.ok} detail={m0003.message} />
       </ul>
 
       {!conn.ok ? (
         <p className="mt-6 rounded-lg bg-orange-50 p-4 text-orange-800">
           ⚠️ Supabase 접속 설정이 아직 덜 되었습니다. README의 &quot;1단계&quot; 안내를 확인해 주세요.
         </p>
-      ) : !tables.ok || !m0002.ok ? (
+      ) : !tables.ok || !m0002.ok || !m0003.ok ? (
         <p className="mt-6 rounded-lg bg-orange-50 p-4 text-orange-800">
           ⚠️ 접속은 성공! 아직 실행하지 않은 SQL 파일(supabase/migrations 폴더)을 Supabase SQL Editor에서
           실행해 주세요. (README 참고)

@@ -4,6 +4,8 @@
 //   2) 투표 기간 안내 + 내 투표 (희망할 동 선택 / 이날은 어려워요 / 취소)
 //   3) 자리(진료실·각 동)별 희망 인원 / 정원 과 희망자 이름
 //   4) 미희망·제외 인원
+//   추첨이 끝난 날은 맨 위에 "확정 명단"이 나옵니다 (희망 확정 / 차출 / 관리자 수정 꼬리표).
+//   관리자: 마감 후 "지금 추첨" 버튼, 투표 중에는 "추첨 미리보기"(저장 안 됨)
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -14,7 +16,9 @@ import { getOverrides } from "@/lib/duty-days-server";
 import { getDayBoard, myStateFrom, type PostSlot } from "@/lib/day-board";
 import { STATUS_LABEL, votingStatus, votingWindow } from "@/lib/voting";
 import { Notice, Page } from "@/components/ui";
-import { cancelVoteAction, declineAction, wantAction } from "./actions";
+import { buildDrawInput, getDraw, getRoster, simulateDraw, type RosterEntry } from "@/lib/draw-server";
+import { getSupabaseAdmin } from "@/lib/supabase-server";
+import { cancelVoteAction, declineAction, manualDrawAction, wantAction } from "./actions";
 
 export default async function DayPage({ params, searchParams }: PageProps<"/day/[date]">) {
   const me = await requireMember();
@@ -36,12 +40,56 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   const clinicPosts = board.posts.filter((p) => p.pool === "clinic");
   const generalPosts = board.posts.filter((p) => p.pool === "general");
 
+  // 추첨 결과 (있으면) / 관리자 미리보기
+  const draw = await getDraw(date);
+  const roster = draw ? await getRoster(date) : null;
+  let preview: RosterEntry[] | null = null;
+  let previewShortage = 0;
+  if (!draw && me.is_admin && sp.preview === "1") {
+    const sim = simulateDraw(await buildDrawInput(date));
+    const { data: names } = await getSupabaseAdmin().from("members").select("id, name");
+    const nameOf = new Map((names ?? []).map((m) => [m.id as number, m.name as string]));
+    preview = sim.assignments.map((a) => ({ ...a, name: nameOf.get(a.memberId) ?? "?" }));
+    previewShortage = sim.shortage.clinic + sim.shortage.general;
+  }
+  // 희망했지만 정원 초과로 떨어져 쉬는 사람 (추첨 후)
+  const rosterIds = new Set((roster ?? []).map((r) => r.memberId));
+  const rested = roster ? board.posts.flatMap((p) => p.wanters.filter((w) => !rosterIds.has(w.id))) : [];
+  const myAssignment = roster?.find((r) => r.memberId === me.id);
+
   return (
     <Page title={formatLong(date)}>
       <p className="-mt-4 mb-4 text-sm text-zinc-500">{day.label ?? autoLabel(date)}</p>
 
-      {/* 1) 미응답자 — 최상단 주황색 */}
-      {board.unanswered.length > 0 && (
+      {/* 추첨 결과: 확정 명단 */}
+      {roster && draw && (
+        <section className="mb-4 space-y-3">
+          <p className={`rounded-lg p-3 font-semibold ${myAssignment ? "bg-blue-600 text-white" : "bg-zinc-100 dark:bg-zinc-900"}`}>
+            {myAssignment
+              ? `${me.name} 님은 ${board.posts.find((p) => p.id === myAssignment.postId)?.name} 출근입니다.`
+              : `${me.name} 님은 이 날 출근하지 않습니다.`}
+          </p>
+          {me.is_admin && draw.clinic_shortage + draw.general_shortage > 0 && (
+            <Notice kind="error">
+              ⚠️ 인원 부족 {draw.clinic_shortage + draw.general_shortage}명 (진료실 {draw.clinic_shortage} · 일반{" "}
+              {draw.general_shortage}). 빈자리를 채워 주세요.
+            </Notice>
+          )}
+          <RosterView title="확정 명단" posts={board.posts} roster={roster} />
+          {rested.length > 0 && (
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              <b>정원 초과로 쉼:</b> {rested.map((w) => w.name).join(", ")}
+            </p>
+          )}
+          <p className="text-xs text-zinc-500">
+            추첨: {new Date(draw.executed_at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })} ·{" "}
+            {{ cron: "자동(정기)", visit: "자동(접속 시)", manual: "관리자 수동" }[draw.triggered_by]}
+          </p>
+        </section>
+      )}
+
+      {/* 1) 미응답자 — 최상단 주황색 (추첨 전까지) */}
+      {!draw && board.unanswered.length > 0 && (
         <section className="mb-4 rounded-lg border border-orange-300 bg-orange-50 p-3 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100">
           <p className="font-bold">아직 응답하지 않은 사람 ({board.unanswered.length}명)</p>
           <p className="mt-1 text-sm leading-6">{board.unanswered.map((m) => m.name).join(", ")}</p>
@@ -119,6 +167,31 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         )}
       </section>
 
+      {/* 관리자: 수동 추첨 / 미리보기 */}
+      {me.is_admin && !draw && (
+        <section className="mt-3 rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+          <p className="text-sm font-semibold">관리자</p>
+          {status === "closed" ? (
+            <form action={manualDrawAction} className="mt-2">
+              <input type="hidden" name="date" value={date} />
+              <button type="submit" className="w-full rounded-lg bg-red-600 px-4 py-3 font-semibold text-white">
+                지금 추첨 (한 번만 실행됩니다)
+              </button>
+            </form>
+          ) : (
+            <Link href={`/day/${date}?preview=1`} className="mt-2 block text-sm text-blue-600 underline">
+              추첨 미리보기 (현재 응답 기준 · 저장 안 됨 · 누를 때마다 결과가 달라짐)
+            </Link>
+          )}
+          {preview && (
+            <div className="mt-3 space-y-2">
+              {previewShortage > 0 && <Notice kind="warn">미리보기상 인원 부족 {previewShortage}명</Notice>}
+              <RosterView title="미리보기 (저장 안 됨)" posts={board.posts} roster={preview} />
+            </div>
+          )}
+        </section>
+      )}
+
       {/* 3) 자리별 희망 현황 */}
       <h2 className="mt-6 mb-2 text-lg font-bold">희망 현황</h2>
       <PostTable title="진료실 (진료반)" posts={clinicPosts} />
@@ -146,6 +219,45 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         </Link>
       </div>
     </Page>
+  );
+}
+
+// 확정 명단 표: 자리마다 이름 + 꼬리표, 빈자리는 빨간색
+const SOURCE_LABEL = { wanted: "희망 확정", drafted: "차출", admin: "관리자 수정" } as const;
+const SOURCE_COLOR = {
+  wanted: "bg-blue-100 text-blue-800",
+  drafted: "bg-amber-100 text-amber-800",
+  admin: "bg-purple-100 text-purple-800",
+} as const;
+function RosterView({ title, posts, roster }: { title: string; posts: PostSlot[]; roster: RosterEntry[] }) {
+  return (
+    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+      <p className="border-b border-zinc-200 px-3 py-2 text-sm font-semibold dark:border-zinc-800">{title}</p>
+      <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+        {posts
+          .filter((p) => p.required > 0 || roster.some((r) => r.postId === p.id))
+          .map((p) => {
+            const people = roster.filter((r) => r.postId === p.id);
+            const empty = Math.max(0, p.required - people.length);
+            return (
+              <li key={p.id} className="px-3 py-2">
+                <p className="text-sm font-semibold">
+                  {p.name} ({people.length}/{p.required}명)
+                </p>
+                <p className="mt-1 flex flex-wrap gap-1.5 text-sm">
+                  {people.map((r) => (
+                    <span key={r.memberId} className="inline-flex items-center gap-1">
+                      {r.name}
+                      <span className={`rounded px-1 text-[11px] ${SOURCE_COLOR[r.source]}`}>{SOURCE_LABEL[r.source]}</span>
+                    </span>
+                  ))}
+                  {empty > 0 && <span className="text-red-600">빈자리 {empty}</span>}
+                </p>
+              </li>
+            );
+          })}
+      </ul>
+    </div>
   );
 }
 

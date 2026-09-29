@@ -11,12 +11,24 @@ import { getDutyDays, viewRange } from "@/lib/duty-days-server";
 import { formatShort } from "@/lib/kst";
 import { getMyStates, type MyState } from "@/lib/day-board";
 import { STATUS_LABEL, votingStatus } from "@/lib/voting";
+import { getSupabaseAdmin } from "@/lib/supabase-server";
 
 export default async function HomePage() {
   const me = await requireMember();
   const { from, to } = viewRange(); // 오늘 ~ 60일 뒤 (한국 날짜)
   const days = await getDutyDays(from, to);
   const myState = await getMyStates(me.id, from, to);
+
+  // 추첨이 끝난 날짜와 내 배정 (배지에 "출근·동 이름" / "미출근" 표시)
+  const db = getSupabaseAdmin();
+  const [{ data: drawRows }, { data: myRows }, { data: posts }] = await Promise.all([
+    db.from("draws").select("duty_date, clinic_shortage, general_shortage").gte("duty_date", from).lte("duty_date", to),
+    db.from("assignments").select("duty_date, post_id").eq("member_id", me.id).gte("duty_date", from).lte("duty_date", to),
+    db.from("posts").select("id, name"),
+  ]);
+  const drawn = new Map((drawRows ?? []).map((d) => [d.duty_date as string, d]));
+  const postName = new Map((posts ?? []).map((p) => [p.id as number, p.name as string]));
+  const myPost = new Map((myRows ?? []).map((r) => [r.duty_date as string, postName.get(r.post_id) ?? ""]));
   return (
     <Page title="주말·공휴일 출근 투표">
       <p className="text-lg">
@@ -42,8 +54,26 @@ export default async function HomePage() {
                   <span className="ml-2 text-xs text-zinc-500">{d.label}</span>
                 </span>
                 <span className="flex shrink-0 items-center gap-1 text-xs">
-                  <StateBadge state={myState(d.date)} status={votingStatus(d.date)} />
-                  <span className="text-zinc-500">{STATUS_LABEL[votingStatus(d.date)]} ›</span>
+                  {drawn.has(d.date) ? (
+                    <>
+                      {myPost.has(d.date) ? (
+                        <span className="rounded bg-blue-600 px-1.5 py-0.5 font-semibold text-white">출근·{myPost.get(d.date)}</span>
+                      ) : (
+                        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-zinc-500">미출근</span>
+                      )}
+                      {me.is_admin && drawn.get(d.date)!.clinic_shortage + drawn.get(d.date)!.general_shortage > 0 && (
+                        <span className="rounded bg-red-100 px-1.5 py-0.5 text-red-800">
+                          부족 {drawn.get(d.date)!.clinic_shortage + drawn.get(d.date)!.general_shortage}
+                        </span>
+                      )}
+                      <span className="text-zinc-500">추첨 완료 ›</span>
+                    </>
+                  ) : (
+                    <>
+                      <StateBadge state={myState(d.date)} status={votingStatus(d.date)} />
+                      <span className="text-zinc-500">{STATUS_LABEL[votingStatus(d.date)]} ›</span>
+                    </>
+                  )}
                 </span>
               </Link>
             </li>

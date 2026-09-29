@@ -1,6 +1,6 @@
 "use server";
 // ─────────────────────────────────────────────────────────────
-// 투표 서버 액션 — 희망(동 선택) / 미희망 / 취소
+// 투표 서버 액션 — 희망(동 선택) / 미희망 / 취소 + 관리자 수동 추첨
 // 서버에서 다시 한 번 모든 규칙을 확인합니다. (화면 버튼을 몰래 눌러도 규칙을 어길 수 없게)
 //   - 근무일이 맞는지, 투표 기간(30일 전 00:00 ~ 2일 전 21:00)인지
 //   - 휴가·부상으로 제외된 날이 아닌지
@@ -8,13 +8,14 @@
 // ─────────────────────────────────────────────────────────────
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireMember } from "@/lib/session";
+import { requireAdmin, requireMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { isValidDate } from "@/lib/kst";
 import { votingStatus } from "@/lib/voting";
 import { computeDutyDays } from "@/lib/duty-days";
 import { getOverrides } from "@/lib/duty-days-server";
 import { getExcludedIds, getPostsForDate } from "@/lib/day-board";
+import { executeDraw } from "@/lib/draw-server";
 
 function back(date: string, kind: "msg" | "error", text: string): never {
   revalidatePath(`/day/${date}`);
@@ -76,4 +77,15 @@ export async function cancelVoteAction(formData: FormData) {
   await checkCanVote(date, me.id);
   await getSupabaseAdmin().from("responses").delete().eq("member_id", me.id).eq("duty_date", date);
   back(date, "msg", "응답을 취소했습니다. (미응답 상태)");
+}
+
+// ── 관리자: 지금 추첨 (마감이 지난 날, 아직 추첨 안 된 날만) ──
+// 8단계에서 자동 추첨(정기 실행·접속 시 안전장치)이 붙고, 이 버튼은 예비용이 됩니다.
+export async function manualDrawAction(formData: FormData) {
+  const me = await requireAdmin();
+  const date = String(formData.get("date") ?? "");
+  const r = await executeDraw(date, "manual", me.id);
+  if (r.status === "not-ready") back(date, "error", r.reason);
+  if (r.status === "already") back(date, "msg", "이미 추첨이 끝난 날입니다. (결과는 한 번만 만들어집니다)");
+  back(date, "msg", "추첨을 완료했습니다.");
 }
