@@ -76,6 +76,14 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
             </Notice>
           )}
           <RosterView title="확정 명단" posts={board.posts} roster={roster} />
+          {me.is_admin && (
+            <Link
+              href={`/admin/roster/${date}`}
+              className="block rounded-lg border border-purple-300 px-3 py-2 text-center text-sm font-semibold text-purple-800 dark:text-purple-300"
+            >
+              명단 수정 (관리자) →
+            </Link>
+          )}
           {rested.length > 0 && (
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
               <b>정원 초과로 쉼:</b> {rested.map((w) => w.name).join(", ")}

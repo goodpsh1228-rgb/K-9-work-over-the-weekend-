@@ -96,6 +96,7 @@ export default async function HomePage() {
             <MenuLink href="/admin/duty-days">근무일 관리 (관리자)</MenuLink>
             <MenuLink href="/admin/members">인원 관리 · 삭제 (관리자)</MenuLink>
             <MenuLink href="/admin/members/import">인원 일괄 등록 (관리자)</MenuLink>
+            <MenuLink href="/admin/audit">변경 이력 (관리자)</MenuLink>
             <MenuLink href="/status">서버 점검 화면 (관리자)</MenuLink>
           </>
         )}
