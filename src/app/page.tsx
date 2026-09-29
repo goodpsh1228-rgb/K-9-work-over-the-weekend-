@@ -39,8 +39,8 @@ export default async function Home() {
       <p className="mt-1 text-sm text-zinc-500">1단계: 준비 상태 점검 화면</p>
 
       <ul className="mt-6 space-y-3">
-        <StatusRow label="Supabase 주소 (SUPABASE_URL)" ok={env.hasUrl} />
-        <StatusRow label="Supabase 비밀 키 (SUPABASE_SECRET_KEY)" ok={env.hasSecretKey} />
+        <StatusRow label="Supabase 주소 (SUPABASE_URL)" ok={env.hasUrl} detail={env.urlHint} />
+        <StatusRow label="Supabase 비밀 키 (SUPABASE_SECRET_KEY)" ok={env.hasSecretKey} detail={env.keyHint} />
         <StatusRow label="Supabase 실제 접속" ok={conn.ok} detail={conn.message} />
       </ul>
 

@@ -14,12 +14,37 @@ import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // .env.local 에 필요한 값이 들어 있는지 확인하는 함수.
-// 값 자체는 돌려주지 않고 "있다/없다"만 알려줍니다.
+// 값 자체는 돌려주지 않고 "있다/없다"와 "어떤 모양인지"만 알려줍니다.
 export function getSupabaseEnvStatus() {
+  const url = process.env.SUPABASE_URL ?? "";
+  const key = process.env.SUPABASE_SECRET_KEY ?? "";
   return {
-    hasUrl: Boolean(process.env.SUPABASE_URL),
-    hasSecretKey: Boolean(process.env.SUPABASE_SECRET_KEY),
+    hasUrl: Boolean(url),
+    hasSecretKey: Boolean(key),
+    urlHint: describeUrl(url),
+    keyHint: describeKey(key),
   };
+}
+
+// 주소가 "https://....supabase.co" 모양인지 확인합니다.
+function describeUrl(url: string): string {
+  if (!url) return "";
+  if (url !== url.trim()) return "앞뒤에 빈칸이 들어 있습니다. 빈칸을 지워 주세요.";
+  if (/^https:\/\/[a-z0-9]+\.supabase\.co\/?$/.test(url)) return "주소 형식 정상";
+  return "주소 형식이 이상합니다. https://(영문숫자).supabase.co 형태여야 합니다.";
+}
+
+// 키의 "종류"만 알려줍니다. (키 값은 절대 화면에 보여주지 않습니다)
+function describeKey(key: string): string {
+  if (!key) return "";
+  if (key !== key.trim()) return "앞뒤에 빈칸이 들어 있습니다. 빈칸을 지워 주세요.";
+  if (key.includes("•") || key.includes("*"))
+    return "가려진(••••) 상태로 복사된 것 같습니다. 눈 모양 버튼으로 키를 보이게 한 뒤 복사해 주세요.";
+  if (key.startsWith("sb_publishable_"))
+    return "공개 키(sb_publishable_)가 들어 있습니다. 비밀 키(sb_secret_)로 바꿔 주세요.";
+  if (key.startsWith("sb_secret_")) return `비밀 키(sb_secret_) 형식, 길이 ${key.length}자`;
+  if (key.startsWith("eyJ")) return `예전 방식(JWT) 키 형식, 길이 ${key.length}자 — service_role 키여야 합니다.`;
+  return "알 수 없는 형식입니다. sb_secret_ 로 시작하는 키를 넣어 주세요.";
 }
 
 // 참고: 주소 이름을 NEXT_PUBLIC_ 으로 시작하지 않는 이유 —
