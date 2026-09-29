@@ -17,10 +17,14 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 // 값 자체는 돌려주지 않고 "있다/없다"만 알려줍니다.
 export function getSupabaseEnvStatus() {
   return {
-    hasUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    hasUrl: Boolean(process.env.SUPABASE_URL),
     hasSecretKey: Boolean(process.env.SUPABASE_SECRET_KEY),
   };
 }
+
+// 참고: 주소 이름을 NEXT_PUBLIC_ 으로 시작하지 않는 이유 —
+// NEXT_PUBLIC_ 이 붙으면 브라우저에도 값이 전달되고, Vercel에서 Secret으로 저장할 수 없습니다.
+// 이 주소는 서버에서만 쓰므로 일반 이름(SUPABASE_URL)을 씁니다.
 
 // 데이터베이스 접속 도구를 한 번만 만들어 두고 계속 재사용합니다.
 let cachedClient: SupabaseClient | null = null;
@@ -28,12 +32,12 @@ let cachedClient: SupabaseClient | null = null;
 export function getSupabaseAdmin(): SupabaseClient {
   if (cachedClient) return cachedClient;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = process.env.SUPABASE_URL;
   const secretKey = process.env.SUPABASE_SECRET_KEY;
 
   if (!url || !secretKey) {
     throw new Error(
-      "Supabase 설정이 없습니다. .env.local 파일에 NEXT_PUBLIC_SUPABASE_URL 과 SUPABASE_SECRET_KEY 를 넣어 주세요.",
+      "Supabase 설정이 없습니다. .env.local 파일에 SUPABASE_URL 과 SUPABASE_SECRET_KEY 를 넣어 주세요.",
     );
   }
 

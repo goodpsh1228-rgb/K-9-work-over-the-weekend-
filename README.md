@@ -25,7 +25,7 @@
 
 1. <https://vercel.com> 에서 **Add New… → Project**를 누르고, 이 저장소를 **Import** 합니다.
 2. 설정 화면에서 **Environment Variables**를 펼쳐 아래 2개를 입력합니다.
-   - `NEXT_PUBLIC_SUPABASE_URL` = Supabase의 Project URL
+   - `SUPABASE_URL` = Supabase의 Project URL
    - `SUPABASE_SECRET_KEY` = Supabase의 Secret key (`sb_secret_...`)
 3. **Deploy**를 누르고, 끝나면 나오는 주소(`https://….vercel.app`)를 엽니다.
 4. 세 줄이 모두 **정상**이면 1단계 완료입니다.
