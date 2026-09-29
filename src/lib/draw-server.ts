@@ -9,8 +9,9 @@ import { randomInt } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { getExcludedIds, getPostsForDate } from "@/lib/day-board";
 import { computeDutyDays } from "@/lib/duty-days";
-import { getOverrides, getVoteInfo } from "@/lib/duty-days-server";
-import { isValidDate } from "@/lib/kst";
+import { getFridayChecker, getOverrides, getVoteInfo } from "@/lib/duty-days-server";
+import { votingStatus } from "@/lib/voting";
+import { addDays, isValidDate, todayKST } from "@/lib/kst";
 import { writeAudit } from "@/lib/audit";
 import { runDraw, type DrawInput, type DrawResult } from "@/lib/draw";
 
@@ -108,4 +109,41 @@ export async function getRoster(date: string): Promise<RosterEntry[]> {
       source: r.source as RosterEntry["source"],
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+}
+
+// ─────────────────────────────────────────────────────────────
+// 자동 추첨: 투표가 마감됐는데 아직 추첨하지 않은 근무일을 모두 찾아 추첨합니다.
+//   - 정기 실행(크론), 접속 시 안전장치가 이 함수를 부릅니다.
+//   - 오늘(한국 날짜) 이후의 근무일만 대상 (이미 지나간 날은 추첨하지 않음)
+//   - 여러 곳에서 동시에 불려도 executeDraw 가 날짜마다 한 번만 저장하므로 안전합니다.
+// ─────────────────────────────────────────────────────────────
+const LOOKAHEAD_DAYS = 14; // 투표 주의 대상은 최대 월요일+10일이므로 넉넉히 2주
+
+export async function runPendingDraws(trigger: Trigger) {
+  const from = todayKST();
+  const to = addDays(from, LOOKAHEAD_DAYS);
+  const days = computeDutyDays(from, to, await getOverrides(from, to));
+  const fridayIsDuty = await getFridayChecker(from, to);
+  const now = new Date();
+  const closed = days.map((d) => d.date).filter((d) => votingStatus(d, fridayIsDuty(d), now) === "closed");
+  if (closed.length === 0) return { checked: 0, drawn: [] as string[] };
+
+  // 이미 추첨된 날은 한 번에 조회해서 건너뜀
+  const { data: done } = await getSupabaseAdmin().from("draws").select("duty_date").in("duty_date", closed);
+  const doneSet = new Set((done ?? []).map((r) => r.duty_date as string));
+  const drawn: string[] = [];
+  for (const date of closed.filter((d) => !doneSet.has(d))) {
+    const r = await executeDraw(date, trigger, null);
+    if (r.status === "done") drawn.push(date);
+  }
+  return { checked: closed.length, drawn };
+}
+
+// 화면을 열 때 쓰는 안전장치: 실패해도 화면은 정상적으로 보이도록 오류를 삼킵니다.
+export async function runPendingDrawsSafely() {
+  try {
+    await runPendingDraws("visit");
+  } catch (e) {
+    console.error("접속 시 자동 추첨 실패:", e);
+  }
 }

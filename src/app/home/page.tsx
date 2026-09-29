@@ -12,10 +12,13 @@ import { formatShort } from "@/lib/kst";
 import { getMyStates, type MyState } from "@/lib/day-board";
 import { STATUS_LABEL, votingStatus } from "@/lib/voting";
 import { getFridayChecker } from "@/lib/duty-days-server";
+import { runPendingDrawsSafely } from "@/lib/draw-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 
 export default async function HomePage() {
   const me = await requireMember();
+  // 안전장치: 마감됐는데 아직 추첨 안 된 날이 있으면 지금 추첨 (정기 실행이 늦거나 실패했을 때 대비)
+  await runPendingDrawsSafely();
   const { from, to } = viewRange(); // 오늘 ~ 60일 뒤 (한국 날짜)
   const days = await getDutyDays(from, to);
   const myState = await getMyStates(me.id, from, to);

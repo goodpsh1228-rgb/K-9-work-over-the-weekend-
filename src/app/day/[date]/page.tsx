@@ -10,14 +10,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireMember } from "@/lib/session";
-import { addDays, formatLong, formatShort, isValidDate } from "@/lib/kst";
+import { addDays, dateRange, formatLong, formatShort, isValidDate } from "@/lib/kst";
 import { autoLabel, computeDutyDays } from "@/lib/duty-days";
 import { getOverrides, getVoteInfo } from "@/lib/duty-days-server";
-import { getDayBoard, myStateFrom, type PostSlot } from "@/lib/day-board";
+import { getDayBoard, getPostsForDate, myStateFrom, type PostSlot } from "@/lib/day-board";
 import { STATUS_LABEL } from "@/lib/voting";
 import { Notice, Page } from "@/components/ui";
-import { buildDrawInput, getDraw, getRoster, simulateDraw, type RosterEntry } from "@/lib/draw-server";
+import { buildDrawInput, getDraw, getRoster, runPendingDrawsSafely, simulateDraw, type RosterEntry } from "@/lib/draw-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
+import { buildKakaoText } from "@/lib/roster-text";
+import { CopyButton } from "@/components/copy-button";
 import { cancelVoteAction, declineAction, manualDrawAction, wantAction } from "./actions";
 
 export default async function DayPage({ params, searchParams }: PageProps<"/day/[date]">) {
@@ -30,6 +32,8 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   const msg = typeof sp.msg === "string" ? sp.msg : null;
   const error = typeof sp.error === "string" ? sp.error : null;
 
+  // 안전장치: 마감됐는데 아직 추첨 안 된 날이 있으면 지금 추첨
+  await runPendingDrawsSafely();
   const board = await getDayBoard(date);
   const mine = myStateFrom(board, me.id);
   // 투표 상태: status = 내 계급 기준, overall = 투표 전체 기준(월요일 시작)
@@ -57,6 +61,19 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   const rested = roster ? board.posts.flatMap((p) => p.wanters.filter((w) => !rosterIds.has(w.id))) : [];
   const myAssignment = roster?.find((r) => r.memberId === me.id);
 
+  // 관리자: 카카오톡용 글 (이 날 + 같은 투표 주에 추첨이 끝난 모든 날)
+  let kakaoDay: string | null = null;
+  let kakaoWeek: string | null = null;
+  if (me.is_admin && roster) {
+    kakaoDay = buildKakaoText(date, board.posts, roster);
+    const texts: string[] = [];
+    for (const d of dateRange(win.coverFrom, win.coverTo)) {
+      if (d === date) texts.push(kakaoDay);
+      else if (await getDraw(d)) texts.push(buildKakaoText(d, await getPostsForDate(d), await getRoster(d)));
+    }
+    if (texts.length > 1) kakaoWeek = texts.join("\n\n");
+  }
+
   return (
     <Page title={formatLong(date)}>
       <p className="-mt-4 mb-4 text-sm text-zinc-500">{day.label ?? autoLabel(date)}</p>
@@ -83,6 +100,16 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
             >
               명단 수정 (관리자) →
             </Link>
+          )}
+          {kakaoDay && (
+            <div className="space-y-2">
+              <CopyButton text={kakaoDay} />
+              {kakaoWeek && <CopyButton text={kakaoWeek} label="이번 투표 주 전체 복사" />}
+              <details className="text-sm">
+                <summary className="cursor-pointer text-zinc-500">복사될 글 미리보기</summary>
+                <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-zinc-100 p-3 text-xs dark:bg-zinc-900">{kakaoDay}</pre>
+              </details>
+            </div>
           )}
           {rested.length > 0 && (
             <p className="text-sm text-zinc-600 dark:text-zinc-400">

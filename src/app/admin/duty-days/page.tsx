@@ -62,7 +62,10 @@ export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/d
         <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white">
           공휴일 추가
         </button>
-        <p className="text-xs text-zinc-500">금요일을 추가하면 그 주 투표는 화요일 21:00에 마감됩니다.</p>
+        <p className="text-xs text-zinc-500">
+          금요일을 추가하면 그 주 투표는 화요일 21:00에 마감됩니다. 투표 기간이 이미 지난 날을 추가하면 곧바로 자동
+          추첨(전원 차출)됩니다.
+        </p>
       </form>
 
       {/* 근무일 목록 */}

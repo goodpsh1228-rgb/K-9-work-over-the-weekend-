@@ -13,7 +13,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { autoLabel } from "@/lib/duty-days";
 import { formatShort, isValidDate, todayKST } from "@/lib/kst";
-import { isDrawn } from "@/lib/duty-days-server";
+import { getVoteInfo, isDrawn } from "@/lib/duty-days-server";
 
 const LIST = "/admin/duty-days";
 
@@ -56,7 +56,14 @@ export async function addDutyDayAction(formData: FormData) {
     if (error) back(LIST, "error", "저장 중 오류: " + error.message);
   }
   await writeAudit({ actorId: me.id, action: "dutyday.add", dutyDate: date, details: { note } });
-  back(LIST, "msg", `${formatShort(date)} 을(를) 공휴일(근무일)로 추가했습니다.`);
+  // 이 날의 투표 주가 이미 마감됐으면, 곧바로 자동 추첨(전원 차출)된다는 것을 알려 줌
+  const closedAlready = (await getVoteInfo(date)).overall === "closed";
+  back(
+    LIST,
+    "msg",
+    `${formatShort(date)} 을(를) 공휴일(근무일)로 추가했습니다.` +
+      (closedAlready ? " ⚠ 이 날의 투표 기간은 이미 끝나서, 곧바로 자동 추첨(전원 차출)됩니다." : ""),
+  );
 }
 
 // ── 근무 없음으로 (삭제) ──────────────────────────────────────
