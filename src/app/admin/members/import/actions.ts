@@ -3,14 +3,14 @@
 // 인원 일괄 등록 서버 액션 (관리자 전용)
 //  1) 목록 글을 읽어 검사 (형식 오류가 하나라도 있으면 아무것도 등록하지 않음)
 //  2) 이미 등록된 이름과 겹치는지 확인
-//  3) 빈 비밀번호는 6자리 숫자로 자동 생성
+//  3) 빈 비밀번호는 기본 초기 비밀번호(1111)로 채움
 //  4) 비밀번호는 해시로 바꿔서 한 번에 저장 (모두 첫 로그인 시 비밀번호 변경 필요)
 //  5) 이름 + 초기 비밀번호 목록을 화면에 한 번만 돌려줌 (서버에는 원문을 저장하지 않음)
 // ─────────────────────────────────────────────────────────────
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
-import { generateInitialPassword, hashPassword } from "@/lib/password";
+import { DEFAULT_INITIAL_PASSWORD, hashPassword } from "@/lib/password";
 import { parseMemberTable } from "@/lib/member-import";
 import { writeAudit } from "@/lib/audit";
 
@@ -44,8 +44,8 @@ export async function importMembersAction(_prev: ImportState, formData: FormData
 
   // 3) 비밀번호 준비 + 4) 해시로 변환
   const prepared = rows.map((r) => {
-    const generated = r.password === "";
-    return { ...r, password: generated ? generateInitialPassword() : r.password, generated };
+    const generated = r.password === ""; // true = 기본값(1111) 사용
+    return { ...r, password: generated ? DEFAULT_INITIAL_PASSWORD : r.password, generated };
   });
   const records = await Promise.all(
     prepared.map(async (r) => ({

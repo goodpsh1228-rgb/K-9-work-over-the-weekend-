@@ -67,7 +67,7 @@ export function ImportForm() {
               <tr key={r.name} className="border-b border-zinc-100 dark:border-zinc-900">
                 <td className="py-1">{r.name}</td>
                 <td className="py-1 font-mono">
-                  {r.password} {r.generated && <span className="text-xs text-zinc-400">(자동)</span>}
+                  {r.password} {r.generated && <span className="text-xs text-zinc-400">(기본)</span>}
                 </td>
               </tr>
             ))}
@@ -97,7 +97,7 @@ export function ImportForm() {
       <div className="rounded-lg bg-zinc-100 p-3 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
         <p className="font-semibold">목록 형식 (한 줄에 한 명)</p>
         <p className="mt-1">이름, 초기비밀번호, 진료반 여부(O/X), 관리자 여부(O/X)</p>
-        <p className="mt-1">· 초기비밀번호를 비우면 6자리 숫자가 자동으로 만들어집니다.</p>
+        <p className="mt-1">· 초기비밀번호를 비우면 <b>1111</b> 로 등록됩니다. (첫 로그인 때 각자 새 비밀번호로 변경)</p>
         <p>· 동명이인은 홍길동A / 홍길동B 처럼 이름이 겹치지 않게 적어 주세요.</p>
         <button type="button" onClick={() => setText(EXAMPLE)} className="mt-2 text-blue-600 underline">
           예시 넣어 보기

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// 비밀번호 도구 — "해시" 만들기 / 확인하기 / 초기 비밀번호 자동 생성
+// 비밀번호 도구 — "해시" 만들기 / 확인하기 / 기본 초기 비밀번호
 //
 // 해시(hash)란?
 //   비밀번호를 되돌릴 수 없는 긴 문자열로 바꾼 것입니다.
@@ -13,7 +13,7 @@
 // 여기서는 Node.js에 내장된 scrypt(일부러 계산을 느리게 만든 해시 방식)를 씁니다.
 // ─────────────────────────────────────────────────────────────
 import "server-only";
-import { randomBytes, randomInt, scrypt, timingSafeEqual } from "node:crypto";
+import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 
 // scrypt 설정값 (클수록 안전하지만 느려짐). 로그인 1회에 수십 밀리초 정도 걸리는 값입니다.
 const N = 16384;
@@ -56,13 +56,10 @@ export function getDummyHash(): Promise<string> {
   return dummyHash;
 }
 
-// 초기 비밀번호 자동 생성: 무작위 숫자 6자리 (예: "048213")
-// randomInt 는 암호학적으로 안전한 난수를 씁니다.
-export function generateInitialPassword(): string {
-  let s = "";
-  for (let i = 0; i < 6; i++) s += String(randomInt(0, 10));
-  return s;
-}
+// 기본 초기 비밀번호: 일괄 등록 때 비밀번호 칸을 비우면 이 값이 들어갑니다.
+// (7단계의 "비밀번호 초기화"도 이 값을 씁니다.)
+// 모두가 아는 값이므로, 첫 로그인 때 반드시 본인만 아는 비밀번호로 바꾸게 되어 있습니다.
+export const DEFAULT_INITIAL_PASSWORD = "1111";
 
 // 새 비밀번호 규칙 (사용자가 직접 바꿀 때)
 export const MIN_PASSWORD_LENGTH = 6;

@@ -4,7 +4,7 @@
 // 받는 형식 (첫 줄은 제목 줄이어도 되고 없어도 됩니다)
 //   이름, 초기비밀번호, 진료반 여부, 관리자 여부
 //   홍길동, 1234, O, X
-//   김철수, , X, X          ← 비밀번호를 비우면 나중에 6자리 숫자를 자동 생성
+//   김철수, , X, X          ← 비밀번호를 비우면 기본 초기 비밀번호(1111)로 등록
 //
 // - 쉼표(,)로 구분된 CSV 와, 엑셀/Numbers 에서 표를 복사해 붙여넣은 글(칸 사이가 탭)을 모두 읽습니다.
 // - "여부" 칸은 O/X, 예/아니오, Y/N, 1/0 등을 알아듣습니다. 빈칸은 "아니오"로 봅니다.
@@ -14,7 +14,7 @@
 export type ImportRow = {
   line: number; // 원본 몇 번째 줄인지 (오류 안내용)
   name: string;
-  password: string; // 빈 문자열이면 자동 생성 대상
+  password: string; // 빈 문자열이면 기본 초기 비밀번호(1111) 사용
   isClinic: boolean;
   isAdmin: boolean;
 };
@@ -91,7 +91,7 @@ export function parseMemberTable(text: string): ParseResult {
       return;
     }
     if (password !== "" && (password.length < 4 || password.length > 100)) {
-      errors.push(`${lineNo}번째 줄: 초기 비밀번호는 4자 이상이어야 합니다(비우면 자동 생성).`);
+      errors.push(`${lineNo}번째 줄: 초기 비밀번호는 4자 이상이어야 합니다(비우면 1111).`);
       return;
     }
     const isClinic = parseYesNo(clinicRaw);
@@ -117,7 +117,7 @@ export function parseMemberTable(text: string): ParseResult {
 // 결과 파일(CSV) 만들기 — 엑셀에서 한글이 깨지지 않도록 BOM 을 앞에 붙입니다.
 export function buildResultCsv(list: { name: string; password: string; generated: boolean }[]): string {
   const esc = (s: string) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-  const lines = ["이름,초기비밀번호,자동생성"];
+  const lines = ["이름,초기비밀번호,기본값사용"];
   for (const r of list) lines.push([esc(r.name), esc(r.password), r.generated ? "O" : "X"].join(","));
   return "﻿" + lines.join("\r\n");
 }
