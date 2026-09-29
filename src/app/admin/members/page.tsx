@@ -18,7 +18,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
   const msg = typeof sp.msg === "string" ? sp.msg : null;
   const error = typeof sp.error === "string" ? sp.error : null;
 
-  const { data: members } = await getSupabaseAdmin()
+  const { data: members, error: loadError } = await getSupabaseAdmin()
     .from("members")
     .select("id, name, rank, is_clinic, is_admin, is_active, must_change_password")
     .order("is_active", { ascending: false })
@@ -29,6 +29,12 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
   return (
     <Page title="인원 관리">
       <div className="space-y-3">
+        {loadError && (
+          <Notice kind="error">
+            인원 목록을 불러오지 못했습니다. 계급 기능용 SQL(supabase/migrations/0004_rank_and_delete.sql)을 Supabase SQL
+            Editor에서 실행했는지 확인해 주세요. (/status 화면에서 확인 가능)
+          </Notice>
+        )}
         {msg && <Notice kind="success">{msg}</Notice>}
         {error && <Notice kind="error">{error}</Notice>}
         {noRank > 0 && (

@@ -85,11 +85,15 @@ export async function getCurrentMember(): Promise<Member | null> {
   if (payload.e < Date.now()) return null; // 만료
 
   // 데이터베이스에서 최신 상태 확인 (비활성화·세션 번호 변경 반영)
-  const { data } = await getSupabaseAdmin()
-    .from("members")
-    .select("id, name, is_admin, is_clinic, must_change_password, session_version, is_active, rank")
-    .eq("id", payload.m)
-    .maybeSingle();
+  const db = getSupabaseAdmin();
+  const BASE = "id, name, is_admin, is_clinic, must_change_password, session_version, is_active";
+  let { data, error } = await db.from("members").select(`${BASE}, rank`).eq("id", payload.m).maybeSingle();
+  if (error) {
+    // 계급(rank) 칸이 아직 없는 경우(0004 SQL 실행 전)에도 로그인이 되도록, 계급 없이 다시 읽습니다.
+    console.error("인원 정보 읽기 실패(계급 제외 후 재시도):", error.message);
+    ({ data, error } = await db.from("members").select(BASE).eq("id", payload.m).maybeSingle());
+    if (data) data = { ...data, rank: null };
+  }
   if (!data || !data.is_active || data.session_version !== payload.v) return null;
 
   return {

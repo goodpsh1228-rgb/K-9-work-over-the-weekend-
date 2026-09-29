@@ -7,6 +7,7 @@
 //   ③ 2단계에서 만든 데이터 창고의 표 9개가 모두 있는가
 //   ④ 5단계 추가 SQL(0002: 희망 동 저장 칸)이 실행되었는가
 //   ⑤ 6단계 추가 SQL(0003: 추첨 저장 함수)이 실행되었는가
+//   ⑥ 추가 SQL(0004: 계급·인원 삭제)이 실행되었는가
 // 값 자체는 보여주지 않으므로 로그인 없이 열 수 있습니다.
 // ─────────────────────────────────────────────────────────────
 import { connection } from "next/server";
@@ -84,6 +85,13 @@ async function checkMigration0003(): Promise<Check> {
   return { ok: true, message: "추첨 저장 함수(record_draw) 있음" };
 }
 
+// 추가 SQL(0004)을 실행했는지: members 표에 rank(계급) 칸이 있는지 확인
+async function checkMigration0004(): Promise<Check> {
+  const { error } = await getSupabaseAdmin().from("members").select("rank", { head: true, count: "exact" });
+  if (error) return { ok: false, message: "supabase/migrations/0004_rank_and_delete.sql 을 SQL Editor에서 실행해 주세요." };
+  return { ok: true, message: "계급(rank) 칸 있음" };
+}
+
 export default async function Home() {
   // 이 화면을 열 때마다 서버에서 새로 확인하도록 합니다(미리 만들어 두지 않음).
   await connection();
@@ -98,6 +106,7 @@ export default async function Home() {
     : { ok: false, message: "접속이 되어야 확인할 수 있습니다." };
   const m0002 = tables.ok ? await checkMigration0002() : { ok: false, message: "표가 먼저 있어야 합니다." };
   const m0003 = tables.ok ? await checkMigration0003() : { ok: false, message: "표가 먼저 있어야 합니다." };
+  const m0004 = tables.ok ? await checkMigration0004() : { ok: false, message: "표가 먼저 있어야 합니다." };
 
   return (
     <main className="mx-auto w-full max-w-md px-4 py-8">
@@ -111,13 +120,14 @@ export default async function Home() {
         <StatusRow label="데이터 창고 (2단계 표)" ok={tables.ok} detail={tables.message} />
         <StatusRow label="5단계 추가 SQL (0002)" ok={m0002.ok} detail={m0002.message} />
         <StatusRow label="6단계 추가 SQL (0003)" ok={m0003.ok} detail={m0003.message} />
+        <StatusRow label="계급·삭제 추가 SQL (0004)" ok={m0004.ok} detail={m0004.message} />
       </ul>
 
       {!conn.ok ? (
         <p className="mt-6 rounded-lg bg-orange-50 p-4 text-orange-800">
           ⚠️ Supabase 접속 설정이 아직 덜 되었습니다. README의 &quot;1단계&quot; 안내를 확인해 주세요.
         </p>
-      ) : !tables.ok || !m0002.ok || !m0003.ok ? (
+      ) : !tables.ok || !m0002.ok || !m0003.ok || !m0004.ok ? (
         <p className="mt-6 rounded-lg bg-orange-50 p-4 text-orange-800">
           ⚠️ 접속은 성공! 아직 실행하지 않은 SQL 파일(supabase/migrations 폴더)을 Supabase SQL Editor에서
           실행해 주세요. (README 참고)
