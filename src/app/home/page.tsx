@@ -1,14 +1,18 @@
 // ─────────────────────────────────────────────────────────────
-// 로그인 후 첫 화면 (/home) — 지금은 임시 화면입니다.
-// 5단계에서 근무일 목록과 희망/미희망 투표 화면이 여기에 들어옵니다.
+// 로그인 후 첫 화면 (/home)
+// 지금은 다가오는 근무일 목록만 보여 주고, 5단계에서 희망/미희망 투표 기능이 붙습니다.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
 import { requireMember } from "@/lib/session";
 import { logoutAction } from "@/app/auth-actions";
 import { Page } from "@/components/ui";
+import { getDutyDays, viewRange } from "@/lib/duty-days-server";
+import { formatShort } from "@/lib/kst";
 
 export default async function HomePage() {
   const me = await requireMember();
+  const { from, to } = viewRange(); // 오늘 ~ 60일 뒤 (한국 날짜)
+  const days = await getDutyDays(from, to);
   return (
     <Page title="주말·공휴일 출근 투표">
       <p className="text-lg">
@@ -20,13 +24,25 @@ export default async function HomePage() {
         {me.is_clinic && <span className="rounded bg-teal-100 px-2 py-0.5 text-teal-800">진료반</span>}
       </p>
 
-      <p className="mt-6 rounded-lg bg-zinc-100 p-4 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
-        근무일 투표 화면은 5단계에서 이곳에 만들어집니다.
-      </p>
+      {/* 다가오는 근무일 목록 (5단계에서 각 날짜에 희망/미희망 버튼이 붙습니다) */}
+      <h2 className="mt-6 mb-2 text-lg font-bold">다가오는 근무일</h2>
+      {days.length === 0 ? (
+        <p className="text-sm text-zinc-500">앞으로 60일 안에 근무일이 없습니다.</p>
+      ) : (
+        <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+          {days.map((d) => (
+            <li key={d.date} className="flex items-center justify-between px-3 py-2">
+              <span className="font-semibold">{formatShort(d.date)}</span>
+              <span className="text-sm text-zinc-500">{d.label}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <nav className="mt-6 space-y-2">
         {me.is_admin && (
           <>
+            <MenuLink href="/admin/duty-days">근무일 관리 (관리자)</MenuLink>
             <MenuLink href="/admin/members/import">인원 일괄 등록 (관리자)</MenuLink>
             <MenuLink href="/status">서버 점검 화면 (관리자)</MenuLink>
           </>
