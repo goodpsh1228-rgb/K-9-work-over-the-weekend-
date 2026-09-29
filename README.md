@@ -19,6 +19,19 @@
 - [ ] 8단계: 텍스트 복사, 자동 추첨 예약
 - [ ] 9단계: 테스트와 배포
 
+## 1단계: 아이패드(또는 컴퓨터 없이)로 확인하기 — Vercel 사용
+
+아이패드에서는 프로그램을 직접 실행할 수 없으므로, Vercel이 GitHub 코드를 받아 인터넷에 띄워 주는 방식으로 확인합니다.
+
+1. <https://vercel.com> 에서 **Add New… → Project**를 누르고, 이 저장소를 **Import** 합니다.
+2. 설정 화면에서 **Environment Variables**를 펼쳐 아래 2개를 입력합니다.
+   - `NEXT_PUBLIC_SUPABASE_URL` = Supabase의 Project URL
+   - `SUPABASE_SECRET_KEY` = Supabase의 Secret key (`sb_secret_...`)
+3. **Deploy**를 누르고, 끝나면 나오는 주소(`https://….vercel.app`)를 엽니다.
+4. 세 줄이 모두 **정상**이면 1단계 완료입니다.
+
+> 환경변수를 나중에 바꾸면 **Deployments → 최근 배포의 ⋯ → Redeploy**를 해야 반영됩니다.
+
 ## 1단계: 내 컴퓨터에서 실행하기
 
 ### 준비물
