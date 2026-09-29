@@ -38,7 +38,7 @@ export function computeDays(from: string, to: string, overrides: Override[]): Da
     if (!auto && !o) continue; // 평범한 평일
     const isDutyDay = o ? o.kind === "add" : true;
     let label = auto ?? "평일";
-    if (o?.kind === "add" && !auto) label = `추가 근무일${o.note ? ` · ${o.note}` : ""}`;
+    if (o?.kind === "add" && !auto) label = o.note ? o.note : "추가 공휴일";
     if (o?.kind === "remove") label = `${auto ?? "평일"} (근무 없음${o.note ? ` · ${o.note}` : ""})`;
     out.push({ date, auto: auto !== null, label, override: o?.kind ?? null, isDutyDay });
   }

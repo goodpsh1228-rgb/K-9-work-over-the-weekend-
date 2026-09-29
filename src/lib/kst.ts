@@ -72,3 +72,9 @@ export function dateRange(from: string, to: string): string[] {
 export function kstMoment(date: string, hour = 0, minute = 0): Date {
   return new Date(toDayNumber(date) + (hour * 60 + minute) * 60 * 1000 - KST_OFFSET_MS);
 }
+
+// 그 날짜가 속한 주의 월요일 (주는 월~일)
+export function mondayOf(date: string): string {
+  const w = weekday(date); // 0=일 … 6=토
+  return addDays(date, w === 0 ? -6 : 1 - w);
+}

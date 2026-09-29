@@ -53,6 +53,7 @@ export async function importMembersAction(_prev: ImportState, formData: FormData
       password_hash: await hashPassword(r.password),
       is_clinic: r.isClinic,
       is_admin: r.isAdmin,
+      rank: r.rank,
       must_change_password: true,
     })),
   );
@@ -66,7 +67,7 @@ export async function importMembersAction(_prev: ImportState, formData: FormData
     action: "member.import",
     details: {
       count: inserted?.length ?? 0,
-      members: prepared.map((r) => ({ name: r.name, is_clinic: r.isClinic, is_admin: r.isAdmin })),
+      members: prepared.map((r) => ({ name: r.name, is_clinic: r.isClinic, is_admin: r.isAdmin, rank: r.rank })),
     },
   });
 

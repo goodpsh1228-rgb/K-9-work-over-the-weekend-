@@ -11,9 +11,8 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin, requireMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { isValidDate } from "@/lib/kst";
-import { votingStatus } from "@/lib/voting";
 import { computeDutyDays } from "@/lib/duty-days";
-import { getOverrides } from "@/lib/duty-days-server";
+import { getOverrides, getVoteInfo } from "@/lib/duty-days-server";
 import { getExcludedIds, getPostsForDate } from "@/lib/day-board";
 import { executeDraw } from "@/lib/draw-server";
 
@@ -24,12 +23,14 @@ function back(date: string, kind: "msg" | "error", text: string): never {
 }
 
 // 공통 확인: 근무일 + 투표 중 + 제외 아님
-async function checkCanVote(date: string, memberId: number) {
+async function checkCanVote(date: string, memberId: number, rank: string | null) {
   if (!isValidDate(date)) redirect("/home");
   const isDuty = computeDutyDays(date, date, await getOverrides(date, date)).length > 0;
   if (!isDuty) back(date, "error", "근무일이 아닙니다.");
-  const status = votingStatus(date);
-  if (status === "before") back(date, "error", "아직 투표가 열리지 않았습니다.");
+  const { status, overall } = await getVoteInfo(date, rank);
+  if (status === "before") {
+    back(date, "error", overall === "open" ? "일병·이병은 화요일 00:00부터 투표할 수 있습니다." : "아직 투표가 열리지 않았습니다.");
+  }
   if (status === "closed") back(date, "error", "투표가 마감되었습니다.");
   if ((await getExcludedIds(date)).has(memberId)) {
     back(date, "error", "휴가·부상 기간이라 이 날은 제외 상태입니다.");
@@ -41,7 +42,7 @@ export async function wantAction(formData: FormData) {
   const me = await requireMember();
   const date = String(formData.get("date") ?? "");
   const postId = Number(formData.get("post_id"));
-  await checkCanVote(date, me.id);
+  await checkCanVote(date, me.id, me.rank);
 
   const post = (await getPostsForDate(date)).find((p) => p.id === postId);
   const myPool = me.is_clinic ? "clinic" : "general";
@@ -62,7 +63,7 @@ export async function wantAction(formData: FormData) {
 export async function declineAction(formData: FormData) {
   const me = await requireMember();
   const date = String(formData.get("date") ?? "");
-  await checkCanVote(date, me.id);
+  await checkCanVote(date, me.id, me.rank);
   const { error } = await getSupabaseAdmin()
     .from("responses")
     .upsert({ member_id: me.id, duty_date: date, choice: "decline", post_id: null });
@@ -74,7 +75,7 @@ export async function declineAction(formData: FormData) {
 export async function cancelVoteAction(formData: FormData) {
   const me = await requireMember();
   const date = String(formData.get("date") ?? "");
-  await checkCanVote(date, me.id);
+  await checkCanVote(date, me.id, me.rank);
   await getSupabaseAdmin().from("responses").delete().eq("member_id", me.id).eq("duty_date", date);
   back(date, "msg", "응답을 취소했습니다. (미응답 상태)");
 }

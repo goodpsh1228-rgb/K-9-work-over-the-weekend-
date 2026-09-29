@@ -9,8 +9,7 @@ import { randomInt } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { getExcludedIds, getPostsForDate } from "@/lib/day-board";
 import { computeDutyDays } from "@/lib/duty-days";
-import { getOverrides } from "@/lib/duty-days-server";
-import { votingStatus } from "@/lib/voting";
+import { getOverrides, getVoteInfo } from "@/lib/duty-days-server";
 import { isValidDate } from "@/lib/kst";
 import { writeAudit } from "@/lib/audit";
 import { runDraw, type DrawInput, type DrawResult } from "@/lib/draw";
@@ -55,7 +54,7 @@ export async function executeDraw(date: string, trigger: Trigger, actorId: numbe
   if (computeDutyDays(date, date, await getOverrides(date, date)).length === 0) {
     return { status: "not-ready", reason: "근무일이 아닙니다." };
   }
-  if (votingStatus(date) !== "closed") return { status: "not-ready", reason: "아직 투표 마감 전입니다." };
+  if ((await getVoteInfo(date)).overall !== "closed") return { status: "not-ready", reason: "아직 투표 마감 전입니다." };
   if (await getDraw(date)) return { status: "already" };
 
   const result = simulateDraw(await buildDrawInput(date));

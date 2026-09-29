@@ -2,8 +2,8 @@
 // 인원 일괄 등록 — 목록 글(CSV 또는 표 붙여넣기)을 읽어서 검사하는 도구
 //
 // 받는 형식 (첫 줄은 제목 줄이어도 되고 없어도 됩니다)
-//   이름, 초기비밀번호, 진료반 여부, 관리자 여부
-//   홍길동, 1234, O, X
+//   이름, 초기비밀번호, 진료반 여부, 관리자 여부, 계급
+//   홍길동, 1234, O, X, 상병
 //   김철수, , X, X          ← 비밀번호를 비우면 기본 초기 비밀번호(1111)로 등록
 //
 // - 쉼표(,)로 구분된 CSV 와, 엑셀/Numbers 에서 표를 복사해 붙여넣은 글(칸 사이가 탭)을 모두 읽습니다.
@@ -17,12 +17,23 @@ export type ImportRow = {
   password: string; // 빈 문자열이면 기본 초기 비밀번호(1111) 사용
   isClinic: boolean;
   isAdmin: boolean;
+  rank: string | null; // 이병/일병/상병/병장 (비우면 미지정)
 };
 
 export type ParseResult = { rows: ImportRow[]; errors: string[] };
 
 const YES = new Set(["o", "ㅇ", "○", "●", "v", "✓", "y", "yes", "예", "네", "true", "1"]);
 const NO = new Set(["", "x", "ㅌ", "×", "n", "no", "아니오", "아니요", "false", "0", "-"]);
+
+// 계급 읽기: "이병"·"이등병" 모두 알아듣습니다. 빈칸이면 미지정(null), 모르는 값이면 undefined.
+const RANK_ALIASES: Record<string, string> = {
+  이병: "이병", 이등병: "이병", 일병: "일병", 일등병: "일병", 상병: "상병", 상등병: "상병", 병장: "병장",
+};
+function parseRank(value: string): string | null | undefined {
+  const v = value.replace(/\s/g, "");
+  if (v === "") return null;
+  return RANK_ALIASES[v];
+}
 
 function parseYesNo(value: string): boolean | null {
   const v = value.trim().toLowerCase();
@@ -76,7 +87,7 @@ export function parseMemberTable(text: string): ParseResult {
       if (cells[0].replace(/\s/g, "") === "이름") return;
     }
 
-    const [name = "", password = "", clinicRaw = "", adminRaw = ""] = cells;
+    const [name = "", password = "", clinicRaw = "", adminRaw = "", rankRaw = ""] = cells;
 
     if (name === "") {
       errors.push(`${lineNo}번째 줄: 이름이 비어 있습니다.`);
@@ -105,8 +116,14 @@ export function parseMemberTable(text: string): ParseResult {
       return;
     }
 
+    const rank = parseRank(rankRaw);
+    if (rank === undefined) {
+      errors.push(`${lineNo}번째 줄: 계급 "${rankRaw}" 를 알 수 없습니다(이병/일병/상병/병장 또는 빈칸).`);
+      return;
+    }
+
     seen.set(name, lineNo);
-    rows.push({ line: lineNo, name, password, isClinic, isAdmin });
+    rows.push({ line: lineNo, name, password, isClinic, isAdmin, rank });
   });
 
   if (rows.length === 0 && errors.length === 0) errors.push("등록할 인원이 없습니다.");

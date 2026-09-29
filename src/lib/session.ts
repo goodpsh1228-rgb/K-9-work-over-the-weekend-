@@ -27,6 +27,7 @@ export type Member = {
   is_clinic: boolean;
   must_change_password: boolean;
   session_version: number;
+  rank: string | null; // 계급 (이병/일병/상병/병장, 미지정이면 null)
 };
 
 // 서명에 쓰는 비밀 값.
@@ -86,7 +87,7 @@ export async function getCurrentMember(): Promise<Member | null> {
   // 데이터베이스에서 최신 상태 확인 (비활성화·세션 번호 변경 반영)
   const { data } = await getSupabaseAdmin()
     .from("members")
-    .select("id, name, is_admin, is_clinic, must_change_password, session_version, is_active")
+    .select("id, name, is_admin, is_clinic, must_change_password, session_version, is_active, rank")
     .eq("id", payload.m)
     .maybeSingle();
   if (!data || !data.is_active || data.session_version !== payload.v) return null;
@@ -98,6 +99,7 @@ export async function getCurrentMember(): Promise<Member | null> {
     is_clinic: data.is_clinic,
     must_change_password: data.must_change_password,
     session_version: data.session_version,
+    rank: data.rank,
   };
 }
 

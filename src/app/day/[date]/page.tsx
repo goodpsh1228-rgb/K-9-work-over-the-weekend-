@@ -10,11 +10,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireMember } from "@/lib/session";
-import { formatLong, formatShort, isValidDate } from "@/lib/kst";
+import { addDays, formatLong, formatShort, isValidDate } from "@/lib/kst";
 import { autoLabel, computeDutyDays } from "@/lib/duty-days";
-import { getOverrides } from "@/lib/duty-days-server";
+import { getOverrides, getVoteInfo } from "@/lib/duty-days-server";
 import { getDayBoard, myStateFrom, type PostSlot } from "@/lib/day-board";
-import { STATUS_LABEL, votingStatus, votingWindow } from "@/lib/voting";
+import { STATUS_LABEL } from "@/lib/voting";
 import { Notice, Page } from "@/components/ui";
 import { buildDrawInput, getDraw, getRoster, simulateDraw, type RosterEntry } from "@/lib/draw-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
@@ -32,8 +32,8 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
 
   const board = await getDayBoard(date);
   const mine = myStateFrom(board, me.id);
-  const status = votingStatus(date);
-  const win = votingWindow(date);
+  // 투표 상태: status = 내 계급 기준, overall = 투표 전체 기준(월요일 시작)
+  const { status, overall, window: win, fridayIsDuty } = await getVoteInfo(date, me.rank);
   const canVote = status === "open" && mine.kind !== "excluded";
   const myPool = me.is_clinic ? "clinic" : "general";
   const myPosts = board.posts.filter((p) => p.pool === myPool && p.required > 0);
@@ -104,7 +104,11 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
       {/* 2) 투표 기간 + 내 투표 */}
       <section className="mt-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
         <p className="text-sm">
-          <StatusChip status={status} /> {formatShort(win.openDate)} 00:00 ~ {formatShort(win.closeDate)} 21:00
+          <StatusChip status={overall} /> {formatShort(win.monday)} 00:00 ~ {formatShort(win.closeDate)} 21:00
+        </p>
+        <p className="mt-1 text-xs text-zinc-500">
+          월요일은 상병·병장만, 화요일부터 일병·이병도 투표할 수 있습니다.
+          {fridayIsDuty && " 이번 주는 금요일이 공휴일이라 화요일 21:00에 마감합니다."}
         </p>
         <p className="mt-2 font-semibold">
           내 상태: <MyStateText state={mine} />
@@ -113,7 +117,13 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         {mine.kind === "excluded" && (
           <p className="mt-1 text-sm text-zinc-500">휴가·부상 기간에 걸쳐 이 날은 추첨에서 제외됩니다.</p>
         )}
-        {status === "before" && <p className="mt-1 text-sm text-zinc-500">투표는 {formatShort(win.openDate)} 00:00에 열립니다.</p>}
+        {status === "before" && (
+          <p className="mt-1 text-sm text-zinc-500">
+            {overall === "open"
+              ? `${me.rank ?? "계급 미지정"}은(는) ${formatShort(addDays(win.monday, 1))} 00:00부터 투표할 수 있습니다.`
+              : `투표는 ${formatShort(win.monday)} 00:00에 열립니다.`}
+          </p>
+        )}
         {status === "closed" && <p className="mt-1 text-sm text-zinc-500">투표가 마감되었습니다.</p>}
 
         {canVote && (
@@ -171,7 +181,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
       {me.is_admin && !draw && (
         <section className="mt-3 rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
           <p className="text-sm font-semibold">관리자</p>
-          {status === "closed" ? (
+          {overall === "closed" ? (
             <form action={manualDrawAction} className="mt-2">
               <input type="hidden" name="date" value={date} />
               <button type="submit" className="w-full rounded-lg bg-red-600 px-4 py-3 font-semibold text-white">

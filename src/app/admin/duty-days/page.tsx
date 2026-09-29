@@ -44,8 +44,8 @@ export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/d
       </div>
 
       {/* 근무일 추가 폼 */}
-      <form action={addDutyDayAction} className="mt-4 space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-        <p className="text-sm font-semibold">근무일 추가 (평일 출근, 발표된 임시공휴일 등)</p>
+      <form id="add" action={addDutyDayAction} className="mt-4 scroll-mt-4 space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+        <p className="text-sm font-semibold">공휴일 추가 (임시공휴일, 평일 출근일 등)</p>
         <input
           type="date"
           name="date"
@@ -56,12 +56,13 @@ export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/d
         <input
           name="note"
           maxLength={50}
-          placeholder="메모 (예: 임시공휴일)"
+          placeholder="이름 (예: 임시공휴일, 국군의날)"
           className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
         />
         <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white">
-          추가
+          공휴일 추가
         </button>
+        <p className="text-xs text-zinc-500">금요일을 추가하면 그 주 투표는 화요일 21:00에 마감됩니다.</p>
       </form>
 
       {/* 근무일 목록 */}

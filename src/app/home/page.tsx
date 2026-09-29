@@ -11,6 +11,7 @@ import { getDutyDays, viewRange } from "@/lib/duty-days-server";
 import { formatShort } from "@/lib/kst";
 import { getMyStates, type MyState } from "@/lib/day-board";
 import { STATUS_LABEL, votingStatus } from "@/lib/voting";
+import { getFridayChecker } from "@/lib/duty-days-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 
 export default async function HomePage() {
@@ -18,6 +19,10 @@ export default async function HomePage() {
   const { from, to } = viewRange(); // 오늘 ~ 60일 뒤 (한국 날짜)
   const days = await getDutyDays(from, to);
   const myState = await getMyStates(me.id, from, to);
+  const fridayIsDuty = await getFridayChecker(from, to); // 금요일 공휴일 주는 화요일 마감
+  const now = new Date();
+  const myStatus = (date: string) => votingStatus(date, fridayIsDuty(date), now, me.rank); // 내 계급 기준
+  const overall = (date: string) => votingStatus(date, fridayIsDuty(date), now); // 투표 전체 기준
 
   // 추첨이 끝난 날짜와 내 배정 (배지에 "출근·동 이름" / "미출근" 표시)
   const db = getSupabaseAdmin();
@@ -36,6 +41,7 @@ export default async function HomePage() {
       </p>
       {/* 내 구분 표시 */}
       <p className="mt-1 space-x-2 text-sm">
+        <span className="rounded bg-zinc-100 px-2 py-0.5 text-zinc-700">{me.rank ?? "계급 미지정"}</span>
         {me.is_admin && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800">관리자</span>}
         {me.is_clinic && <span className="rounded bg-teal-100 px-2 py-0.5 text-teal-800">진료반</span>}
       </p>
@@ -70,8 +76,10 @@ export default async function HomePage() {
                     </>
                   ) : (
                     <>
-                      <StateBadge state={myState(d.date)} status={votingStatus(d.date)} />
-                      <span className="text-zinc-500">{STATUS_LABEL[votingStatus(d.date)]} ›</span>
+                      <StateBadge state={myState(d.date)} status={myStatus(d.date)} />
+                      <span className="text-zinc-500">
+                        {overall(d.date) === "open" && myStatus(d.date) === "before" ? "화요일부터" : STATUS_LABEL[overall(d.date)]} ›
+                      </span>
                     </>
                   )}
                 </span>
@@ -84,7 +92,9 @@ export default async function HomePage() {
       <nav className="mt-6 space-y-2">
         {me.is_admin && (
           <>
+            <MenuLink href="/admin/duty-days#add">공휴일 추가 (관리자)</MenuLink>
             <MenuLink href="/admin/duty-days">근무일 관리 (관리자)</MenuLink>
+            <MenuLink href="/admin/members">인원 관리 · 삭제 (관리자)</MenuLink>
             <MenuLink href="/admin/members/import">인원 일괄 등록 (관리자)</MenuLink>
             <MenuLink href="/status">서버 점검 화면 (관리자)</MenuLink>
           </>

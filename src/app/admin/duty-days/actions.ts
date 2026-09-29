@@ -56,7 +56,7 @@ export async function addDutyDayAction(formData: FormData) {
     if (error) back(LIST, "error", "저장 중 오류: " + error.message);
   }
   await writeAudit({ actorId: me.id, action: "dutyday.add", dutyDate: date, details: { note } });
-  back(LIST, "msg", `${formatShort(date)} 을(를) 근무일로 추가했습니다.`);
+  back(LIST, "msg", `${formatShort(date)} 을(를) 공휴일(근무일)로 추가했습니다.`);
 }
 
 // ── 근무 없음으로 (삭제) ──────────────────────────────────────

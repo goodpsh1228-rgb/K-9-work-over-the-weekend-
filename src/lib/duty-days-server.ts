@@ -6,6 +6,7 @@ import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { computeDays, computeDutyDays, VIEW_DAYS, type Override } from "@/lib/duty-days";
 import { addDays, todayKST } from "@/lib/kst";
+import { voteFriday, votingStatus, votingWindow } from "@/lib/voting";
 
 // 화면에 보여 줄 기간 (오늘 ~ 60일 뒤, 한국 날짜 기준)
 export function viewRange() {
@@ -31,6 +32,26 @@ export async function getDutyDays(from: string, to: string) {
 // 관리자 화면용: 근무일 + 관리자가 삭제한 날까지
 export async function getAllDays(from: string, to: string) {
   return computeDays(from, to, await getOverrides(from, to));
+}
+
+// 투표 일정 도우미: from~to 근무일의 "그 주 금요일이 근무일인가"를 알려 주는 함수를 돌려줍니다.
+// (금요일이 근무일이면 투표 마감이 수요일 → 화요일로 당겨짐)
+// 투표 주의 금요일은 근무일보다 최대 10일 앞이므로 10일 앞부터 계산합니다.
+export async function getFridayChecker(from: string, to: string) {
+  const start = addDays(from, -10);
+  const duty = new Set(computeDutyDays(start, to, await getOverrides(start, to)).map((d) => d.date));
+  return (dutyDate: string) => duty.has(voteFriday(dutyDate));
+}
+
+// 한 근무일의 투표 기간과 상태 (rank 를 주면 그 계급 기준)
+export async function getVoteInfo(date: string, rank?: string | null, now: Date = new Date()) {
+  const fridayIsDuty = (await getFridayChecker(date, date))(date);
+  return {
+    fridayIsDuty,
+    window: votingWindow(date, fridayIsDuty),
+    status: votingStatus(date, fridayIsDuty, now, rank), // 이 계급 기준 상태
+    overall: votingStatus(date, fridayIsDuty, now), // 투표 전체 기준 상태 (월요일 시작)
+  };
 }
 
 // 추첨이 이미 끝난 날짜인지 (추첨 후에는 근무일 삭제·인원 변경을 막음)
