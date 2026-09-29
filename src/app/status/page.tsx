@@ -5,6 +5,7 @@
 //   ① Supabase 주소와 비밀 키가 설정되어 있는가 (Vercel 환경변수 / .env.local)
 //   ② 그 값으로 실제 Supabase에 접속이 되는가
 //   ③ 2단계에서 만든 데이터 창고의 표 9개가 모두 있는가
+//   ④ 5단계 추가 SQL(0002: 희망 동 저장 칸)이 실행되었는가
 // 값 자체는 보여주지 않으므로 로그인 없이 열 수 있습니다.
 // ─────────────────────────────────────────────────────────────
 import { connection } from "next/server";
@@ -57,6 +58,13 @@ async function checkTables(): Promise<Check> {
   return { ok: false, message: `아직 없는 표: ${missing.join(", ")}` };
 }
 
+// 5단계 추가 SQL(0002)을 실행했는지: responses 표에 post_id 칸이 있는지 확인
+async function checkMigration0002(): Promise<Check> {
+  const { error } = await getSupabaseAdmin().from("responses").select("post_id", { head: true, count: "exact" });
+  if (error) return { ok: false, message: "supabase/migrations/0002_response_post.sql 을 SQL Editor에서 실행해 주세요." };
+  return { ok: true, message: "희망 동(post_id) 칸 있음" };
+}
+
 export default async function Home() {
   // 이 화면을 열 때마다 서버에서 새로 확인하도록 합니다(미리 만들어 두지 않음).
   await connection();
@@ -69,6 +77,7 @@ export default async function Home() {
   const tables = conn.ok
     ? await checkTables()
     : { ok: false, message: "접속이 되어야 확인할 수 있습니다." };
+  const m0002 = tables.ok ? await checkMigration0002() : { ok: false, message: "표가 먼저 있어야 합니다." };
 
   return (
     <main className="mx-auto w-full max-w-md px-4 py-8">
@@ -80,16 +89,17 @@ export default async function Home() {
         <StatusRow label="Supabase 비밀 키 (SUPABASE_SECRET_KEY)" ok={env.hasSecretKey} detail={env.keyHint} />
         <StatusRow label="Supabase 실제 접속" ok={conn.ok} detail={conn.message} />
         <StatusRow label="데이터 창고 (2단계 표)" ok={tables.ok} detail={tables.message} />
+        <StatusRow label="5단계 추가 SQL (0002)" ok={m0002.ok} detail={m0002.message} />
       </ul>
 
       {!conn.ok ? (
         <p className="mt-6 rounded-lg bg-orange-50 p-4 text-orange-800">
           ⚠️ Supabase 접속 설정이 아직 덜 되었습니다. README의 &quot;1단계&quot; 안내를 확인해 주세요.
         </p>
-      ) : !tables.ok ? (
+      ) : !tables.ok || !m0002.ok ? (
         <p className="mt-6 rounded-lg bg-orange-50 p-4 text-orange-800">
-          ⚠️ 접속은 성공! 이제 Supabase SQL Editor에서 supabase/migrations/0001_init.sql 을 실행해
-          주세요. (README &quot;2단계&quot; 참고)
+          ⚠️ 접속은 성공! 아직 실행하지 않은 SQL 파일(supabase/migrations 폴더)을 Supabase SQL Editor에서
+          실행해 주세요. (README 참고)
         </p>
       ) : (
         <p className="mt-6 rounded-lg bg-green-50 p-4 text-green-800">
