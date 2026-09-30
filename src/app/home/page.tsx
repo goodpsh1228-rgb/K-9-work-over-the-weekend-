@@ -10,8 +10,11 @@ import { Page } from "@/components/ui";
 import { getDutyDays, homeRange } from "@/lib/duty-days-server";
 import { addAbsenceAction } from "@/app/absences/actions";
 import { AbsenceForm } from "@/components/absence-form";
+import { MyRankSelect } from "@/components/my-rank-select";
+import { updateMyRankAction } from "./actions";
+import { needsPromotionReminder } from "@/lib/rank";
 import { Notice } from "@/components/ui";
-import { formatShort } from "@/lib/kst";
+import { formatShort, todayKST } from "@/lib/kst";
 import { getMyStates, type MyState } from "@/lib/day-board";
 import { STATUS_LABEL, votingStatus } from "@/lib/voting";
 import { getFridayChecker } from "@/lib/duty-days-server";
@@ -51,10 +54,27 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
       </p>
       {/* 내 구분 표시 */}
       <p className="mt-1 space-x-2 text-sm">
-        <span className="rounded bg-zinc-100 px-2 py-0.5 text-zinc-700">{me.rank ?? "계급 미지정"}</span>
+        {/* 내 계급: 드롭다운에서 고르면 바로 저장 (진급 시 본인이 변경) */}
+        <MyRankSelect action={updateMyRankAction} current={me.rank} />
         {me.is_admin && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800">관리자</span>}
         {me.is_clinic && <span className="rounded bg-teal-100 px-2 py-0.5 text-teal-800">진료반</span>}
       </p>
+
+      {/* 계급 안내: 미지정이면 항상, 이병·일병·상병은 월말 마지막 주·월초 첫 주에 진급 확인 */}
+      {me.rank === null ? (
+        <div className="mt-3">
+          <Notice kind="warn">위에서 내 계급을 선택해 주세요. 계급이 없으면 화요일부터만 투표할 수 있습니다.</Notice>
+        </div>
+      ) : (
+        needsPromotionReminder(me.rank, todayKST()) && (
+          <div className="mt-3">
+            <Notice kind="warn">
+              진급 시기입니다. 이번에 진급했다면 위의 계급(<b>{me.rank}</b>)을 새 계급으로 바꿔 주세요. 상병·병장은 월요일부터
+              투표할 수 있습니다.
+            </Notice>
+          </div>
+        )
+      )}
 
       {/* 휴가·부상·외출/면회·전역 면제 입력 — 맨 위에 바로 입력 */}
       <section className="mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">

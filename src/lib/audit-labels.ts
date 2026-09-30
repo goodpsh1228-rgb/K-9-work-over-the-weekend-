@@ -11,6 +11,7 @@ const LABELS: Record<string, string> = {
   "member.import": "인원 일괄 등록",
   "member.add": "인원 추가",
   "member.rank": "계급 변경",
+  "member.rank_self": "계급 변경(본인)",
   "member.clinic": "진료반 변경",
   "member.delete": "인원 삭제",
   "member.deactivate": "인원 비활성화",
@@ -44,6 +45,7 @@ export function detailText(action: string, d: Record<string, unknown>): string {
     case "member.import":
       return `${s(d.count)}명`;
     case "member.rank":
+    case "member.rank_self":
       return `${s(d.name)}: ${s(d.from ?? "미지정")} → ${s(d.to ?? "미지정")}`;
     case "member.clinic":
       return `${s(d.name)}: ${d.to ? "진료반으로" : "진료반 해제"}`;
