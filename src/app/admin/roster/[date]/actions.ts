@@ -45,9 +45,10 @@ async function recomputeShortage(date: string) {
   ]);
   const count = new Map<number, number>();
   for (const r of rows ?? []) count.set(r.post_id, (count.get(r.post_id) ?? 0) + 1);
-  const short = { clinic: 0, general: 0 };
+  const short = { clinic: 0, general: 0, driver: 0 };
   for (const p of posts) short[p.pool] += Math.max(0, p.required - (count.get(p.id) ?? 0));
-  await db.from("draws").update({ clinic_shortage: short.clinic, general_shortage: short.general }).eq("duty_date", date);
+  // 운전 부족은 "일반(동·운전)" 부족에 합쳐 저장
+  await db.from("draws").update({ clinic_shortage: short.clinic, general_shortage: short.general + short.driver }).eq("duty_date", date);
 }
 
 export async function removeAssignmentAction(formData: FormData) {

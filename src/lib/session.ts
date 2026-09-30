@@ -16,6 +16,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
+import { getDriverIds } from "@/lib/drivers";
 
 const COOKIE_NAME = "k9_session";
 const SESSION_DAYS = 30; // 로그인 유지 기간
@@ -26,6 +27,7 @@ export type Member = {
   name: string;
   is_admin: boolean;
   is_clinic: boolean;
+  is_driver: boolean; // 운전병 여부
   must_change_password: boolean;
   session_version: number;
   rank: string | null; // 계급 (이병/일병/상병/병장, 미지정이면 null)
@@ -88,6 +90,7 @@ export const getCurrentMember = cache(async (): Promise<Member | null> => {
 
   // 데이터베이스에서 최신 상태 확인 (비활성화·세션 번호 변경 반영)
   const db = getSupabaseAdmin();
+  const driversPromise = getDriverIds(); // 운전병 목록도 동시에 읽기 시작 (기다리는 시간 절약)
   const BASE = "id, name, is_admin, is_clinic, must_change_password, session_version, is_active";
   let { data, error } = await db.from("members").select(`${BASE}, rank`).eq("id", payload.m).maybeSingle();
   if (error) {
@@ -99,6 +102,7 @@ export const getCurrentMember = cache(async (): Promise<Member | null> => {
   if (!data || !data.is_active || data.session_version !== payload.v) return null;
 
   return {
+    is_driver: (await driversPromise).has(data.id),
     id: data.id,
     name: data.name,
     is_admin: data.is_admin,

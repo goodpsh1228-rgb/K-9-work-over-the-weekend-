@@ -58,6 +58,7 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         <MyRankSelect action={updateMyRankAction} current={me.rank} />
         {me.is_admin && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800">관리자</span>}
         {me.is_clinic && <span className="rounded bg-teal-100 px-2 py-0.5 text-teal-800">진료반</span>}
+        {me.is_driver && <span className="rounded bg-orange-100 px-2 py-0.5 text-orange-800">운전병</span>}
       </p>
 
       {/* 계급 안내: 미지정이면 항상, 이병·일병·상병은 월말 마지막 주·월초 첫 주에 진급 확인 */}

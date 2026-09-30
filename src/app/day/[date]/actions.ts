@@ -57,6 +57,9 @@ export async function voteAction(date: string, choice: VoteChoice): Promise<Vote
     if (post.pool === "clinic" && !me.is_clinic) {
       return { ok: false, message: "진료실은 진료반만 희망할 수 있습니다." };
     }
+    if (post.pool === "driver" && !me.is_driver) {
+      return { ok: false, message: "주말 운전은 운전병만 희망할 수 있습니다." };
+    }
     if (post.required === 0) return { ok: false, message: `${post.name} 은(는) 이 날 인원이 0명입니다.` };
     const { error } = await db.from("responses").upsert({ member_id: me.id, duty_date: date, choice: "want", post_id: post.id });
     if (error) return { ok: false, message: "저장 중 오류: " + error.message };

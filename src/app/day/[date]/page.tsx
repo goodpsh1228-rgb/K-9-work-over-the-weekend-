@@ -41,9 +41,11 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   // 투표 상태: status = 내 계급 기준, overall = 투표 전체 기준(월요일 시작)
   const { status, overall, window: win, fridayIsDuty } = voteInfo;
   const canVote = status === "open" && mine.kind !== "excluded";
-  // 희망할 수 있는 자리: 진료반은 진료실 + 모든 동, 일반 인원은 동만
-  const myPosts = board.posts.filter((p) => (me.is_clinic || p.pool === "general") && p.required > 0);
+  // 희망할 수 있는 자리: 모든 동 + (진료반이면 진료실) + (운전병이면 주말 운전)
+  const canWant = (pool: string) => pool === "general" || (pool === "clinic" && me.is_clinic) || (pool === "driver" && me.is_driver);
+  const myPosts = board.posts.filter((p) => canWant(p.pool) && p.required > 0);
   const clinicPosts = board.posts.filter((p) => p.pool === "clinic");
+  const driverPosts = board.posts.filter((p) => p.pool === "driver" && p.required > 0);
   const generalPosts = board.posts.filter((p) => p.pool === "general");
 
   // 추첨 결과 (있으면) / 관리자 미리보기
@@ -55,7 +57,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
     const { data: names } = await getSupabaseAdmin().from("members").select("id, name");
     const nameOf = new Map((names ?? []).map((m) => [m.id as number, m.name as string]));
     preview = sim.assignments.map((a) => ({ ...a, name: nameOf.get(a.memberId) ?? "?" }));
-    previewShortage = sim.shortage.clinic + sim.shortage.general;
+    previewShortage = sim.shortage.clinic + sim.shortage.general + sim.shortage.driver;
   }
   // 희망했지만 정원 초과로 떨어져 쉬는 사람 (추첨 후)
   const rosterIds = new Set((roster ?? []).map((r) => r.memberId));
@@ -89,7 +91,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           </p>
           {me.is_admin && draw.clinic_shortage + draw.general_shortage > 0 && (
             <Notice kind="error">
-              ⚠️ 인원 부족 {draw.clinic_shortage + draw.general_shortage}명 (진료실 {draw.clinic_shortage} · 일반{" "}
+              ⚠️ 인원 부족 {draw.clinic_shortage + draw.general_shortage}명 (진료실 {draw.clinic_shortage} · 동·운전{" "}
               {draw.general_shortage}). 빈자리를 채워 주세요.
             </Notice>
           )}
@@ -166,6 +168,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           <VotePanel
             date={date}
             isClinic={me.is_clinic}
+            isDriver={me.is_driver}
             posts={myPosts.map((p) => ({ id: p.id, name: p.name, required: p.required, count: p.wanters.length }))}
             initial={mine.kind === "want" ? { kind: "want", postId: mine.postId } : mine.kind === "decline" ? { kind: "decline" } : { kind: "none" }}
           />
@@ -202,6 +205,12 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
       <PostTable title="진료실 (진료반)" posts={clinicPosts} />
       <div className="h-3" />
       <PostTable title="일반" posts={generalPosts} />
+      {driverPosts.length > 0 && (
+        <>
+          <div className="h-3" />
+          <PostTable title="주말 운전 (운전병)" posts={driverPosts} />
+        </>
+      )}
 
       {/* 4) 미희망·제외 */}
       <div className="mt-4 space-y-2 text-sm">

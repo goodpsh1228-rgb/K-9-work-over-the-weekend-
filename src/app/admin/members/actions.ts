@@ -128,16 +128,24 @@ export async function addMemberAction(formData: FormData) {
   const raw = String(formData.get("rank") ?? "");
   const rank = raw === "" ? null : raw;
   const isClinic = formData.get("is_clinic") === "on";
+  const isDriver = formData.get("is_driver") === "on";
   if (!name || name.length > 30) back("error", "이름을 1~30자로 입력해 주세요.");
   if (rank !== null && !RANKS.includes(rank as (typeof RANKS)[number])) back("error", "계급을 다시 선택해 주세요.");
 
   const { data, error } = await getSupabaseAdmin()
     .from("members")
-    .insert({ name, rank, is_clinic: isClinic, password_hash: await hashPassword(DEFAULT_INITIAL_PASSWORD), must_change_password: true })
+    .insert({
+      name,
+      rank,
+      is_clinic: isClinic,
+      ...(isDriver ? { is_driver: true } : {}), // 운전병일 때만 (0006 SQL 전에도 일반 추가는 되도록)
+      password_hash: await hashPassword(DEFAULT_INITIAL_PASSWORD),
+      must_change_password: true,
+    })
     .select("id")
     .single();
   if (error) back("error", error.code === "23505" ? `"${name}" 은(는) 이미 있는 이름입니다. (동명이인은 ${name}B 처럼)` : "저장 중 오류: " + error.message);
-  await writeAudit({ actorId: me.id, action: "member.add", targetMemberId: data.id, details: { name, rank, is_clinic: isClinic } });
+  await writeAudit({ actorId: me.id, action: "member.add", targetMemberId: data.id, details: { name, rank, is_clinic: isClinic, is_driver: isDriver } });
   back("msg", `${name} 을(를) 추가했습니다. 초기 비밀번호는 ${DEFAULT_INITIAL_PASSWORD} 입니다.`);
 }
 
@@ -152,6 +160,20 @@ export async function setClinicAction(formData: FormData) {
   await getSupabaseAdmin().from("members").update({ is_clinic: value }).eq("id", id);
   await writeAudit({ actorId: me.id, action: "member.clinic", targetMemberId: id, details: { name: m.name, from: m.is_clinic, to: value } });
   backTo(page, "msg", value ? "진료반으로 바꿨습니다. (진료실 추첨에만 들어갑니다)" : "진료반에서 뺐습니다. (일반 추첨에 들어갑니다)");
+}
+
+// 운전병 여부 바꾸기
+export async function setDriverAction(formData: FormData) {
+  const me = await requireAdmin();
+  const id = Number(formData.get("member_id"));
+  const value = formData.get("value") === "true";
+  const page = `${PAGE}/${id}`;
+  const m = await loadMember(id);
+  if (!m) back("error", "인원을 찾을 수 없습니다.");
+  const { error } = await getSupabaseAdmin().from("members").update({ is_driver: value }).eq("id", id);
+  if (error) backTo(page, "error", "운전병 기능용 SQL(supabase/migrations/0006_driver.sql)을 먼저 실행해 주세요.");
+  await writeAudit({ actorId: me.id, action: "member.driver", targetMemberId: id, details: { name: m.name, to: value } });
+  backTo(page, "msg", value ? "운전병으로 지정했습니다. (주말 운전을 희망할 수 있고, 운전 추첨 대상이 됩니다)" : "운전병에서 뺐습니다.");
 }
 
 // 비활성화 / 다시 활성화

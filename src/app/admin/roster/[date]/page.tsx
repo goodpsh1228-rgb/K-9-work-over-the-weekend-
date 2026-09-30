@@ -8,6 +8,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
+import { getDriverIds } from "@/lib/drivers";
 import { formatLong, isValidDate } from "@/lib/kst";
 import { getExcludedIds, getPostsForDate } from "@/lib/day-board";
 import { getDraw, getRoster } from "@/lib/draw-server";
@@ -45,10 +46,11 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
   }
 
   const db = getSupabaseAdmin();
-  const [posts, roster, excluded, { data: members }, { data: responses }] = await Promise.all([
+  const [posts, roster, excluded, drivers, { data: members }, { data: responses }] = await Promise.all([
     getPostsForDate(date),
     getRoster(date),
     getExcludedIds(date),
+    getDriverIds(),
     db.from("members").select("id, name, is_clinic").eq("is_active", true).order("name"),
     db.from("responses").select("member_id, choice").eq("duty_date", date),
   ]);
@@ -61,6 +63,7 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
     .map((m) => {
       const tags = [
         m.is_clinic ? "진료반" : null,
+        drivers.has(m.id) ? "운전병" : null,
         respOf.get(m.id) === "want" ? "희망했음" : respOf.get(m.id) === "decline" ? "미희망" : null,
         excluded.has(m.id) ? "⚠ 휴가·부상" : null,
       ].filter(Boolean);

@@ -9,6 +9,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
+import { getDriverIds } from "@/lib/drivers";
 import { Notice, Page } from "@/components/ui";
 import { addMemberAction, deleteMembersAction, updateRankAction } from "./actions";
 import { DeleteButton, RankSelect } from "./member-controls";
@@ -29,6 +30,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
   const all = members ?? [];
   const inactiveCount = all.filter((m) => !m.is_active).length;
   const list = showInactive ? all : all.filter((m) => m.is_active);
+  const drivers = await getDriverIds();
   const noRank = all.filter((m) => m.is_active && !m.rank).length;
 
   return (
@@ -73,6 +75,9 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="is_clinic" className="h-4 w-4" /> 진료반
         </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="is_driver" className="h-4 w-4" /> 운전병
+        </label>
         <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white">
           추가
         </button>
@@ -113,6 +118,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
               </Link>
               <span className="ml-1 space-x-1 text-[11px]">
                 {m.is_clinic && <span className="rounded bg-teal-100 px-1 py-0.5 text-teal-800">진료반</span>}
+                {drivers.has(m.id) && <span className="rounded bg-orange-100 px-1 py-0.5 text-orange-800">운전병</span>}
                 {m.is_admin && <span className="rounded bg-blue-100 px-1 py-0.5 text-blue-800">관리자</span>}
                 {!m.is_active && <span className="rounded bg-zinc-200 px-1 py-0.5 text-zinc-600">비활성</span>}
                 {m.must_change_password && m.is_active && (

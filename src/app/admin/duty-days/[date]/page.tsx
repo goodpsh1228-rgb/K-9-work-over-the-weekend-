@@ -33,6 +33,7 @@ export default async function DutyDayDetailPage({ params, searchParams }: PagePr
   const value = (p: { id: number; default_count: number }) => custom.get(p.id) ?? p.default_count;
   const clinicTotal = (posts ?? []).filter((p) => p.pool === "clinic").reduce((s, p) => s + value(p), 0);
   const generalTotal = (posts ?? []).filter((p) => p.pool === "general").reduce((s, p) => s + value(p), 0);
+  const driverTotal = (posts ?? []).filter((p) => p.pool === "driver").reduce((s, p) => s + value(p), 0);
 
   return (
     <Page title="날짜별 인원 설정">
@@ -68,7 +69,7 @@ export default async function DutyDayDetailPage({ params, searchParams }: PagePr
           </label>
         ))}
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          합계: 진료실 {clinicTotal}명 · 일반 {generalTotal}명
+          합계: 진료실 {clinicTotal}명 · 일반 {generalTotal}명 · 운전 {driverTotal}명
         </p>
         {!drawn && (
           <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white">

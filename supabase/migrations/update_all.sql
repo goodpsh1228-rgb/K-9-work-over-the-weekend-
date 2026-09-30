@@ -1,4 +1,4 @@
--- 추가 업데이트 한 번에 (0002 + 0003 + 0004) — 여러 번 실행해도 안전합니다
+-- 추가 업데이트 한 번에 (0002 + 0003 + 0004 + 0005 + 0006) — 여러 번 실행해도 안전합니다
 alter table responses add column if not exists post_id bigint references posts(id);
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'responses_post_matches_choice') then
@@ -57,3 +57,14 @@ alter table duty_day_post_counts drop constraint if exists duty_day_post_counts_
 alter table duty_day_post_counts add constraint duty_day_post_counts_created_by_fkey foreign key (created_by) references members(id) on delete set null;
 alter table draws drop constraint if exists draws_executed_by_fkey;
 alter table draws add constraint draws_executed_by_fkey foreign key (executed_by) references members(id) on delete set null;
+
+-- ── 0005 + 0006: 제외 종류 추가, 운전병 ──
+alter table members add column if not exists is_driver boolean not null default false;
+alter table posts drop constraint if exists posts_pool_check;
+alter table posts add constraint posts_pool_check check (pool in ('clinic', 'general', 'driver'));
+insert into posts (name, pool, default_count, sort_order)
+values ('주말 운전', 'driver', 1, 15)
+on conflict (name) do nothing;
+alter table absences drop constraint if exists absences_kind_check;
+alter table absences add constraint absences_kind_check
+  check (kind in ('leave', 'injury', 'outing', 'discharge'));

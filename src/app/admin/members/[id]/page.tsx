@@ -20,7 +20,9 @@ import {
   resetPasswordAction,
   setActiveAction,
   setClinicAction,
+  setDriverAction,
 } from "../actions";
+import { getDriverIds } from "@/lib/drivers";
 
 // 지금 로그인 차단 중인지 (차단 끝 시각이 현재보다 뒤)
 function isLockedNow(until: string | null): boolean {
@@ -49,6 +51,7 @@ export default async function MemberDetailPage({ params, searchParams }: PagePro
     .or(`target_member_id.eq.${id},actor_id.eq.${id}`)
     .order("created_at", { ascending: false })
     .limit(10);
+  const isDriver = (await getDriverIds()).has(m.id);
   const isMe = m.id === me.id;
   const locked = isLockedNow(m.locked_until);
 
@@ -57,6 +60,7 @@ export default async function MemberDetailPage({ params, searchParams }: PagePro
       <p className="-mt-4 mb-4 space-x-1 text-sm">
         <span className="rounded bg-zinc-100 px-2 py-0.5 text-zinc-700">{m.rank ?? "계급 미지정"}</span>
         {m.is_clinic && <span className="rounded bg-teal-100 px-2 py-0.5 text-teal-800">진료반</span>}
+        {isDriver && <span className="rounded bg-orange-100 px-2 py-0.5 text-orange-800">운전병</span>}
         {m.is_admin && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800">관리자</span>}
         {!m.is_active && <span className="rounded bg-zinc-200 px-2 py-0.5 text-zinc-600">비활성</span>}
         {m.must_change_password && <span className="rounded bg-zinc-100 px-2 py-0.5 text-zinc-500">첫 로그인 전</span>}
@@ -77,6 +81,18 @@ export default async function MemberDetailPage({ params, searchParams }: PagePro
             className={`${btn} border-teal-300 text-teal-800 dark:text-teal-300`}
           >
             {m.is_clinic ? "진료반에서 빼기" : "진료반으로 지정"}
+          </ConfirmButton>
+        </form>
+
+        {/* 운전병 여부 */}
+        <form action={setDriverAction}>
+          <input type="hidden" name="member_id" value={m.id} />
+          <input type="hidden" name="value" value={String(!isDriver)} />
+          <ConfirmButton
+            message={isDriver ? `${m.name} 을(를) 운전병에서 뺄까요?` : `${m.name} 을(를) 운전병으로 지정할까요? (동 희망·차출은 그대로, 주말 운전 희망·운전 추첨이 추가됩니다)`}
+            className={`${btn} border-orange-300 text-orange-800 dark:text-orange-300`}
+          >
+            {isDriver ? "운전병에서 빼기" : "운전병으로 지정"}
           </ConfirmButton>
         </form>
 

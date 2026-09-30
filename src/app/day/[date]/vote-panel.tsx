@@ -16,11 +16,13 @@ type PostButton = { id: number; name: string; required: number; count: number };
 export function VotePanel({
   date,
   isClinic,
+  isDriver,
   posts,
   initial,
 }: {
   date: string;
   isClinic: boolean;
+  isDriver: boolean;
   posts: PostButton[];
   initial: Mine;
 }) {
@@ -51,7 +53,9 @@ export function VotePanel({
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         {isClinic
           ? "출근을 희망하면 진료실 또는 원하는 동을 누르세요. (동을 고르면 그날 진료실 차출에서는 빠집니다)"
-          : "출근을 희망하면 원하는 동을 누르세요."}
+          : isDriver
+            ? "출근을 희망하면 주말 운전 또는 원하는 동을 누르세요. (운전 희망자가 없으면 운전병 중에서 랜덤으로 운전을 뽑습니다)"
+            : "출근을 희망하면 원하는 동을 누르세요."}
       </p>
       <div className="grid grid-cols-2 gap-2">
         {posts.map((p) => {

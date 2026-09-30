@@ -13,6 +13,7 @@ import { getFridayChecker, getOverrides, getVoteInfo } from "@/lib/duty-days-ser
 import { votingStatus } from "@/lib/voting";
 import { addDays, isValidDate, todayKST } from "@/lib/kst";
 import { writeAudit } from "@/lib/audit";
+import { getDriverIds } from "@/lib/drivers";
 import { runDraw, type DrawInput, type DrawResult } from "@/lib/draw";
 
 export type Trigger = "cron" | "visit" | "manual";
@@ -20,9 +21,10 @@ export type Trigger = "cron" | "visit" | "manual";
 // 추첨 입력 모으기 (실제 추첨과 관리자 미리보기가 같이 씀)
 export async function buildDrawInput(date: string): Promise<DrawInput> {
   const db = getSupabaseAdmin();
-  const [posts, excluded, { data: members }, { data: responses }] = await Promise.all([
+  const [posts, excluded, drivers, { data: members }, { data: responses }] = await Promise.all([
     getPostsForDate(date),
     getExcludedIds(date),
+    getDriverIds(),
     db.from("members").select("id, is_clinic").eq("is_active", true),
     db.from("responses").select("member_id, choice, post_id").eq("duty_date", date),
   ]);
@@ -30,7 +32,7 @@ export async function buildDrawInput(date: string): Promise<DrawInput> {
     posts: posts.map((p) => ({ id: p.id, pool: p.pool, required: p.required })),
     members: (members ?? [])
       .filter((m) => !excluded.has(m.id)) // 제외자(휴가·부상)는 어떤 풀에도 넣지 않음
-      .map((m) => ({ id: m.id as number, pool: m.is_clinic ? "clinic" : "general" })),
+      .map((m) => ({ id: m.id as number, pool: m.is_clinic ? "clinic" : "general", driver: drivers.has(m.id) })),
     responses: new Map(
       (responses ?? []).map((r) => [r.member_id as number, { choice: r.choice, postId: r.post_id as number | null }]),
     ),
@@ -64,7 +66,7 @@ export async function executeDraw(date: string, trigger: Trigger, actorId: numbe
     p_triggered_by: trigger,
     p_executed_by: actorId,
     p_clinic_shortage: result.shortage.clinic,
-    p_general_shortage: result.shortage.general,
+    p_general_shortage: result.shortage.general + result.shortage.driver, // 운전 부족은 "일반" 부족에 합쳐 저장
     p_assignments: result.assignments.map((a) => ({ member_id: a.memberId, post_id: a.postId, source: a.source })),
   });
   if (error) throw new Error("추첨 저장 실패: " + error.message);

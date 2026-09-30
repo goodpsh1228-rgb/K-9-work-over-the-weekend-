@@ -92,6 +92,15 @@ async function checkMigration0004(): Promise<Check> {
   return { ok: true, message: "계급(rank) 칸 있음" };
 }
 
+// 추가 SQL(0006: 운전병 + 제외 종류)을 실행했는지: is_driver 칸과 "주말 운전" 자리가 있는지 확인
+async function checkMigration0006(): Promise<Check> {
+  const db = getSupabaseAdmin();
+  const { error } = await db.from("members").select("is_driver", { head: true, count: "exact" });
+  const { count } = await db.from("posts").select("id", { head: true, count: "exact" }).eq("pool", "driver");
+  if (error || !count) return { ok: false, message: "supabase/migrations/0006_driver.sql 을 SQL Editor에서 실행해 주세요." };
+  return { ok: true, message: "운전병 칸·주말 운전 자리 있음" };
+}
+
 export default async function Home() {
   // 이 화면을 열 때마다 서버에서 새로 확인하도록 합니다(미리 만들어 두지 않음).
   await connection();
@@ -107,6 +116,7 @@ export default async function Home() {
   const m0002 = tables.ok ? await checkMigration0002() : { ok: false, message: "표가 먼저 있어야 합니다." };
   const m0003 = tables.ok ? await checkMigration0003() : { ok: false, message: "표가 먼저 있어야 합니다." };
   const m0004 = tables.ok ? await checkMigration0004() : { ok: false, message: "표가 먼저 있어야 합니다." };
+  const m0006 = tables.ok ? await checkMigration0006() : { ok: false, message: "표가 먼저 있어야 합니다." };
 
   return (
     <main className="mx-auto w-full max-w-md px-4 py-8">
@@ -121,13 +131,14 @@ export default async function Home() {
         <StatusRow label="5단계 추가 SQL (0002)" ok={m0002.ok} detail={m0002.message} />
         <StatusRow label="6단계 추가 SQL (0003)" ok={m0003.ok} detail={m0003.message} />
         <StatusRow label="계급·삭제 추가 SQL (0004)" ok={m0004.ok} detail={m0004.message} />
+        <StatusRow label="운전병·제외 종류 추가 SQL (0006)" ok={m0006.ok} detail={m0006.message} />
       </ul>
 
       {!conn.ok ? (
         <p className="mt-6 rounded-lg bg-orange-50 p-4 text-orange-800">
           ⚠️ Supabase 접속 설정이 아직 덜 되었습니다. README의 &quot;1단계&quot; 안내를 확인해 주세요.
         </p>
-      ) : !tables.ok || !m0002.ok || !m0003.ok || !m0004.ok ? (
+      ) : !tables.ok || !m0002.ok || !m0003.ok || !m0004.ok || !m0006.ok ? (
         <p className="mt-6 rounded-lg bg-orange-50 p-4 text-orange-800">
           ⚠️ 접속은 성공! 아직 실행하지 않은 SQL 파일(supabase/migrations 폴더)을 Supabase SQL Editor에서
           실행해 주세요. (README 참고)

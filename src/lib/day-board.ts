@@ -13,7 +13,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-server";
 export type PostSlot = {
   id: number;
   name: string;
-  pool: "clinic" | "general";
+  pool: "clinic" | "general" | "driver";
   required: number; // 그날 필요 인원 (날짜별 설정이 있으면 그 값)
   wanters: { id: number; name: string }[]; // 이 자리를 희망한 사람
 };
@@ -45,7 +45,7 @@ export const getPostsForDate = cache(async (date: string) => {
   return (posts ?? []).map((p) => ({
     id: p.id as number,
     name: p.name as string,
-    pool: p.pool as "clinic" | "general",
+    pool: p.pool as "clinic" | "general" | "driver",
     required: custom.get(p.id) ?? (p.default_count as number),
   }));
 });
