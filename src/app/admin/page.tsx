@@ -11,8 +11,7 @@ const GROUPS: { title: string; items: [string, string, string][] }[] = [
   {
     title: "근무일",
     items: [
-      ["/admin/duty-days#add", "공휴일 추가", "임시공휴일·평일 출근일을 근무일로 추가"],
-      ["/admin/duty-days", "근무일 관리", "근무 없음 처리, 날짜별 동 인원 설정"],
+      ["/admin/duty-days", "공휴일 추가", "공휴일·평일 출근일 추가, 근무 없음 처리, 날짜별 동 인원 설정"],
     ],
   },
   {

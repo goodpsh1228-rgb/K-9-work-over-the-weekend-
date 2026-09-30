@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// 근무일 관리 화면 (/admin/duty-days) — 관리자 전용
+// 공휴일 추가 화면 (/admin/duty-days) — 관리자 전용 (근무일 추가·근무 없음·날짜별 인원을 한곳에서)
 //   - 오늘부터 60일 앞까지의 근무일 목록 (주말·공휴일 자동 + 관리자 설정)
 //   - 근무일 추가, 근무 없음(삭제), 되돌리기
 //   - 날짜를 누르면 그날만 자리별 인원을 다르게 설정하는 화면으로 이동
@@ -31,7 +31,7 @@ export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/d
   const customCountDates = new Set((countRows ?? []).map((r) => r.duty_date as string));
 
   return (
-    <Page title="근무일 관리">
+    <Page title="공휴일 추가">
       <div className="space-y-3">
         {msg && <Notice kind="success">{msg}</Notice>}
         {error && <Notice kind="error">{error}</Notice>}
