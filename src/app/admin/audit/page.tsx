@@ -93,7 +93,7 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
           더 보기 (이전 기록)
         </Link>
       )}
-      <Link href="/home" className="mt-6 block text-center text-sm text-zinc-500 underline">
+      <Link href="/admin" className="mt-6 block text-center text-sm text-zinc-500 underline">
         돌아가기
       </Link>
     </Page>

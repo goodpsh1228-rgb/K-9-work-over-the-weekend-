@@ -36,7 +36,7 @@ export default async function ImportPage() {
         ))}
       </ul>
 
-      <Link href="/home" className="mt-6 block text-center text-sm text-zinc-500 underline">
+      <Link href="/admin/members" className="mt-6 block text-center text-sm text-zinc-500 underline">
         돌아가기
       </Link>
     </Page>

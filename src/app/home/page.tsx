@@ -7,7 +7,9 @@ import Link from "next/link";
 import { requireMember } from "@/lib/session";
 import { logoutAction } from "@/app/auth-actions";
 import { Page } from "@/components/ui";
-import { getDutyDays, viewRange } from "@/lib/duty-days-server";
+import { getDutyDays, homeRange } from "@/lib/duty-days-server";
+import { addAbsenceAction } from "@/app/absences/actions";
+import { Notice } from "@/components/ui";
 import { formatShort } from "@/lib/kst";
 import { getMyStates, type MyState } from "@/lib/day-board";
 import { STATUS_LABEL, votingStatus } from "@/lib/voting";
@@ -15,11 +17,14 @@ import { getFridayChecker } from "@/lib/duty-days-server";
 import { runPendingDrawsSafely } from "@/lib/draw-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: PageProps<"/home">) {
+  const sp = await searchParams;
+  const msg = typeof sp.msg === "string" ? sp.msg : null;
+  const error = typeof sp.error === "string" ? sp.error : null;
   const me = await requireMember();
   // 안전장치: 마감됐는데 아직 추첨 안 된 날이 있으면 지금 추첨 (정기 실행이 늦거나 실패했을 때 대비)
   await runPendingDrawsSafely();
-  const { from, to } = viewRange(); // 오늘 ~ 60일 뒤 (한국 날짜)
+  const { from, to } = homeRange(); // 오늘 ~ 다음 주 일요일 (한국 날짜)
   // 필요한 정보를 동시에(병렬로) 읽어 기다리는 시간을 줄임
   const db = getSupabaseAdmin();
   const [days, myState, fridayIsDuty, { data: drawRows }, { data: myRows }, { data: posts }] = await Promise.all([
@@ -50,10 +55,40 @@ export default async function HomePage() {
         {me.is_clinic && <span className="rounded bg-teal-100 px-2 py-0.5 text-teal-800">진료반</span>}
       </p>
 
-      {/* 다가오는 근무일 목록: 누르면 투표 화면으로 */}
+      {/* 휴가·부상 입력 — 맨 위에 바로 입력 */}
+      <section className="mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+        <p className="mb-2 text-sm font-semibold">휴가·부상 입력</p>
+        {msg && <div className="mb-2"><Notice kind="success">{msg}</Notice></div>}
+        {error && <div className="mb-2"><Notice kind="error">{error}</Notice></div>}
+        <form action={addAbsenceAction} className="space-y-2">
+          <input type="hidden" name="back" value="/home" />
+          <div className="flex gap-4 text-sm">
+            <label className="flex items-center gap-1">
+              <input type="radio" name="kind" value="leave" defaultChecked /> 휴가
+            </label>
+            <label className="flex items-center gap-1">
+              <input type="radio" name="kind" value="injury" /> 부상
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input type="date" name="start_date" required aria-label="시작일" className="min-w-0 rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100" />
+            <input type="date" name="end_date" required aria-label="종료일" className="min-w-0 rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100" />
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="submit" className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">
+              저장 (시작일 ~ 종료일)
+            </button>
+            <Link href="/absences" className="shrink-0 text-sm text-zinc-500 underline">
+              내 기록 보기·삭제
+            </Link>
+          </div>
+        </form>
+      </section>
+
+      {/* 다가오는 근무일 목록 (다음 주 일요일까지): 누르면 투표 화면으로 */}
       <h2 className="mt-6 mb-2 text-lg font-bold">다가오는 근무일</h2>
       {days.length === 0 ? (
-        <p className="text-sm text-zinc-500">앞으로 60일 안에 근무일이 없습니다.</p>
+        <p className="text-sm text-zinc-500">다음 주 일요일까지 근무일이 없습니다.</p>
       ) : (
         <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
           {days.map((d) => (
@@ -96,15 +131,9 @@ export default async function HomePage() {
       <nav className="mt-6 space-y-2">
         {me.is_admin && (
           <>
-            <MenuLink href="/admin/duty-days#add">공휴일 추가 (관리자)</MenuLink>
-            <MenuLink href="/admin/duty-days">근무일 관리 (관리자)</MenuLink>
-            <MenuLink href="/admin/members">인원 관리 · 삭제 (관리자)</MenuLink>
-            <MenuLink href="/admin/members/import">인원 일괄 등록 (관리자)</MenuLink>
-            <MenuLink href="/admin/audit">변경 이력 (관리자)</MenuLink>
-            <MenuLink href="/status">서버 점검 화면 (관리자)</MenuLink>
+            <MenuLink href="/admin">🛠 관리자 메뉴</MenuLink>
           </>
         )}
-        <MenuLink href="/absences">휴가·부상 입력</MenuLink>
         <MenuLink href="/change-password">비밀번호 변경</MenuLink>
       </nav>
 

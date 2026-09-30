@@ -6,13 +6,19 @@ import "server-only";
 import { cache } from "react";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { computeDays, computeDutyDays, VIEW_DAYS, type Override } from "@/lib/duty-days";
-import { addDays, todayKST } from "@/lib/kst";
+import { addDays, mondayOf, todayKST } from "@/lib/kst";
 import { voteFriday, votingStatus, votingWindow } from "@/lib/voting";
 
 // 화면에 보여 줄 기간 (오늘 ~ 60일 뒤, 한국 날짜 기준)
 export function viewRange() {
   const from = todayKST();
   return { from, to: addDays(from, VIEW_DAYS) };
+}
+
+// 홈 화면 "다가오는 근무일" 기간: 오늘 ~ 다음 주 일요일 (이번 주·다음 주 투표 대상이 모두 들어감)
+export function homeRange() {
+  const from = todayKST();
+  return { from, to: addDays(mondayOf(from), 13) };
 }
 
 // 근무일 수동 설정 전체 (몇십 줄 수준이라 통째로 읽음).

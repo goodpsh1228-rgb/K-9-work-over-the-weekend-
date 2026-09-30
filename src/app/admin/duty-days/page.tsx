@@ -105,7 +105,7 @@ export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/d
       </ul>
       <p className="mt-2 text-xs text-zinc-500">날짜를 누르면 그날만 자리별 인원을 다르게 설정할 수 있습니다.</p>
 
-      <Link href="/home" className="mt-6 block text-center text-sm text-zinc-500 underline">
+      <Link href="/admin" className="mt-6 block text-center text-sm text-zinc-500 underline">
         돌아가기
       </Link>
     </Page>
