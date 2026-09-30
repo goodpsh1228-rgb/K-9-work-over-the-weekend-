@@ -7,6 +7,7 @@
 // 모든 인원 목록은 "활성" 인원만 대상입니다 (비활성 = 전출·전역).
 // ─────────────────────────────────────────────────────────────
 import "server-only";
+import { cache } from "react";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 
 export type PostSlot = {
@@ -34,7 +35,7 @@ export type MyState =
   | { kind: "none" };
 
 // 그날의 자리 목록과 필요 인원 (기본값 + 날짜별 설정)
-export async function getPostsForDate(date: string) {
+export const getPostsForDate = cache(async (date: string) => {
   const db = getSupabaseAdmin();
   const [{ data: posts }, { data: counts }] = await Promise.all([
     db.from("posts").select("id, name, pool, default_count, sort_order").eq("is_active", true).order("sort_order"),
@@ -47,17 +48,17 @@ export async function getPostsForDate(date: string) {
     pool: p.pool as "clinic" | "general",
     required: custom.get(p.id) ?? (p.default_count as number),
   }));
-}
+});
 
 // 그날 제외(휴가·부상 기간에 걸침)인 인원 번호 목록
-export async function getExcludedIds(date: string): Promise<Set<number>> {
+export const getExcludedIds = cache(async (date: string): Promise<Set<number>> => {
   const { data } = await getSupabaseAdmin()
     .from("absences")
     .select("member_id")
     .lte("start_date", date)
     .gte("end_date", date);
   return new Set((data ?? []).map((a) => a.member_id as number));
-}
+});
 
 export async function getDayBoard(date: string): Promise<DayBoard> {
   const db = getSupabaseAdmin();

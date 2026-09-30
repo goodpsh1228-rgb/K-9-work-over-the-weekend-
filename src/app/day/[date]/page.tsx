@@ -20,7 +20,8 @@ import { buildDrawInput, getDraw, getRoster, runPendingDrawsSafely, simulateDraw
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { buildKakaoText } from "@/lib/roster-text";
 import { CopyButton } from "@/components/copy-button";
-import { cancelVoteAction, declineAction, manualDrawAction, wantAction } from "./actions";
+import { manualDrawAction } from "./actions";
+import { VotePanel } from "./vote-panel";
 
 export default async function DayPage({ params, searchParams }: PageProps<"/day/[date]">) {
   const me = await requireMember();
@@ -34,10 +35,11 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
 
   // 안전장치: 마감됐는데 아직 추첨 안 된 날이 있으면 지금 추첨
   await runPendingDrawsSafely();
-  const board = await getDayBoard(date);
+  // 필요한 정보를 동시에(병렬로) 읽어 기다리는 시간을 줄임
+  const [board, voteInfo, draw] = await Promise.all([getDayBoard(date), getVoteInfo(date, me.rank), getDraw(date)]);
   const mine = myStateFrom(board, me.id);
   // 투표 상태: status = 내 계급 기준, overall = 투표 전체 기준(월요일 시작)
-  const { status, overall, window: win, fridayIsDuty } = await getVoteInfo(date, me.rank);
+  const { status, overall, window: win, fridayIsDuty } = voteInfo;
   const canVote = status === "open" && mine.kind !== "excluded";
   const myPool = me.is_clinic ? "clinic" : "general";
   const myPosts = board.posts.filter((p) => p.pool === myPool && p.required > 0);
@@ -45,7 +47,6 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   const generalPosts = board.posts.filter((p) => p.pool === "general");
 
   // 추첨 결과 (있으면) / 관리자 미리보기
-  const draw = await getDraw(date);
   const roster = draw ? await getRoster(date) : null;
   let preview: RosterEntry[] | null = null;
   let previewShortage = 0;
@@ -162,53 +163,12 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         {status === "closed" && <p className="mt-1 text-sm text-zinc-500">투표가 마감되었습니다.</p>}
 
         {canVote && (
-          <div className="mt-3 space-y-2">
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              {me.is_clinic ? "진료반은 진료실로 희망합니다." : "출근을 희망하면 원하는 동을 누르세요."}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {myPosts.map((p) => {
-                const selected = mine.kind === "want" && mine.postId === p.id;
-                return (
-                  <form key={p.id} action={wantAction}>
-                    <input type="hidden" name="date" value={date} />
-                    <input type="hidden" name="post_id" value={p.id} />
-                    <button
-                      type="submit"
-                      className={`w-full rounded-lg px-2 py-3 text-sm font-semibold ${
-                        selected ? "bg-blue-600 text-white" : "border border-blue-300 text-blue-700 dark:text-blue-300"
-                      }`}
-                    >
-                      {selected ? "✓ " : ""}
-                      {p.name} 희망
-                      <span className="block text-xs font-normal opacity-80">
-                        {p.wanters.length}/{p.required}명
-                      </span>
-                    </button>
-                  </form>
-                );
-              })}
-            </div>
-            <form action={declineAction}>
-              <input type="hidden" name="date" value={date} />
-              <button
-                type="submit"
-                className={`w-full rounded-lg px-4 py-3 text-sm font-semibold ${
-                  mine.kind === "decline" ? "bg-zinc-700 text-white" : "border border-zinc-300 dark:border-zinc-700"
-                }`}
-              >
-                {mine.kind === "decline" ? "✓ " : ""}이날은 어려워요 (미희망)
-              </button>
-            </form>
-            {mine.kind !== "none" && (
-              <form action={cancelVoteAction}>
-                <input type="hidden" name="date" value={date} />
-                <button type="submit" className="w-full py-2 text-sm text-zinc-500 underline">
-                  응답 취소 (미응답으로 되돌리기)
-                </button>
-              </form>
-            )}
-          </div>
+          <VotePanel
+            date={date}
+            isClinic={me.is_clinic}
+            posts={myPosts.map((p) => ({ id: p.id, name: p.name, required: p.required, count: p.wanters.length }))}
+            initial={mine.kind === "want" ? { kind: "want", postId: mine.postId } : mine.kind === "decline" ? { kind: "decline" } : { kind: "none" }}
+          />
         )}
       </section>
 

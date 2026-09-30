@@ -3,6 +3,7 @@
 // 관리자 설정(duty_day_overrides)을 읽어서 duty-days.ts 의 계산 규칙에 넣습니다.
 // ─────────────────────────────────────────────────────────────
 import "server-only";
+import { cache } from "react";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { computeDays, computeDutyDays, VIEW_DAYS, type Override } from "@/lib/duty-days";
 import { addDays, todayKST } from "@/lib/kst";
@@ -14,14 +15,16 @@ export function viewRange() {
   return { from, to: addDays(from, VIEW_DAYS) };
 }
 
-export async function getOverrides(from: string, to: string): Promise<Override[]> {
-  const { data, error } = await getSupabaseAdmin()
-    .from("duty_day_overrides")
-    .select("duty_date, kind, note")
-    .gte("duty_date", from)
-    .lte("duty_date", to);
+// 근무일 수동 설정 전체 (몇십 줄 수준이라 통째로 읽음).
+// cache(): 한 번의 화면 요청 안에서는 여러 번 불려도 데이터베이스는 1번만 읽습니다. (속도 개선)
+const getAllOverrides = cache(async (): Promise<Override[]> => {
+  const { data, error } = await getSupabaseAdmin().from("duty_day_overrides").select("duty_date, kind, note");
   if (error) throw new Error("근무일 설정을 불러오지 못했습니다: " + error.message);
   return (data ?? []) as Override[];
+});
+
+export async function getOverrides(from: string, to: string): Promise<Override[]> {
+  return (await getAllOverrides()).filter((o) => o.duty_date >= from && o.duty_date <= to);
 }
 
 // 기간 안의 근무일 목록 (근무일만)
@@ -55,7 +58,7 @@ export async function getVoteInfo(date: string, rank?: string | null, now: Date 
 }
 
 // 추첨이 이미 끝난 날짜인지 (추첨 후에는 근무일 삭제·인원 변경을 막음)
-export async function isDrawn(date: string): Promise<boolean> {
+export const isDrawn = cache(async (date: string): Promise<boolean> => {
   const { data } = await getSupabaseAdmin().from("draws").select("duty_date").eq("duty_date", date).maybeSingle();
   return Boolean(data);
-}
+});

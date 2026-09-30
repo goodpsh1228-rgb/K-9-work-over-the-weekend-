@@ -2,7 +2,7 @@
 // ─────────────────────────────────────────────────────────────
 // 투표 서버 액션 — 희망(동 선택) / 미희망 / 취소 + 관리자 수동 추첨
 // 서버에서 다시 한 번 모든 규칙을 확인합니다. (화면 버튼을 몰래 눌러도 규칙을 어길 수 없게)
-//   - 근무일이 맞는지, 투표 기간(30일 전 00:00 ~ 2일 전 21:00)인지
+//   - 근무일이 맞는지, 투표 기간(주간 일정·계급별 시작)인지
 //   - 휴가·부상으로 제외된 날이 아닌지
 //   - 고른 자리가 내 추첨 풀에 맞는지 (진료반 → 진료실, 그 외 → 일반 동)
 // ─────────────────────────────────────────────────────────────
@@ -22,62 +22,57 @@ function back(date: string, kind: "msg" | "error", text: string): never {
   redirect(`/day/${date}?${kind}=${encodeURIComponent(text)}`);
 }
 
-// 공통 확인: 근무일 + 투표 중 + 제외 아님
-async function checkCanVote(date: string, memberId: number, rank: string | null) {
-  if (!isValidDate(date)) redirect("/home");
-  const isDuty = computeDutyDays(date, date, await getOverrides(date, date)).length > 0;
-  if (!isDuty) back(date, "error", "근무일이 아닙니다.");
-  const { status, overall } = await getVoteInfo(date, rank);
-  if (status === "before") {
-    back(date, "error", overall === "open" ? "일병·이병은 화요일 00:00부터 투표할 수 있습니다." : "아직 투표가 열리지 않았습니다.");
-  }
-  if (status === "closed") back(date, "error", "투표가 마감되었습니다.");
-  if ((await getExcludedIds(date)).has(memberId)) {
-    back(date, "error", "휴가·부상 기간이라 이 날은 제외 상태입니다.");
-  }
-}
+// 투표 결과: 화면에 보여 줄 문구 (페이지를 다시 불러오지 않고 바로 표시)
+export type VoteResult = { ok: boolean; message: string };
+export type VoteChoice = { kind: "want"; postId: number } | { kind: "decline" } | { kind: "cancel" };
 
-// 희망 (자리 선택 포함)
-export async function wantAction(formData: FormData) {
+// 투표 하나로 희망(동 선택) / 미희망 / 취소를 모두 처리합니다.
+// 규칙 확인에 필요한 정보는 동시에(병렬로) 읽어서 기다리는 시간을 줄입니다.
+export async function voteAction(date: string, choice: VoteChoice): Promise<VoteResult> {
   const me = await requireMember();
-  const date = String(formData.get("date") ?? "");
-  const postId = Number(formData.get("post_id"));
-  await checkCanVote(date, me.id, me.rank);
+  if (!isValidDate(date)) return { ok: false, message: "잘못된 날짜입니다." };
 
-  const post = (await getPostsForDate(date)).find((p) => p.id === postId);
-  const myPool = me.is_clinic ? "clinic" : "general";
-  if (!post) back(date, "error", "자리를 다시 선택해 주세요.");
-  if (post.pool !== myPool) {
-    back(date, "error", me.is_clinic ? "진료반은 진료실만 희망할 수 있습니다." : "진료실은 진료반만 희망할 수 있습니다.");
+  const [overrides, info, excluded, posts] = await Promise.all([
+    getOverrides(date, date),
+    getVoteInfo(date, me.rank),
+    getExcludedIds(date),
+    choice.kind === "want" ? getPostsForDate(date) : Promise.resolve([]),
+  ]);
+  if (computeDutyDays(date, date, overrides).length === 0) return { ok: false, message: "근무일이 아닙니다." };
+  if (info.status === "before") {
+    return {
+      ok: false,
+      message: info.overall === "open" ? "일병·이병은 화요일 00:00부터 투표할 수 있습니다." : "아직 투표가 열리지 않았습니다.",
+    };
   }
-  if (post.required === 0) back(date, "error", `${post.name} 은(는) 이 날 인원이 0명입니다.`);
+  if (info.status === "closed") return { ok: false, message: "투표가 마감되었습니다." };
+  if (excluded.has(me.id)) return { ok: false, message: "휴가·부상 기간이라 이 날은 제외 상태입니다." };
 
-  const { error } = await getSupabaseAdmin()
-    .from("responses")
-    .upsert({ member_id: me.id, duty_date: date, choice: "want", post_id: post.id });
-  if (error) back(date, "error", "저장 중 오류: " + error.message);
-  back(date, "msg", `${post.name} 희망으로 저장했습니다.`);
-}
+  const db = getSupabaseAdmin();
+  let message: string;
+  if (choice.kind === "want") {
+    const post = posts.find((p) => p.id === choice.postId);
+    if (!post) return { ok: false, message: "자리를 다시 선택해 주세요." };
+    if (post.pool !== (me.is_clinic ? "clinic" : "general")) {
+      return { ok: false, message: me.is_clinic ? "진료반은 진료실만 희망할 수 있습니다." : "진료실은 진료반만 희망할 수 있습니다." };
+    }
+    if (post.required === 0) return { ok: false, message: `${post.name} 은(는) 이 날 인원이 0명입니다.` };
+    const { error } = await db.from("responses").upsert({ member_id: me.id, duty_date: date, choice: "want", post_id: post.id });
+    if (error) return { ok: false, message: "저장 중 오류: " + error.message };
+    message = `${post.name} 희망으로 저장했습니다.`;
+  } else if (choice.kind === "decline") {
+    const { error } = await db.from("responses").upsert({ member_id: me.id, duty_date: date, choice: "decline", post_id: null });
+    if (error) return { ok: false, message: "저장 중 오류: " + error.message };
+    message = "미희망으로 저장했습니다.";
+  } else {
+    await db.from("responses").delete().eq("member_id", me.id).eq("duty_date", date);
+    message = "응답을 취소했습니다. (미응답 상태)";
+  }
 
-// 미희망 ("이날은 어려워요")
-export async function declineAction(formData: FormData) {
-  const me = await requireMember();
-  const date = String(formData.get("date") ?? "");
-  await checkCanVote(date, me.id, me.rank);
-  const { error } = await getSupabaseAdmin()
-    .from("responses")
-    .upsert({ member_id: me.id, duty_date: date, choice: "decline", post_id: null });
-  if (error) back(date, "error", "저장 중 오류: " + error.message);
-  back(date, "msg", "미희망으로 저장했습니다.");
-}
-
-// 응답 취소 → 미응답 상태로
-export async function cancelVoteAction(formData: FormData) {
-  const me = await requireMember();
-  const date = String(formData.get("date") ?? "");
-  await checkCanVote(date, me.id, me.rank);
-  await getSupabaseAdmin().from("responses").delete().eq("member_id", me.id).eq("duty_date", date);
-  back(date, "msg", "응답을 취소했습니다. (미응답 상태)");
+  // 이 화면과 홈 화면의 내용을 새로 그리게 함 → 새로고침 없이 이름 목록·배지가 바뀜
+  revalidatePath(`/day/${date}`);
+  revalidatePath("/home");
+  return { ok: true, message };
 }
 
 // ── 관리자: 지금 추첨 (마감이 지난 날, 아직 추첨 안 된 날만) ──

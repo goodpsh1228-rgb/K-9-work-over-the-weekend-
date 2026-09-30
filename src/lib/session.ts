@@ -14,6 +14,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 
 const COOKIE_NAME = "k9_session";
@@ -65,7 +66,8 @@ export async function destroySession() {
 }
 
 // 쿠키를 읽어 "지금 로그인한 사람"을 돌려줍니다. 로그인 안 했거나 무효면 null.
-export async function getCurrentMember(): Promise<Member | null> {
+// cache(): 한 번의 요청 안에서 여러 번 불려도 쿠키 확인·데이터베이스 조회는 1번만 (속도 개선)
+export const getCurrentMember = cache(async (): Promise<Member | null> => {
   const store = await cookies();
   const raw = store.get(COOKIE_NAME)?.value;
   if (!raw) return null;
@@ -105,7 +107,7 @@ export async function getCurrentMember(): Promise<Member | null> {
     session_version: data.session_version,
     rank: data.rank,
   };
-}
+});
 
 // 로그인이 필요한 화면에서 호출: 로그인 안 했으면 로그인 화면으로 보냄.
 // 첫 로그인(비밀번호 변경 필요)이면 비밀번호 변경 화면으로 보냄.

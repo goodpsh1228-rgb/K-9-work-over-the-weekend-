@@ -20,20 +20,21 @@ export default async function HomePage() {
   // 안전장치: 마감됐는데 아직 추첨 안 된 날이 있으면 지금 추첨 (정기 실행이 늦거나 실패했을 때 대비)
   await runPendingDrawsSafely();
   const { from, to } = viewRange(); // 오늘 ~ 60일 뒤 (한국 날짜)
-  const days = await getDutyDays(from, to);
-  const myState = await getMyStates(me.id, from, to);
-  const fridayIsDuty = await getFridayChecker(from, to); // 금요일 공휴일 주는 화요일 마감
+  // 필요한 정보를 동시에(병렬로) 읽어 기다리는 시간을 줄임
+  const db = getSupabaseAdmin();
+  const [days, myState, fridayIsDuty, { data: drawRows }, { data: myRows }, { data: posts }] = await Promise.all([
+    getDutyDays(from, to),
+    getMyStates(me.id, from, to),
+    getFridayChecker(from, to), // 금요일 공휴일 주는 화요일 마감
+    db.from("draws").select("duty_date, clinic_shortage, general_shortage").gte("duty_date", from).lte("duty_date", to),
+    db.from("assignments").select("duty_date, post_id").eq("member_id", me.id).gte("duty_date", from).lte("duty_date", to),
+    db.from("posts").select("id, name"),
+  ]);
   const now = new Date();
   const myStatus = (date: string) => votingStatus(date, fridayIsDuty(date), now, me.rank); // 내 계급 기준
   const overall = (date: string) => votingStatus(date, fridayIsDuty(date), now); // 투표 전체 기준
 
   // 추첨이 끝난 날짜와 내 배정 (배지에 "출근·동 이름" / "미출근" 표시)
-  const db = getSupabaseAdmin();
-  const [{ data: drawRows }, { data: myRows }, { data: posts }] = await Promise.all([
-    db.from("draws").select("duty_date, clinic_shortage, general_shortage").gte("duty_date", from).lte("duty_date", to),
-    db.from("assignments").select("duty_date, post_id").eq("member_id", me.id).gte("duty_date", from).lte("duty_date", to),
-    db.from("posts").select("id, name"),
-  ]);
   const drawn = new Map((drawRows ?? []).map((d) => [d.duty_date as string, d]));
   const postName = new Map((posts ?? []).map((p) => [p.id as number, p.name as string]));
   const myPost = new Map((myRows ?? []).map((r) => [r.duty_date as string, postName.get(r.post_id) ?? ""]));
