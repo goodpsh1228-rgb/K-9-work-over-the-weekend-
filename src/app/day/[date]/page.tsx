@@ -18,7 +18,7 @@ import { STATUS_LABEL } from "@/lib/voting";
 import { Notice, Page } from "@/components/ui";
 import { buildDrawInput, getDraw, getRoster, runPendingDrawsSafely, simulateDraw, type RosterEntry } from "@/lib/draw-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
-import { buildKakaoText } from "@/lib/roster-text";
+import { buildPostText, buildRankText } from "@/lib/roster-text";
 import { CopyButton } from "@/components/copy-button";
 import { manualDrawAction } from "./actions";
 import { VotePanel } from "./vote-panel";
@@ -56,7 +56,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
     const sim = simulateDraw(await buildDrawInput(date));
     const { data: names } = await getSupabaseAdmin().from("members").select("id, name");
     const nameOf = new Map((names ?? []).map((m) => [m.id as number, m.name as string]));
-    preview = sim.assignments.map((a) => ({ ...a, name: nameOf.get(a.memberId) ?? "?" }));
+    preview = sim.assignments.map((a) => ({ ...a, name: nameOf.get(a.memberId) ?? "?", rank: null }));
     previewShortage = sim.shortage.clinic + sim.shortage.general + sim.shortage.driver;
   }
   // 희망했지만 정원 초과로 떨어져 쉬는 사람 (추첨 후)
@@ -71,15 +71,16 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
     .map((r) => board.posts.find((p) => p.id === r.postId)?.name ?? "?");
   const myAssignment = myPostNames.length > 0;
 
-  // 관리자: 카카오톡용 글 (이 날 + 같은 투표 주에 추첨이 끝난 모든 날)
-  let kakaoDay: string | null = null;
+  // 카카오톡용 출근 명단 글 (추첨이 끝나면 모두에게): ① 동별 ② 계급별
+  const postText = roster ? buildPostText(date, board.posts, roster) : null;
+  const rankText = roster ? buildRankText(date, board.posts, roster) : null;
+  // 관리자: 같은 투표 주에 추첨이 끝난 모든 날의 동별 글을 한 번에
   let kakaoWeek: string | null = null;
-  if (me.is_admin && roster) {
-    kakaoDay = buildKakaoText(date, board.posts, roster);
+  if (me.is_admin && postText) {
     const texts: string[] = [];
     for (const d of dateRange(win.coverFrom, win.coverTo)) {
-      if (d === date) texts.push(kakaoDay);
-      else if (await getDraw(d)) texts.push(buildKakaoText(d, await getPostsForDate(d), await getRoster(d)));
+      if (d === date) texts.push(postText);
+      else if (await getDraw(d)) texts.push(buildPostText(d, await getPostsForDate(d), await getRoster(d)));
     }
     if (texts.length > 1) kakaoWeek = texts.join("\n\n");
   }
@@ -102,6 +103,14 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
               {draw.general_shortage}). 빈자리를 채워 주세요.
             </Notice>
           )}
+          {/* 출근 명단 글 두 가지 — 글을 보여 주고, 버튼으로 복사 */}
+          {postText && rankText && (
+            <div className="space-y-4">
+              <TextBlock title="동별 출근 인원" text={postText} label="동별 명단 복사" />
+              <TextBlock title="계급별 출근 인원" text={rankText} label="계급별 명단 복사" />
+              {kakaoWeek && <CopyButton text={kakaoWeek} label="이번 투표 주 동별 명단 전체 복사" />}
+            </div>
+          )}
           <RosterView title="확정 명단" posts={board.posts} roster={roster} />
           {me.is_admin && (
             <Link
@@ -110,16 +119,6 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
             >
               명단 수정 (관리자) →
             </Link>
-          )}
-          {kakaoDay && (
-            <div className="space-y-2">
-              <CopyButton text={kakaoDay} />
-              {kakaoWeek && <CopyButton text={kakaoWeek} label="이번 투표 주 전체 복사" />}
-              <details className="text-sm">
-                <summary className="cursor-pointer text-zinc-500">복사될 글 미리보기</summary>
-                <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-zinc-100 p-3 text-xs dark:bg-zinc-900">{kakaoDay}</pre>
-              </details>
-            </div>
           )}
           {rested.length > 0 && (
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -251,7 +250,18 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   );
 }
 
-// 확정 명단 표: 자리마다 이름 + 꼬리표, 빈자리는 빨간색
+// 복사용 글 한 덩어리: 제목 + 글 + 복사 버튼
+function TextBlock({ title, text, label }: { title: string; text: string; label: string }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-semibold">{title}</p>
+      <pre className="whitespace-pre-wrap rounded-lg bg-zinc-100 p-3 font-sans text-sm leading-6 dark:bg-zinc-900">{text}</pre>
+      <CopyButton text={text} label={label} />
+    </div>
+  );
+}
+
+// 확정 명단 표: 자리마다 이름 + 꼬리표, 빈자리는 빨간색 (선탑은 "미정")
 const SOURCE_LABEL = { wanted: "희망 확정", drafted: "차출", admin: "관리자 수정" } as const;
 const SOURCE_COLOR = {
   wanted: "bg-blue-100 text-blue-800",
@@ -280,7 +290,12 @@ function RosterView({ title, posts, roster }: { title: string; posts: PostSlot[]
                       <span className={`rounded px-1 text-[11px] ${SOURCE_COLOR[r.source]}`}>{SOURCE_LABEL[r.source]}</span>
                     </span>
                   ))}
-                  {empty > 0 && <span className="text-red-600">빈자리 {empty}</span>}
+                  {empty > 0 &&
+                    (p.pool === "escort" ? (
+                      <span className="text-zinc-500">미정 (관리자가 지정)</span>
+                    ) : (
+                      <span className="text-red-600">빈자리 {empty}</span>
+                    ))}
                 </p>
               </li>
             );

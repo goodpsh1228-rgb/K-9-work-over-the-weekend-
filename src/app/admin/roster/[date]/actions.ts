@@ -4,7 +4,7 @@
 //   - 삭제: 명단에서 한 사람 빼기
 //   - 추가: 사람 + 자리를 골라 넣기 (꼬리표 "관리자 수정")
 //   - 교체: 한 사람을 다른 사람으로 바꾸기 (같은 자리, 꼬리표 "관리자 수정")
-//   ※ 한 사람은 하루에 동(진료실 포함) 한 곳 + 주말 운전 한 곳까지 가질 수 있습니다.
+//   ※ 한 사람은 하루에 동(진료실 포함) 한 곳 + 주말 운전 + 선탑까지 가질 수 있습니다(종류별 한 번).
 //   휴가·부상 중인 사람도 넣을 수 있습니다(화면에서 경고만). 변경 이력에 "제외 기간 중" 표시를 남깁니다.
 //   변경 후에는 인원 부족 수를 다시 계산해 저장합니다.
 // ─────────────────────────────────────────────────────────────
@@ -36,11 +36,16 @@ async function common(formData: FormData) {
 //   이미 들어갈 수 없으면 안내 문구를, 괜찮으면 null 을 돌려줍니다.
 async function conflictMessage(date: string, memberId: number, name: string, postId: number, ignoreRowId?: number) {
   const posts = await getPostsForDate(date);
-  const isDrive = (pid: number) => posts.find((p) => p.id === pid)?.pool === "driver";
+  // 종류: 운전 / 선탑 / 그 외(동·진료실)
+  const kind = (pid: number) => {
+    const pool = posts.find((p) => p.id === pid)?.pool;
+    return pool === "driver" || pool === "escort" ? pool : "post";
+  };
   const { data } = await getSupabaseAdmin().from("assignments").select("id, post_id").eq("duty_date", date).eq("member_id", memberId);
-  const clash = (data ?? []).some((r) => r.id !== ignoreRowId && isDrive(r.post_id) === isDrive(postId));
+  const clash = (data ?? []).some((r) => r.id !== ignoreRowId && kind(r.post_id) === kind(postId));
   if (!clash) return null;
-  return isDrive(postId) ? `${name} 은(는) 이미 운전 명단에 있습니다.` : `${name} 은(는) 이미 다른 동 명단에 있습니다.`;
+  const what = { driver: "운전", escort: "선탑", post: "다른 동" }[kind(postId)];
+  return `${name} 은(는) 이미 ${what} 명단에 있습니다.`;
 }
 
 async function memberName(id: number) {
@@ -58,7 +63,10 @@ async function recomputeShortage(date: string) {
   const count = new Map<number, number>();
   for (const r of rows ?? []) count.set(r.post_id, (count.get(r.post_id) ?? 0) + 1);
   const short = { clinic: 0, general: 0, driver: 0 };
-  for (const p of posts) short[p.pool] += Math.max(0, p.required - (count.get(p.id) ?? 0));
+  for (const p of posts) {
+    if (p.pool === "escort") continue; // 선탑은 인원 부족으로 세지 않음
+    short[p.pool] += Math.max(0, p.required - (count.get(p.id) ?? 0));
+  }
   // 운전 부족은 "일반(동·운전)" 부족에 합쳐 저장
   await db.from("draws").update({ clinic_shortage: short.clinic, general_shortage: short.general + short.driver }).eq("duty_date", date);
 }

@@ -51,13 +51,15 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
     getRoster(date),
     getExcludedIds(date),
     getDriverIds(),
-    db.from("members").select("id, name, is_clinic").eq("is_active", true).order("name"),
+    db.from("members").select("id, name, rank, is_clinic").eq("is_active", true).order("name"),
     db.from("responses").select("member_id, choice").eq("duty_date", date),
   ]);
   // 동(진료실 포함) 명단에 있는 사람 / 운전 명단에 있는 사람 — 따로 셉니다(운전병은 둘 다 가능)
-  const driverPostIds = new Set(posts.filter((p) => p.pool === "driver").map((p) => p.id));
-  const inPostRoster = new Set(roster.filter((r) => !driverPostIds.has(r.postId)).map((r) => r.memberId));
-  const inDriveRoster = new Set(roster.filter((r) => driverPostIds.has(r.postId)).map((r) => r.memberId));
+  const poolOf = new Map(posts.map((p) => [p.id, p.pool]));
+  const inRosterOf = (pools: string[]) => new Set(roster.filter((r) => pools.includes(poolOf.get(r.postId) ?? "")).map((r) => r.memberId));
+  const inPostRoster = inRosterOf(["clinic", "general"]);
+  const inDriveRoster = inRosterOf(["driver"]);
+  const inEscortRoster = inRosterOf(["escort"]);
   const respOf = new Map((responses ?? []).map((r) => [r.member_id as number, r.choice as string]));
 
   // 후보 = 명단에 없는 활성 인원. 이름 옆에 진료반·응답·휴가 표시.
@@ -65,6 +67,7 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
   const allCandidates = (members ?? [])
     .map((m) => {
       const tags = [
+        inPostRoster.has(m.id) ? "동 출근" : null, // 선탑 고를 때 참고
         m.is_clinic ? "진료반" : null,
         drivers.has(m.id) ? "운전병" : null,
         respOf.get(m.id) === "want" ? "희망했음" : respOf.get(m.id) === "decline" ? "미희망" : null,
@@ -73,16 +76,20 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
       return {
         inPost: inPostRoster.has(m.id),
         inDrive: inDriveRoster.has(m.id),
+        inEscort: inEscortRoster.has(m.id),
         driver: drivers.has(m.id),
         id: m.id as number,
-        label: `${m.name}${tags.length ? ` (${tags.join(", ")})` : ""}`,
+        label: `${m.rank ? `${m.rank} ` : ""}${m.name}${tags.length ? ` (${tags.join(", ")})` : ""}`,
         warn: excluded.has(m.id) ? `${m.name} 은(는) 이 날 휴가·부상 기간입니다.` : "",
       };
     });
 
   // 후보 선택 칸 (교체·추가에 같이 씀)
-  const candidateSelect = (forDrive: boolean) => {
-    const candidates = allCandidates.filter((c) => (forDrive ? c.driver && !c.inDrive : !c.inPost));
+  //   선탑 후보: 선탑이 아닌 모든 사람 (동 출근자도 가능)
+  const candidateSelect = (pool: string) => {
+    const candidates = allCandidates.filter((c) =>
+      pool === "driver" ? c.driver && !c.inDrive : pool === "escort" ? !c.inEscort : !c.inPost,
+    );
     return (
     <select name="member_id" required data-warn-select className={selectClass} defaultValue="">
       <option value="" disabled>
@@ -145,7 +152,7 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
                         <input type="hidden" name="date" value={date} />
                         <input type="hidden" name="old_member_id" value={r.memberId} />
                         <input type="hidden" name="post_id" value={p.id} />
-                        {candidateSelect(p.pool === "driver")}
+                        {candidateSelect(p.pool)}
                         <button type="submit" className="shrink-0 rounded border border-zinc-300 px-2 py-1.5 text-xs dark:border-zinc-700">
                           교체
                         </button>
@@ -157,7 +164,7 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
                     <WarnSelectForm action={addAssignmentAction} className="flex items-center gap-1.5">
                       <input type="hidden" name="date" value={date} />
                       <input type="hidden" name="post_id" value={p.id} />
-                      {candidateSelect(p.pool === "driver")}
+                      {candidateSelect(p.pool)}
                       <button type="submit" className="shrink-0 rounded bg-blue-600 px-2 py-1.5 text-xs font-semibold text-white">
                         추가
                       </button>

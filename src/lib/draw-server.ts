@@ -30,7 +30,9 @@ export async function buildDrawInput(date: string): Promise<DrawInput> {
     db.from("responses").select("member_id, choice, post_id").eq("duty_date", date),
   ]);
   // 0007 SQL 전이면(운전 희망 표 없음) 운전 자리는 빼고 추첨 (동+운전 중복 저장이 안 되므로)
-  const posts = driveWants.ok ? allPosts : allPosts.filter((p) => p.pool !== "driver");
+  // 선탑(escort)은 추첨하지 않음 (추첨 후 관리자가 지정)
+  const drawable = allPosts.filter((p): p is typeof p & { pool: "clinic" | "general" | "driver" } => p.pool !== "escort");
+  const posts = driveWants.ok ? drawable : drawable.filter((p) => p.pool !== "driver");
   return {
     driveWants: driveWants.ids,
     posts: posts.map((p) => ({ id: p.id, pool: p.pool, required: p.required })),
@@ -97,20 +99,22 @@ export async function getDraw(date: string) {
     | null;
 }
 
-export type RosterEntry = { memberId: number; name: string; postId: number; source: "wanted" | "drafted" | "admin" };
+export type RosterEntry = { memberId: number; name: string; rank: string | null; postId: number; source: "wanted" | "drafted" | "admin" };
 
 // 확정 명단 (이름 포함)
 export async function getRoster(date: string): Promise<RosterEntry[]> {
   const db = getSupabaseAdmin();
   const [{ data: rows }, { data: members }] = await Promise.all([
     db.from("assignments").select("member_id, post_id, source").eq("duty_date", date),
-    db.from("members").select("id, name"),
+    db.from("members").select("id, name, rank"),
   ]);
   const nameOf = new Map((members ?? []).map((m) => [m.id as number, m.name as string]));
+  const rankOf = new Map((members ?? []).map((m) => [m.id as number, (m.rank as string | null) ?? null]));
   return (rows ?? [])
     .map((r) => ({
       memberId: r.member_id as number,
       name: nameOf.get(r.member_id) ?? "?",
+      rank: rankOf.get(r.member_id) ?? null,
       postId: r.post_id as number,
       source: r.source as RosterEntry["source"],
     }))

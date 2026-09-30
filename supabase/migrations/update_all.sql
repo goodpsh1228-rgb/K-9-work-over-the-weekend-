@@ -1,4 +1,4 @@
--- 추가 업데이트 한 번에 (0002 + 0003 + 0004 + 0005 + 0006 + 0007) — 여러 번 실행해도 안전합니다
+-- 추가 업데이트 한 번에 (0002 + 0003 + 0004 + 0005 + 0006 + 0007 + 0008) — 여러 번 실행해도 안전합니다
 alter table responses add column if not exists post_id bigint references posts(id);
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'responses_post_matches_choice') then
@@ -61,7 +61,7 @@ alter table draws add constraint draws_executed_by_fkey foreign key (executed_by
 -- ── 0005 + 0006: 제외 종류 추가, 운전병 ──
 alter table members add column if not exists is_driver boolean not null default false;
 alter table posts drop constraint if exists posts_pool_check;
-alter table posts add constraint posts_pool_check check (pool in ('clinic', 'general', 'driver'));
+alter table posts add constraint posts_pool_check check (pool in ('clinic', 'general', 'driver', 'escort'));
 insert into posts (name, pool, default_count, sort_order)
 values ('주말 운전', 'driver', 1, 15)
 on conflict (name) do nothing;
@@ -85,3 +85,11 @@ delete from responses where post_id in (select id from posts where pool = 'drive
 -- ③ 같은 날 같은 사람이 "다른 자리" 두 곳(동 + 운전)을 가질 수 있게
 alter table assignments drop constraint if exists assignments_duty_date_member_id_key;
 create unique index if not exists assignments_date_member_post on assignments (duty_date, member_id, post_id);
+
+-- ── 0008: 선탑 ──
+-- ④ 선탑 (pool = 'escort')
+alter table posts drop constraint if exists posts_pool_check;
+alter table posts add constraint posts_pool_check check (pool in ('clinic', 'general', 'driver', 'escort'));
+insert into posts (name, pool, default_count, sort_order)
+values ('선탑', 'escort', 1, 16)
+on conflict (name) do nothing;

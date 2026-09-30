@@ -10,7 +10,7 @@
 alter table members add column if not exists is_driver boolean not null default false;
 
 alter table posts drop constraint if exists posts_pool_check;
-alter table posts add constraint posts_pool_check check (pool in ('clinic', 'general', 'driver'));
+alter table posts add constraint posts_pool_check check (pool in ('clinic', 'general', 'driver', 'escort'));
 
 insert into posts (name, pool, default_count, sort_order)
 values ('주말 운전', 'driver', 1, 15)

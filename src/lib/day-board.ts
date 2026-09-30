@@ -14,7 +14,7 @@ import { getDriveWants } from "@/lib/drivers";
 export type PostSlot = {
   id: number;
   name: string;
-  pool: "clinic" | "general" | "driver";
+  pool: "clinic" | "general" | "driver" | "escort"; // escort = 선탑 (추첨 안 함, 관리자 지정)
   required: number; // 그날 필요 인원 (날짜별 설정이 있으면 그 값)
   wanters: { id: number; name: string }[]; // 이 자리를 희망한 사람
 };
@@ -46,7 +46,7 @@ export const getPostsForDate = cache(async (date: string) => {
   return (posts ?? []).map((p) => ({
     id: p.id as number,
     name: p.name as string,
-    pool: p.pool as "clinic" | "general" | "driver",
+    pool: p.pool as "clinic" | "general" | "driver" | "escort",
     required: custom.get(p.id) ?? (p.default_count as number),
   }));
 });
