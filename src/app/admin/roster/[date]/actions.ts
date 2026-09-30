@@ -4,10 +4,12 @@
 //   - 삭제: 명단에서 한 사람 빼기
 //   - 추가: 사람 + 자리를 골라 넣기 (꼬리표 "관리자 수정")
 //   - 교체: 한 사람을 다른 사람으로 바꾸기 (같은 자리, 꼬리표 "관리자 수정")
+//   - 선탑 추첨: 그날 출근자 중 관리자가 고른 대상자 안에서 랜덤 1명 (다시 누르면 다시 뽑음)
 //   ※ 한 사람은 하루에 동(진료실 포함) 한 곳 + 주말 운전 + 선탑까지 가질 수 있습니다(종류별 한 번).
 //   휴가·부상 중인 사람도 넣을 수 있습니다(화면에서 경고만). 변경 이력에 "제외 기간 중" 표시를 남깁니다.
 //   변경 후에는 인원 부족 수를 다시 계산해 저장합니다.
 // ─────────────────────────────────────────────────────────────
+import { randomInt } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/session";
@@ -145,4 +147,39 @@ export async function replaceAssignmentAction(formData: FormData) {
     details: { from: oldName, to: newM.name, post, excluded },
   });
   back(date, "msg", `${post}: ${oldName} → ${newM.name} 으로 바꿨습니다.${excluded ? " (휴가·부상 기간 중인 사람)" : ""}`);
+}
+
+// 선탑 추첨: 관리자가 체크한 대상자(그날 동·진료실 출근자) 중에서 서버 난수로 1명
+//   이미 선탑이 있으면 새로 뽑은 사람으로 바뀝니다.
+export async function drawEscortAction(formData: FormData) {
+  const { me, date, db } = await common(formData);
+  const ids = formData.getAll("candidate_ids").map(Number).filter(Number.isInteger);
+  const posts = await getPostsForDate(date);
+  const escort = posts.find((p) => p.pool === "escort");
+  if (!escort) back(date, "error", "선탑 자리가 없습니다. 0008 SQL을 먼저 실행해 주세요.");
+  if (ids.length === 0) back(date, "error", "선탑 대상자를 한 명 이상 체크해 주세요.");
+
+  // 대상자는 그날 동·진료실 출근자만 (화면을 거치지 않은 조작 방지)
+  const workPostIds = posts.filter((p) => p.pool === "clinic" || p.pool === "general").map((p) => p.id);
+  const { data: rows } = await db.from("assignments").select("member_id").eq("duty_date", date).in("post_id", workPostIds);
+  const workers = new Set((rows ?? []).map((r) => r.member_id as number));
+  const pool = [...new Set(ids)].filter((id) => workers.has(id));
+  if (pool.length === 0) back(date, "error", "대상자는 이 날 출근자 중에서 골라 주세요.");
+
+  const picked = pool[randomInt(pool.length)]; // 대상자 모두 같은 확률
+  await db.from("assignments").delete().eq("duty_date", date).eq("post_id", escort.id);
+  const { error } = await db.from("assignments").insert({ duty_date: date, member_id: picked, post_id: escort.id, source: "drafted" });
+  if (error) back(date, "error", "저장 중 오류: " + error.message);
+
+  const { data: names } = await db.from("members").select("id, name").in("id", pool);
+  const nameOf = new Map((names ?? []).map((m) => [m.id as number, m.name as string]));
+  const pickedName = nameOf.get(picked) ?? "?";
+  await writeAudit({
+    actorId: me.id,
+    action: "roster.escort_draw",
+    targetMemberId: picked,
+    dutyDate: date,
+    details: { picked: pickedName, candidates: pool.map((id) => nameOf.get(id) ?? "?") },
+  });
+  back(date, "msg", `선탑 추첨: 대상자 ${pool.length}명 중 ${pickedName} 이(가) 뽑혔습니다.`);
 }

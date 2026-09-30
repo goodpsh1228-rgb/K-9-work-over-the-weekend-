@@ -28,6 +28,7 @@ const LABELS: Record<string, string> = {
   "absence.delete": "제외 기간 삭제",
   "draw.run": "추첨 실행",
   "roster.add": "명단에 추가",
+  "roster.escort_draw": "선탑 추첨",
   "roster.remove": "명단에서 삭제",
   "roster.replace": "명단 교체",
 };
@@ -78,6 +79,10 @@ export function detailText(action: string, d: Record<string, unknown>): string {
       const short = (d.shortage ?? {}) as { clinic?: number; general?: number; driver?: number };
       const total = (short.clinic ?? 0) + (short.general ?? 0) + (short.driver ?? 0);
       return `${TRIGGER[s(d.trigger)] ?? s(d.trigger)} · ${s(d.assigned)}명 배정${total ? ` · 부족 ${total}명` : ""}`;
+    }
+    case "roster.escort_draw": {
+      const c = Array.isArray(d.candidates) ? (d.candidates as string[]) : [];
+      return `${s(d.picked)} (대상 ${c.length}명: ${c.join(", ")})`;
     }
     case "roster.add":
       return `${s(d.name)} → ${s(d.post)}${d.excluded ? " (휴가·부상 중)" : ""}`;
