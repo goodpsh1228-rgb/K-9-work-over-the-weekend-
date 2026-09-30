@@ -24,8 +24,12 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
     .select("id, name, rank, is_clinic, is_admin, is_active, must_change_password")
     .order("is_active", { ascending: false })
     .order("name");
-  const list = members ?? [];
-  const noRank = list.filter((m) => m.is_active && !m.rank).length;
+  // 비활성(전출·전역) 인원은 기본으로 숨기고, ?inactive=1 일 때만 함께 보여 줌
+  const showInactive = sp.inactive === "1";
+  const all = members ?? [];
+  const inactiveCount = all.filter((m) => !m.is_active).length;
+  const list = showInactive ? all : all.filter((m) => m.is_active);
+  const noRank = all.filter((m) => m.is_active && !m.rank).length;
 
   return (
     <Page title="인원 관리">
@@ -84,7 +88,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
       </div>
 
       <p className="mt-4 mb-2 text-sm text-zinc-500">
-        전체 {list.length}명 (활성 {list.filter((m) => m.is_active).length}명) · 이름을 누르면 상세 관리
+        {showInactive ? `전체 ${list.length}명 (비활성 포함)` : `${list.length}명`} · 이름을 누르면 상세 관리
       </p>
       {/* 삭제용 폼: 체크박스들이 form="delete-form" 으로 이 폼에 연결됩니다 */}
       <form id="delete-form" action={deleteMembersAction} />
@@ -123,6 +127,14 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
           </li>
         ))}
       </ul>
+      {inactiveCount > 0 && (
+        <Link
+          href={showInactive ? "/admin/members" : "/admin/members?inactive=1"}
+          className="mt-2 block text-right text-xs text-zinc-500 underline"
+        >
+          {showInactive ? "비활성 인원 숨기기" : `비활성 ${inactiveCount}명 보기 (다시 활성화할 때)`}
+        </Link>
+      )}
 
       <div className="mt-4">
         <DeleteButton />

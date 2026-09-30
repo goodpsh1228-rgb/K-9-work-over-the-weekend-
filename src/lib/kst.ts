@@ -78,3 +78,12 @@ export function mondayOf(date: string): string {
   const w = weekday(date); // 0=일 … 6=토
   return addDays(date, w === 0 ? -6 : 1 - w);
 }
+
+// 몇 달 더하기/빼기. 없는 날짜는 그 달 마지막 날로 맞춤 (예: 3/31 에서 1달 빼기 → 2/28 또는 2/29)
+export function addMonths(date: string, n: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + n, 1)); // 목표 달의 1일
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, lastDay));
+  return target.toISOString().slice(0, 10);
+}

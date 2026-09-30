@@ -2,6 +2,7 @@
 // 변경 이력(audit_logs) 을 사람이 읽기 쉬운 한국어로 바꾸는 도구
 //   action 코드 → 이름,  details(상세 내용) → 한 줄 설명
 // ─────────────────────────────────────────────────────────────
+import { KIND_LABEL } from "./absence-kinds";
 
 const LABELS: Record<string, string> = {
   "auth.locked": "로그인 차단(5회 실패)",
@@ -21,8 +22,8 @@ const LABELS: Record<string, string> = {
   "dutyday.remove": "근무 없음 처리",
   "dutyday.restore": "근무일 되돌리기",
   "dutyday.post_counts": "날짜별 인원 변경",
-  "absence.add": "휴가·부상 입력",
-  "absence.delete": "휴가·부상 삭제",
+  "absence.add": "제외 기간 입력",
+  "absence.delete": "제외 기간 삭제",
   "draw.run": "추첨 실행",
   "roster.add": "명단에 추가",
   "roster.remove": "명단에서 삭제",
@@ -33,7 +34,7 @@ export function actionLabel(action: string): string {
   return LABELS[action] ?? action;
 }
 
-const KIND = { leave: "휴가", injury: "부상" } as Record<string, string>;
+const KIND = KIND_LABEL;
 const TRIGGER = { cron: "자동(정기)", visit: "자동(접속 시)", manual: "관리자 수동" } as Record<string, string>;
 
 // 상세 내용 한 줄 요약 (모르는 형식이면 짧게 줄인 원문)

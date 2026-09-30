@@ -14,6 +14,7 @@ export default async function ImportPage() {
   const { data: members } = await getSupabaseAdmin()
     .from("members")
     .select("id, name, is_clinic, is_admin, is_active, must_change_password")
+    .eq("is_active", true) // 비활성(전출·전역) 인원은 표시하지 않음
     .order("name");
 
   return (

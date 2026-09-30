@@ -11,10 +11,9 @@ import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { addDays, formatShort, todayKST } from "@/lib/kst";
 import { Notice, Page } from "@/components/ui";
 import { addAbsenceAction, deleteAbsenceAction } from "./actions";
+import { AbsenceForm } from "@/components/absence-form";
+import { KIND_LABEL } from "@/lib/absence-kinds";
 
-const KIND_LABEL: Record<string, string> = { leave: "휴가", injury: "부상" };
-const inputClass =
-  "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
 
 export default async function AbsencesPage({ searchParams }: PageProps<"/absences">) {
   const me = await requireMember();
@@ -37,54 +36,22 @@ export default async function AbsencesPage({ searchParams }: PageProps<"/absence
   const nameOf = new Map((members ?? []).map((m) => [m.id as number, m.name as string]));
 
   return (
-    <Page title="휴가·부상 입력">
+    <Page title="휴가·부상·외출 등 제외 입력">
       <div className="space-y-3">
         {msg && <Notice kind="success">{msg}</Notice>}
         {error && <Notice kind="error">{error}</Notice>}
       </div>
 
-      <form action={addAbsenceAction} className="mt-3 space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-        {me.is_admin && (
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">누구 (관리자)</span>
-            <select name="member_id" defaultValue={me.id} className={inputClass}>
-              {(members ?? [])
-                .filter((m) => m.is_active)
-                .map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                    {m.id === me.id ? " (나)" : ""}
-                  </option>
-                ))}
-            </select>
-          </label>
-        )}
-        <fieldset className="flex gap-4">
-          <legend className="mb-1 text-sm font-medium">종류</legend>
-          <label className="flex items-center gap-1">
-            <input type="radio" name="kind" value="leave" defaultChecked /> 휴가
-          </label>
-          <label className="flex items-center gap-1">
-            <input type="radio" name="kind" value="injury" /> 부상
-          </label>
-        </fieldset>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">시작일</span>
-            <input type="date" name="start_date" required className={inputClass} />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">종료일</span>
-            <input type="date" name="end_date" required className={inputClass} />
-          </label>
-        </div>
-        <p className="text-xs text-zinc-500">
+      <div className="mt-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+        <AbsenceForm
+          action={addAbsenceAction}
+          myId={me.id}
+          members={me.is_admin ? (members ?? []).filter((m) => m.is_active).map((m) => ({ id: m.id, name: m.name })) : undefined}
+        />
+        <p className="mt-2 text-xs text-zinc-500">
           시작일과 종료일 모두 포함합니다. 입력 즉시 제외되며, 이 기간 근무일의 &quot;희망&quot;은 자동 취소됩니다.
         </p>
-        <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white">
-          저장
-        </button>
-      </form>
+      </div>
 
       <h2 className="mt-8 mb-2 text-lg font-bold">{me.is_admin ? "전체 기록" : "내 기록"}</h2>
       {(rows ?? []).length === 0 ? (

@@ -9,6 +9,7 @@ import { logoutAction } from "@/app/auth-actions";
 import { Page } from "@/components/ui";
 import { getDutyDays, homeRange } from "@/lib/duty-days-server";
 import { addAbsenceAction } from "@/app/absences/actions";
+import { AbsenceForm } from "@/components/absence-form";
 import { Notice } from "@/components/ui";
 import { formatShort } from "@/lib/kst";
 import { getMyStates, type MyState } from "@/lib/day-board";
@@ -55,34 +56,15 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         {me.is_clinic && <span className="rounded bg-teal-100 px-2 py-0.5 text-teal-800">진료반</span>}
       </p>
 
-      {/* 휴가·부상 입력 — 맨 위에 바로 입력 */}
+      {/* 휴가·부상·외출/면회·전역 면제 입력 — 맨 위에 바로 입력 */}
       <section className="mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-        <p className="mb-2 text-sm font-semibold">휴가·부상 입력</p>
+        <p className="mb-2 text-sm font-semibold">휴가·부상·외출 등 제외 입력</p>
         {msg && <div className="mb-2"><Notice kind="success">{msg}</Notice></div>}
         {error && <div className="mb-2"><Notice kind="error">{error}</Notice></div>}
-        <form action={addAbsenceAction} className="space-y-2">
-          <input type="hidden" name="back" value="/home" />
-          <div className="flex gap-4 text-sm">
-            <label className="flex items-center gap-1">
-              <input type="radio" name="kind" value="leave" defaultChecked /> 휴가
-            </label>
-            <label className="flex items-center gap-1">
-              <input type="radio" name="kind" value="injury" /> 부상
-            </label>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input type="date" name="start_date" required aria-label="시작일" className="min-w-0 rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100" />
-            <input type="date" name="end_date" required aria-label="종료일" className="min-w-0 rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100" />
-          </div>
-          <div className="flex items-center gap-2">
-            <button type="submit" className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">
-              저장 (시작일 ~ 종료일)
-            </button>
-            <Link href="/absences" className="shrink-0 text-sm text-zinc-500 underline">
-              내 기록 보기·삭제
-            </Link>
-          </div>
-        </form>
+        <AbsenceForm action={addAbsenceAction} back="/home" />
+        <Link href="/absences" className="mt-2 block text-right text-sm text-zinc-500 underline">
+          내 기록 보기·삭제
+        </Link>
       </section>
 
       {/* 다가오는 근무일 목록 (다음 주 일요일까지): 누르면 투표 화면으로 */}
