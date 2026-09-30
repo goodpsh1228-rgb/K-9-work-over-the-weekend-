@@ -22,6 +22,7 @@ import { buildKakaoText } from "@/lib/roster-text";
 import { CopyButton } from "@/components/copy-button";
 import { manualDrawAction } from "./actions";
 import { VotePanel } from "./vote-panel";
+import { DrivePanel } from "./drive-panel";
 
 export default async function DayPage({ params, searchParams }: PageProps<"/day/[date]">) {
   const me = await requireMember();
@@ -41,9 +42,8 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   // 투표 상태: status = 내 계급 기준, overall = 투표 전체 기준(월요일 시작)
   const { status, overall, window: win, fridayIsDuty } = voteInfo;
   const canVote = status === "open" && mine.kind !== "excluded";
-  // 희망할 수 있는 자리: 모든 동 + (진료반이면 진료실) + (운전병이면 주말 운전)
-  const canWant = (pool: string) => pool === "general" || (pool === "clinic" && me.is_clinic) || (pool === "driver" && me.is_driver);
-  const myPosts = board.posts.filter((p) => canWant(p.pool) && p.required > 0);
+  // 희망할 수 있는 자리: 모든 동 + (진료반이면 진료실). 주말 운전은 운전병만, 아래 운전 버튼으로 따로
+  const myPosts = board.posts.filter((p) => (p.pool === "general" || (p.pool === "clinic" && me.is_clinic)) && p.required > 0);
   const clinicPosts = board.posts.filter((p) => p.pool === "clinic");
   const driverPosts = board.posts.filter((p) => p.pool === "driver" && p.required > 0);
   const generalPosts = board.posts.filter((p) => p.pool === "general");
@@ -61,8 +61,15 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   }
   // 희망했지만 정원 초과로 떨어져 쉬는 사람 (추첨 후)
   const rosterIds = new Set((roster ?? []).map((r) => r.memberId));
-  const rested = roster ? board.posts.flatMap((p) => p.wanters.filter((w) => !rosterIds.has(w.id))) : [];
-  const myAssignment = roster?.find((r) => r.memberId === me.id);
+  //   (운전 희망에서 떨어진 사람은 쉼이 아님 — 동 출근은 따로)
+  const rested = roster
+    ? board.posts.filter((p) => p.pool !== "driver").flatMap((p) => p.wanters.filter((w) => !rosterIds.has(w.id)))
+    : [];
+  // 내 배정 (운전병은 동 + 운전 두 곳일 수 있음)
+  const myPostNames = (roster ?? [])
+    .filter((r) => r.memberId === me.id)
+    .map((r) => board.posts.find((p) => p.id === r.postId)?.name ?? "?");
+  const myAssignment = myPostNames.length > 0;
 
   // 관리자: 카카오톡용 글 (이 날 + 같은 투표 주에 추첨이 끝난 모든 날)
   let kakaoDay: string | null = null;
@@ -86,7 +93,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         <section className="mb-4 space-y-3">
           <p className={`rounded-lg p-3 font-semibold ${myAssignment ? "bg-blue-600 text-white" : "bg-zinc-100 dark:bg-zinc-900"}`}>
             {myAssignment
-              ? `${me.name} 님은 ${board.posts.find((p) => p.id === myAssignment.postId)?.name} 출근입니다.`
+              ? `${me.name} 님은 ${myPostNames.join(" + ")} 출근입니다.`
               : `${me.name} 님은 이 날 출근하지 않습니다.`}
           </p>
           {me.is_admin && draw.clinic_shortage + draw.general_shortage > 0 && (
@@ -168,9 +175,17 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           <VotePanel
             date={date}
             isClinic={me.is_clinic}
-            isDriver={me.is_driver}
             posts={myPosts.map((p) => ({ id: p.id, name: p.name, required: p.required, count: p.wanters.length }))}
             initial={mine.kind === "want" ? { kind: "want", postId: mine.postId } : mine.kind === "decline" ? { kind: "decline" } : { kind: "none" }}
+          />
+        )}
+        {/* 운전병: 주말 운전 희망 (동 희망과 따로) */}
+        {canVote && me.is_driver && driverPosts.length > 0 && (
+          <DrivePanel
+            date={date}
+            initial={driverPosts[0].wanters.some((w) => w.id === me.id)}
+            count={driverPosts[0].wanters.length}
+            required={driverPosts.reduce((s, p) => s + p.required, 0)}
           />
         )}
       </section>

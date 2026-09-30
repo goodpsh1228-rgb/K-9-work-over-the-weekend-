@@ -92,13 +92,14 @@ async function checkMigration0004(): Promise<Check> {
   return { ok: true, message: "계급(rank) 칸 있음" };
 }
 
-// 추가 SQL(0006: 운전병 + 제외 종류)을 실행했는지: is_driver 칸과 "주말 운전" 자리가 있는지 확인
+// 추가 SQL(0007: 운전병 + 주말 운전 따로 + 제외 종류)을 실행했는지: is_driver 칸, "주말 운전" 자리, drive_wants 표 확인
 async function checkMigration0006(): Promise<Check> {
   const db = getSupabaseAdmin();
   const { error } = await db.from("members").select("is_driver", { head: true, count: "exact" });
   const { count } = await db.from("posts").select("id", { head: true, count: "exact" }).eq("pool", "driver");
-  if (error || !count) return { ok: false, message: "supabase/migrations/0006_driver.sql 을 SQL Editor에서 실행해 주세요." };
-  return { ok: true, message: "운전병 칸·주말 운전 자리 있음" };
+  const { error: e2 } = await db.from("drive_wants").select("member_id", { head: true, count: "exact" });
+  if (error || !count || e2) return { ok: false, message: "supabase/migrations/0007_drive_separate.sql 을 SQL Editor에서 실행해 주세요." };
+  return { ok: true, message: "운전병 칸·주말 운전 자리·운전 희망 표 있음" };
 }
 
 export default async function Home() {
@@ -131,7 +132,7 @@ export default async function Home() {
         <StatusRow label="5단계 추가 SQL (0002)" ok={m0002.ok} detail={m0002.message} />
         <StatusRow label="6단계 추가 SQL (0003)" ok={m0003.ok} detail={m0003.message} />
         <StatusRow label="계급·삭제 추가 SQL (0004)" ok={m0004.ok} detail={m0004.message} />
-        <StatusRow label="운전병·제외 종류 추가 SQL (0006)" ok={m0006.ok} detail={m0006.message} />
+        <StatusRow label="운전병·주말 운전 추가 SQL (0007)" ok={m0006.ok} detail={m0006.message} />
       </ul>
 
       {!conn.ok ? (

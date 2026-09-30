@@ -63,6 +63,8 @@ export async function addAbsenceAction(formData: FormData) {
     .lte("duty_date", end)
     .select("duty_date");
   const cancelledDates = (cancelled ?? []).map((r) => r.duty_date as string).sort();
+  // 주말 운전 희망도 함께 취소 (표가 없으면(0007 전) 조용히 넘어감)
+  await db.from("drive_wants").delete().eq("member_id", targetId).gte("duty_date", start).lte("duty_date", end);
 
   await writeAudit({
     actorId: me.id,

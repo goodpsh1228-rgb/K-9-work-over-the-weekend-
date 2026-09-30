@@ -5,6 +5,7 @@
 //   - 근무일이 맞는지, 투표 기간(주간 일정·계급별 시작)인지
 //   - 휴가·부상으로 제외된 날이 아닌지
 //   - 고른 자리를 희망할 수 있는지 (진료반 → 진료실·모든 동, 그 외 → 동만)
+//   - 주말 운전 희망은 운전병만, 동 희망과 따로 (driveVoteAction)
 // ─────────────────────────────────────────────────────────────
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -57,9 +58,7 @@ export async function voteAction(date: string, choice: VoteChoice): Promise<Vote
     if (post.pool === "clinic" && !me.is_clinic) {
       return { ok: false, message: "진료실은 진료반만 희망할 수 있습니다." };
     }
-    if (post.pool === "driver" && !me.is_driver) {
-      return { ok: false, message: "주말 운전은 운전병만 희망할 수 있습니다." };
-    }
+    if (post.pool === "driver") return { ok: false, message: "주말 운전은 아래 '주말 운전 희망' 버튼으로 따로 신청해 주세요." };
     if (post.required === 0) return { ok: false, message: `${post.name} 은(는) 이 날 인원이 0명입니다.` };
     const { error } = await db.from("responses").upsert({ member_id: me.id, duty_date: date, choice: "want", post_id: post.id });
     if (error) return { ok: false, message: "저장 중 오류: " + error.message };
@@ -77,6 +76,27 @@ export async function voteAction(date: string, choice: VoteChoice): Promise<Vote
   revalidatePath(`/day/${date}`);
   revalidatePath("/home");
   return { ok: true, message };
+}
+
+// ── 주말 운전 희망 켜기/끄기 (운전병만, 동 희망과 따로) ──
+//   끄면(미희망) 운전 희망자가 없을 때 운전병 중 랜덤으로 뽑힐 수 있습니다.
+export async function driveVoteAction(date: string, want: boolean): Promise<VoteResult> {
+  const me = await requireMember();
+  if (!isValidDate(date)) return { ok: false, message: "잘못된 날짜입니다." };
+  if (!me.is_driver) return { ok: false, message: "주말 운전은 운전병만 희망할 수 있습니다." };
+  const [overrides, info, excluded] = await Promise.all([getOverrides(date, date), getVoteInfo(date, me.rank), getExcludedIds(date)]);
+  if (computeDutyDays(date, date, overrides).length === 0) return { ok: false, message: "근무일이 아닙니다." };
+  if (info.status === "before") return { ok: false, message: "아직 투표할 수 없는 시간입니다." };
+  if (info.status === "closed") return { ok: false, message: "투표가 마감되었습니다." };
+  if (excluded.has(me.id)) return { ok: false, message: "휴가·부상 기간이라 이 날은 제외 상태입니다." };
+
+  const db = getSupabaseAdmin();
+  const { error } = want
+    ? await db.from("drive_wants").upsert({ member_id: me.id, duty_date: date })
+    : await db.from("drive_wants").delete().eq("member_id", me.id).eq("duty_date", date);
+  if (error) return { ok: false, message: "저장 중 오류(관리자에게 0007 SQL 실행을 요청하세요): " + error.message };
+  revalidatePath(`/day/${date}`);
+  return { ok: true, message: want ? "주말 운전 희망으로 저장했습니다." : "주말 운전 희망을 취소했습니다." };
 }
 
 // ── 관리자: 지금 추첨 (마감이 지난 날, 아직 추첨 안 된 날만) ──

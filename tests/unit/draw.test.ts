@@ -13,8 +13,11 @@ function mk(clinic: number, general: number, resp: [number, "want"|"decline", nu
   return { posts: POSTS, members, responses: new Map(resp.map(([id, choice, postId]) => [id, { choice, postId }])) };
 }
 function check(input: DrawInput, r: ReturnType<typeof runDraw>) {
-  const ids = r.assignments.map(a => a.memberId);
+  const postPool0 = new Map(input.posts.map(p => [p.id, p.pool]));
+  const ids = r.assignments.filter(a => postPool0.get(a.postId) !== "driver").map(a => a.memberId); // 운전은 동과 겹칠 수 있음
   assert.strictEqual(new Set(ids).size, ids.length, "중복 배정");
+  const dIds = r.assignments.filter(a => postPool0.get(a.postId) === "driver").map(a => a.memberId);
+  assert.strictEqual(new Set(dIds).size, dIds.length, "운전 중복 배정");
   const memberPool = new Map(input.members.map(m => [m.id, m.pool]));
   const postPool = new Map(input.posts.map(p => [p.id, p.pool]));
   for (const a of r.assignments) {
@@ -29,7 +32,7 @@ function check(input: DrawInput, r: ReturnType<typeof runDraw>) {
     else {
       // 유효한 희망(일반 인원의 진료실 희망은 무효)을 한 사람은 차출되면 안 됨
       const validWant = resp?.choice === "want" && !(postPool.get(resp.postId!) === "clinic" && memberPool.get(a.memberId) !== "clinic")
-        && !(postPool.get(resp.postId!) === "driver" && !isDriver); // 운전병 아닌 사람의 운전 희망은 무효
+        && postPool.get(resp.postId!) !== "driver"; // 운전 희망은 동 희망과 따로
       assert.ok(!validWant, "희망자가 차출됨");
     }
   }
@@ -117,43 +120,36 @@ inp = mk(2, 20, [[200,"want",1]]);
 r = runDraw(inp, rng); check(inp, r);
 assert.ok(!r.assignments.some(a => a.memberId === 200 && a.postId === 1)); console.log("✔ ⑬ 일반 인원의 진료실 희망은 무시");
 
-// ── 운전병 ── 자리 8 = 주말 운전(1명), 운전병 = 300~
+// ── 운전병 ── 자리 8 = 주말 운전(1명), 운전병 = 300~ (운전은 동 추첨과 따로)
 const DPOSTS = [...POSTS, { id: 8, pool: "driver" as const, required: 1 }];
 QUOTA[8] = 1;
-function mkd(drivers: number, general: number, resp: [number, "want"|"decline", number|null][] = []): DrawInput {
+function mkd(drivers: number, general: number, resp: [number, "want"|"decline", number|null][] = [], drive: number[] = []): DrawInput {
   const base = mk(2, general, resp);
-  return { ...base, posts: DPOSTS, members: [...base.members, ...[...Array(drivers)].map((_, i) => ({ id: 300 + i, pool: "general" as const, driver: true }))] };
+  return { ...base, posts: DPOSTS, driveWants: new Set(drive), members: [...base.members, ...[...Array(drivers)].map((_, i) => ({ id: 300 + i, pool: "general" as const, driver: true }))] };
 }
 const driverOf = (r: ReturnType<typeof runDraw>) => r.assignments.filter(a => a.postId === 8);
-// ⑭ 운전 희망자 1명 → 그 사람 희망 확정
-inp = mkd(3, 20, [[301,"want",8]]); r = runDraw(inp, rng); check(inp, r);
-assert.deepStrictEqual(driverOf(r), [{ memberId: 301, postId: 8, source: "wanted" }]); console.log("✔ ⑭ 운전 희망자 → 운전 확정");
-// ⑮ 운전 희망 없음 → 운전병 중 랜덤 차출 (일반 인원은 절대 안 됨), 뽑힌 운전병은 동에 중복 배정 안 됨
-for (let t = 0; t < 300; t++) {
-  inp = mkd(3, 20); r = runDraw(inp, rng); check(inp, r);
+// ⑭ 운전 희망자 1명 → 그 사람 희망 확정, 그리고 동 희망도 그대로 (동 + 운전 함께)
+inp = mkd(3, 20, [[301,"want",3]], [301]); r = runDraw(inp, rng); check(inp, r);
+assert.deepStrictEqual(driverOf(r), [{ memberId: 301, postId: 8, source: "wanted" }]);
+assert.ok(r.assignments.some(a => a.memberId === 301 && a.postId === 3 && a.source === "wanted")); console.log("✔ ⑭ 운전 희망 → 운전 확정 + 관리 2동 희망 확정 (함께)");
+// ⑮ 운전 희망 없음 → 운전병 전체에서 동일 확률 랜덤 (동 희망 여부 무관), 일반 인원은 운전 안 함
+const dHits = [0, 0, 0];
+for (let t = 0; t < 3000; t++) {
+  inp = mkd(3, 20, [[300,"want",3],[301,"decline",null]]); r = runDraw(inp, rng); check(inp, r);
   const d = driverOf(r); assert.strictEqual(d.length, 1); assert.ok(d[0].memberId >= 300 && d[0].source === "drafted");
+  dHits[d[0].memberId - 300]++;
 }
-console.log("✔ ⑮ 운전 희망 없음 → 운전병끼리 랜덤, 일반 인원은 운전 안 함");
-// ⑯ 운전병 3명 중 2명이 동 희망, 1명 미응답 → 미응답 운전병이 운전 (동 희망자 우선 보호)
-for (let t = 0; t < 100; t++) {
-  inp = mkd(3, 20, [[300,"want",3],[301,"want",4]]); r = runDraw(inp, rng); check(inp, r);
-  assert.strictEqual(driverOf(r)[0].memberId, 302);
-  assert.ok(r.assignments.some(a => a.memberId === 300 && a.postId === 3 && a.source === "wanted"));
-}
-console.log("✔ ⑯ 동 희망 안 한 운전병이 먼저 운전");
-// ⑰ 운전병 전원이 동 희망 → 그중 한 명이 동 대신 운전, 운전 자리 부족 없음
-inp = mkd(2, 20, [[300,"want",3],[301,"want",4]]); r = runDraw(inp, rng); check(inp, r);
-assert.strictEqual(driverOf(r).length, 1); assert.strictEqual(r.shortage.driver, 0);
-assert.strictEqual(r.assignments.filter(a => a.memberId === driverOf(r)[0].memberId).length, 1);
-console.log("✔ ⑰ 운전병 모두 동 희망 → 한 명이 동 대신 운전");
-// ⑱ 운전 희망 2명(정원 1) → 1명 확정, 1명 쉼 / 운전병 없음 → 운전 부족 1 / 일반 인원의 운전 희망은 무시
-inp = mkd(3, 20, [[300,"want",8],[301,"want",8]]); r = runDraw(inp, rng); check(inp, r);
-assert.strictEqual(driverOf(r).length, 1); assert.ok(r.rested.length === 1 && r.rested[0] >= 300);
-inp = mkd(0, 20, [[200,"want",8]]); r = runDraw(inp, rng); check(inp, r);
-assert.strictEqual(driverOf(r).length, 0); assert.strictEqual(r.shortage.driver, 1);
-console.log("✔ ⑱ 운전 희망 초과 → 1명 쉼 / 운전병 없으면 운전 부족 / 일반 인원 운전 희망 무시");
-// ⑲ 운전병도 일반 차출 대상 (운전 자리 없는 날엔 일반 인원과 동일)
-inp = { ...mk(2, 5), members: [...mk(2, 5).members, ...[...Array(10)].map((_, i) => ({ id: 300 + i, pool: "general" as const, driver: true }))] };
+for (const h of dHits) assert.ok(Math.abs(h / 3000 - 1 / 3) < 0.04, String(dHits));
+console.log(`✔ ⑮ 운전 희망 없음 → 운전병끼리 동일 확률 (${dHits.map(h => (h / 30).toFixed(0) + "%").join(" · ")})`);
+// ⑯ 운전으로 차출돼도 동 추첨은 그대로 (운전병도 동 차출 대상, 운전과 겹칠 수 있음)
+inp = { ...mkd(0, 5), members: [...mk(2, 5).members, ...[...Array(10)].map((_, i) => ({ id: 300 + i, pool: "general" as const, driver: true }))] };
 r = runDraw(inp, rng); check(inp, r);
-assert.strictEqual(r.assignments.filter(a => a.memberId >= 300).length, 10); console.log("✔ ⑲ 운전병도 동 차출 대상");
+assert.strictEqual(r.assignments.filter(a => a.memberId >= 300 && a.postId !== 8).length, 10); assert.strictEqual(driverOf(r).length, 1);
+console.log("✔ ⑯ 운전병도 동 차출 대상 + 운전 1명 따로");
+// ⑰ 운전 희망 2명(정원 1) → 1명 확정, 떨어진 사람은 '쉼' 아님 / 운전병 없음 → 운전 부족 1 / 일반 인원의 운전 희망은 무시
+inp = mkd(3, 20, [], [300, 301]); r = runDraw(inp, rng); check(inp, r);
+assert.strictEqual(driverOf(r).length, 1); assert.ok([300, 301].includes(driverOf(r)[0].memberId)); assert.strictEqual(r.rested.length, 0);
+inp = mkd(0, 20, [], [200]); r = runDraw(inp, rng); check(inp, r);
+assert.strictEqual(driverOf(r).length, 0); assert.strictEqual(r.shortage.driver, 1);
+console.log("✔ ⑰ 운전 희망 초과 → 1명, 쉼 없음 / 운전병 없으면 운전 부족 / 일반 인원 운전 희망 무시");
 console.log("ALL OK");

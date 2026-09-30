@@ -46,7 +46,13 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
   // 추첨이 끝난 날짜와 내 배정 (배지에 "출근·동 이름" / "미출근" 표시)
   const drawn = new Map((drawRows ?? []).map((d) => [d.duty_date as string, d]));
   const postName = new Map((posts ?? []).map((p) => [p.id as number, p.name as string]));
-  const myPost = new Map((myRows ?? []).map((r) => [r.duty_date as string, postName.get(r.post_id) ?? ""]));
+  // 날짜 → 내 배정 자리 이름 (운전병은 "관리 2동 + 주말 운전" 처럼 두 곳일 수 있음)
+  const myPost = new Map<string, string>();
+  for (const r of myRows ?? []) {
+    const name = postName.get(r.post_id) ?? "";
+    const prev = myPost.get(r.duty_date as string);
+    myPost.set(r.duty_date as string, prev ? `${prev} + ${name}` : name);
+  }
   return (
     <Page title="주말·공휴일 출근 투표">
       <p className="text-lg">

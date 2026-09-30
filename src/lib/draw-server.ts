@@ -13,7 +13,7 @@ import { getFridayChecker, getOverrides, getVoteInfo } from "@/lib/duty-days-ser
 import { votingStatus } from "@/lib/voting";
 import { addDays, isValidDate, todayKST } from "@/lib/kst";
 import { writeAudit } from "@/lib/audit";
-import { getDriverIds } from "@/lib/drivers";
+import { getDriverIds, getDriveWants } from "@/lib/drivers";
 import { runDraw, type DrawInput, type DrawResult } from "@/lib/draw";
 
 export type Trigger = "cron" | "visit" | "manual";
@@ -21,14 +21,18 @@ export type Trigger = "cron" | "visit" | "manual";
 // 추첨 입력 모으기 (실제 추첨과 관리자 미리보기가 같이 씀)
 export async function buildDrawInput(date: string): Promise<DrawInput> {
   const db = getSupabaseAdmin();
-  const [posts, excluded, drivers, { data: members }, { data: responses }] = await Promise.all([
+  const [allPosts, excluded, drivers, driveWants, { data: members }, { data: responses }] = await Promise.all([
     getPostsForDate(date),
     getExcludedIds(date),
     getDriverIds(),
+    getDriveWants(date),
     db.from("members").select("id, is_clinic").eq("is_active", true),
     db.from("responses").select("member_id, choice, post_id").eq("duty_date", date),
   ]);
+  // 0007 SQL 전이면(운전 희망 표 없음) 운전 자리는 빼고 추첨 (동+운전 중복 저장이 안 되므로)
+  const posts = driveWants.ok ? allPosts : allPosts.filter((p) => p.pool !== "driver");
   return {
+    driveWants: driveWants.ids,
     posts: posts.map((p) => ({ id: p.id, pool: p.pool, required: p.required })),
     members: (members ?? [])
       .filter((m) => !excluded.has(m.id)) // 제외자(휴가·부상)는 어떤 풀에도 넣지 않음

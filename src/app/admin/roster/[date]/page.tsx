@@ -54,12 +54,15 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
     db.from("members").select("id, name, is_clinic").eq("is_active", true).order("name"),
     db.from("responses").select("member_id, choice").eq("duty_date", date),
   ]);
-  const inRoster = new Set(roster.map((r) => r.memberId));
+  // 동(진료실 포함) 명단에 있는 사람 / 운전 명단에 있는 사람 — 따로 셉니다(운전병은 둘 다 가능)
+  const driverPostIds = new Set(posts.filter((p) => p.pool === "driver").map((p) => p.id));
+  const inPostRoster = new Set(roster.filter((r) => !driverPostIds.has(r.postId)).map((r) => r.memberId));
+  const inDriveRoster = new Set(roster.filter((r) => driverPostIds.has(r.postId)).map((r) => r.memberId));
   const respOf = new Map((responses ?? []).map((r) => [r.member_id as number, r.choice as string]));
 
   // 후보 = 명단에 없는 활성 인원. 이름 옆에 진료반·응답·휴가 표시.
-  const candidates = (members ?? [])
-    .filter((m) => !inRoster.has(m.id))
+  //   동 자리 후보: 동 명단에 없는 사람 / 운전 자리 후보: 운전 명단에 없는 운전병
+  const allCandidates = (members ?? [])
     .map((m) => {
       const tags = [
         m.is_clinic ? "진료반" : null,
@@ -68,6 +71,9 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
         excluded.has(m.id) ? "⚠ 휴가·부상" : null,
       ].filter(Boolean);
       return {
+        inPost: inPostRoster.has(m.id),
+        inDrive: inDriveRoster.has(m.id),
+        driver: drivers.has(m.id),
         id: m.id as number,
         label: `${m.name}${tags.length ? ` (${tags.join(", ")})` : ""}`,
         warn: excluded.has(m.id) ? `${m.name} 은(는) 이 날 휴가·부상 기간입니다.` : "",
@@ -75,7 +81,9 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
     });
 
   // 후보 선택 칸 (교체·추가에 같이 씀)
-  const candidateSelect = () => (
+  const candidateSelect = (forDrive: boolean) => {
+    const candidates = allCandidates.filter((c) => (forDrive ? c.driver && !c.inDrive : !c.inPost));
+    return (
     <select name="member_id" required data-warn-select className={selectClass} defaultValue="">
       <option value="" disabled>
         사람 선택
@@ -86,7 +94,8 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
         </option>
       ))}
     </select>
-  );
+    );
+  };
 
   return (
     <Page title="명단 수정">
@@ -122,6 +131,7 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
                         <form action={removeAssignmentAction}>
                           <input type="hidden" name="date" value={date} />
                           <input type="hidden" name="member_id" value={r.memberId} />
+                          <input type="hidden" name="post_id" value={p.id} />
                           <ConfirmButton
                             message={`${r.name} 을(를) 명단에서 뺄까요?`}
                             className="rounded border border-red-300 px-2 py-1 text-xs text-red-700"
@@ -134,7 +144,8 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
                       <WarnSelectForm action={replaceAssignmentAction} className="flex items-center gap-1.5">
                         <input type="hidden" name="date" value={date} />
                         <input type="hidden" name="old_member_id" value={r.memberId} />
-                        {candidateSelect()}
+                        <input type="hidden" name="post_id" value={p.id} />
+                        {candidateSelect(p.pool === "driver")}
                         <button type="submit" className="shrink-0 rounded border border-zinc-300 px-2 py-1.5 text-xs dark:border-zinc-700">
                           교체
                         </button>
@@ -146,7 +157,7 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
                     <WarnSelectForm action={addAssignmentAction} className="flex items-center gap-1.5">
                       <input type="hidden" name="date" value={date} />
                       <input type="hidden" name="post_id" value={p.id} />
-                      {candidateSelect()}
+                      {candidateSelect(p.pool === "driver")}
                       <button type="submit" className="shrink-0 rounded bg-blue-600 px-2 py-1.5 text-xs font-semibold text-white">
                         추가
                       </button>
