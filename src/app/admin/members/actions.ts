@@ -171,7 +171,8 @@ export async function setDriverAction(formData: FormData) {
   const m = await loadMember(id);
   if (!m) back("error", "인원을 찾을 수 없습니다.");
   const { error } = await getSupabaseAdmin().from("members").update({ is_driver: value }).eq("id", id);
-  if (error) backTo(page, "error", "운전병 기능용 SQL(supabase/migrations/0006_driver.sql)을 먼저 실행해 주세요.");
+  // 실패하면 원인(오류 문구)도 함께 보여 줌 → 원인 파악용
+  if (error) backTo(page, "error", `저장 실패: 추가 SQL(0008_escort.sql)이 실행됐는지 /status 에서 확인해 주세요. (오류: ${error.message})`);
   await writeAudit({ actorId: me.id, action: "member.driver", targetMemberId: id, details: { name: m.name, to: value } });
   backTo(page, "msg", value ? "운전병으로 지정했습니다. (주말 운전을 희망할 수 있고, 운전 추첨 대상이 됩니다)" : "운전병에서 뺐습니다.");
 }
