@@ -41,8 +41,8 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   // 투표 상태: status = 내 계급 기준, overall = 투표 전체 기준(월요일 시작)
   const { status, overall, window: win, fridayIsDuty } = voteInfo;
   const canVote = status === "open" && mine.kind !== "excluded";
-  const myPool = me.is_clinic ? "clinic" : "general";
-  const myPosts = board.posts.filter((p) => p.pool === myPool && p.required > 0);
+  // 희망할 수 있는 자리: 진료반은 진료실 + 모든 동, 일반 인원은 동만
+  const myPosts = board.posts.filter((p) => (me.is_clinic || p.pool === "general") && p.required > 0);
   const clinicPosts = board.posts.filter((p) => p.pool === "clinic");
   const generalPosts = board.posts.filter((p) => p.pool === "general");
 

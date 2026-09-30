@@ -49,7 +49,9 @@ export function VotePanel({
   return (
     <div className="mt-3 space-y-2">
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        {isClinic ? "진료반은 진료실로 희망합니다." : "출근을 희망하면 원하는 동을 누르세요."}
+        {isClinic
+          ? "출근을 희망하면 진료실 또는 원하는 동을 누르세요. (동을 고르면 그날 진료실 차출에서는 빠집니다)"
+          : "출근을 희망하면 원하는 동을 누르세요."}
       </p>
       <div className="grid grid-cols-2 gap-2">
         {posts.map((p) => {

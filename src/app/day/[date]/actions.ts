@@ -4,7 +4,7 @@
 // 서버에서 다시 한 번 모든 규칙을 확인합니다. (화면 버튼을 몰래 눌러도 규칙을 어길 수 없게)
 //   - 근무일이 맞는지, 투표 기간(주간 일정·계급별 시작)인지
 //   - 휴가·부상으로 제외된 날이 아닌지
-//   - 고른 자리가 내 추첨 풀에 맞는지 (진료반 → 진료실, 그 외 → 일반 동)
+//   - 고른 자리를 희망할 수 있는지 (진료반 → 진료실·모든 동, 그 외 → 동만)
 // ─────────────────────────────────────────────────────────────
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -53,8 +53,9 @@ export async function voteAction(date: string, choice: VoteChoice): Promise<Vote
   if (choice.kind === "want") {
     const post = posts.find((p) => p.id === choice.postId);
     if (!post) return { ok: false, message: "자리를 다시 선택해 주세요." };
-    if (post.pool !== (me.is_clinic ? "clinic" : "general")) {
-      return { ok: false, message: me.is_clinic ? "진료반은 진료실만 희망할 수 있습니다." : "진료실은 진료반만 희망할 수 있습니다." };
+    // 진료반은 진료실·모든 동 가능, 일반 인원은 진료실 불가
+    if (post.pool === "clinic" && !me.is_clinic) {
+      return { ok: false, message: "진료실은 진료반만 희망할 수 있습니다." };
     }
     if (post.required === 0) return { ok: false, message: `${post.name} 은(는) 이 날 인원이 0명입니다.` };
     const { error } = await db.from("responses").upsert({ member_id: me.id, duty_date: date, choice: "want", post_id: post.id });

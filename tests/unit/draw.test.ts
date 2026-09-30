@@ -19,10 +19,16 @@ function check(input: DrawInput, r: ReturnType<typeof runDraw>) {
   const postPool = new Map(input.posts.map(p => [p.id, p.pool]));
   for (const a of r.assignments) {
     assert.ok(memberPool.has(a.memberId), "입력에 없는 사람(제외자 등) 배정");
-    assert.strictEqual(memberPool.get(a.memberId), postPool.get(a.postId), "풀 섞임(진료반↔일반)");
+    // 차출은 반드시 소속 풀 안에서만. 희망 확정은 진료반이 일반 동으로 가는 것만 허용
+    if (a.source === "drafted") assert.strictEqual(memberPool.get(a.memberId), postPool.get(a.postId), "차출 풀 섞임");
+    else assert.ok(memberPool.get(a.memberId) === postPool.get(a.postId) || (memberPool.get(a.memberId) === "clinic" && postPool.get(a.postId) === "general"), "일반 인원이 진료실 확정");
     const resp = input.responses.get(a.memberId);
     if (a.source === "wanted") assert.ok(resp?.choice === "want" && resp.postId === a.postId, "희망 확정인데 희망 동이 다름");
-    else assert.ok(!(resp?.choice === "want"), "희망자가 차출됨");
+    else {
+      // 유효한 희망(일반 인원의 진료실 희망은 무효)을 한 사람은 차출되면 안 됨
+      const validWant = resp?.choice === "want" && !(postPool.get(resp.postId!) === "clinic" && memberPool.get(a.memberId) !== "clinic");
+      assert.ok(!validWant, "희망자가 차출됨");
+    }
   }
   for (const [pid, q] of Object.entries(QUOTA)) assert.ok(r.assignments.filter(a => a.postId === Number(pid)).length <= q, "정원 초과 배정");
   for (const id of r.rested) assert.ok(!ids.includes(id) && input.responses.get(id)?.choice === "want", "쉬는 사람 오류");
@@ -88,4 +94,23 @@ console.log("✔ ⑧ 차출 인원의 동 배정 비율 ≈ 정원 비율 (랜�
 const perm: Record<string, number> = {}; for (let t = 0; t < 60000; t++) { const k = shuffle([1,2,3], rng).join(""); perm[k] = (perm[k] ?? 0) + 1; }
 assert.strictEqual(Object.keys(perm).length, 6); for (const v of Object.values(perm)) assert.ok(Math.abs(v / 60000 - 1/6) < 0.01);
 console.log("✔ ⑨ 섞기 균등");
+// ⑩ 진료반이 일반 동 희망: 100번이 관리 2동(3) 희망 → 관리 2동 희망 확정, 진료실 차출에서 빠짐
+inp = mk(3, 20, [[100,"want",3]]);
+r = runDraw(inp, rng); check(inp, r);
+assert.deepStrictEqual(r.assignments.find(a => a.memberId === 100), { memberId: 100, postId: 3, source: "wanted" });
+assert.strictEqual(r.assignments.filter(a => a.memberId === 100).length, 1);
+assert.deepStrictEqual(r.assignments.filter(a => a.postId === 1).map(a => a.memberId).sort(), [101, 102]);
+console.log("✔ ⑩ 진료반의 일반 동 희망 → 그 동 확정, 진료실 차출 제외(하루 한 곳)");
+// ⑪ 진료반 2명만 있고 1명이 일반 동 희망 → 진료실 부족 1
+inp = mk(2, 20, [[100,"want",2]]);
+r = runDraw(inp, rng); check(inp, r);
+assert.strictEqual(r.shortage.clinic, 1); console.log("✔ ⑪ 진료반이 동으로 빠지면 진료실 부족 표시");
+// ⑫ 진료반과 일반이 같은 동(관리 1동, 정원 1)을 희망 → 한 명만 확정, 나머지 쉼 (같은 조건)
+let clinicWins = 0;
+for (let t = 0; t < 4000; t++) { const rr = runDraw(mk(3, 20, [[100,"want",2],[200,"want",2]]), rng); if (rr.assignments.some(a => a.memberId === 100 && a.postId === 2)) clinicWins++; }
+assert.ok(Math.abs(clinicWins / 4000 - 0.5) < 0.04, String(clinicWins)); console.log(`✔ ⑫ 같은 동 희망 시 진료반·일반 동일 확률 (${(clinicWins/40).toFixed(1)}%)`);
+// ⑬ 일반 인원의 진료실 희망은 무시 → 일반 차출 풀에 남음
+inp = mk(2, 20, [[200,"want",1]]);
+r = runDraw(inp, rng); check(inp, r);
+assert.ok(!r.assignments.some(a => a.memberId === 200 && a.postId === 1)); console.log("✔ ⑬ 일반 인원의 진료실 희망은 무시");
 console.log("ALL OK");
