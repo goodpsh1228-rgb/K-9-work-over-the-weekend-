@@ -23,6 +23,8 @@ import { CopyButton } from "@/components/copy-button";
 import { manualDrawAction } from "./actions";
 import { VotePanel } from "./vote-panel";
 import { DrivePanel } from "./drive-panel";
+import { EscortDrawForm, escortWorkers } from "@/components/escort-draw-form";
+import { drawEscortAction } from "@/app/admin/roster/[date]/actions";
 
 export default async function DayPage({ params, searchParams }: PageProps<"/day/[date]">) {
   const me = await requireMember();
@@ -71,6 +73,14 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
     .map((r) => board.posts.find((p) => p.id === r.postId)?.name ?? "?");
   const myAssignment = myPostNames.length > 0;
 
+  // 관리자 선탑 뽑기: 선탑 자리, 현재 선탑, 대상자 후보(그날 동·진료실 출근자)
+  const escortPost = board.posts.find((p) => p.pool === "escort");
+  const currentEscort = (roster ?? []).filter((r) => r.postId === escortPost?.id);
+  const escortCandidates = escortWorkers(
+    roster ?? [],
+    new Set(board.posts.filter((p) => p.pool === "clinic" || p.pool === "general").map((p) => p.id)),
+  );
+
   // 카카오톡용 출근 명단 글 (추첨이 끝나면 모두에게): ① 동별 ② 계급별
   const postText = roster ? buildPostText(date, board.posts, roster) : null;
   const rankText = roster ? buildRankText(date, board.posts, roster) : null;
@@ -89,6 +99,14 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
     <Page title={formatLong(date)}>
       <p className="-mt-4 mb-4 text-sm text-zinc-500">{day.label ?? autoLabel(date)}</p>
 
+      {/* 안내 문구 (저장 결과, 선탑 뽑기 결과 등) — 맨 위에 */}
+      {(msg || error) && (
+        <div className="mb-3 space-y-3">
+          {msg && <Notice kind="success">{msg}</Notice>}
+          {error && <Notice kind="error">{error}</Notice>}
+        </div>
+      )}
+
       {/* 추첨 결과: 확정 명단 */}
       {roster && draw && (
         <section className="mb-4 space-y-3">
@@ -103,6 +121,19 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
               {draw.general_shortage}). 빈자리를 채워 주세요.
             </Notice>
           )}
+          {/* 관리자: 선탑 뽑기 (따로 눈에 띄게) */}
+          {me.is_admin && escortPost && (
+            <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
+              <p className="font-bold">🎲 선탑 뽑기 (관리자)</p>
+              <p className="mt-1 mb-2 text-sm">
+                현재 선탑:{" "}
+                <b>{currentEscort.length ? currentEscort.map((r) => `${r.rank ? `${r.rank} ` : ""}${r.name}`).join(", ") : "미정"}</b>
+              </p>
+              <p className="mb-2 text-xs text-zinc-600 dark:text-zinc-400">이 날 출근자 중 대상자를 체크한 뒤 버튼을 누르세요.</p>
+              <EscortDrawForm date={date} workers={escortCandidates} action={drawEscortAction} returnTo="day" />
+            </div>
+          )}
+
           {/* 출근 명단 글 두 가지 — 글을 보여 주고, 버튼으로 복사 */}
           {postText && rankText && (
             <div className="space-y-4">
@@ -140,10 +171,6 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         </section>
       )}
 
-      <div className="space-y-3">
-        {msg && <Notice kind="success">{msg}</Notice>}
-        {error && <Notice kind="error">{error}</Notice>}
-      </div>
 
       {/* 2) 투표 기간 + 내 투표 */}
       <section className="mt-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">

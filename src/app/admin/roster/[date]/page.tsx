@@ -14,6 +14,7 @@ import { getExcludedIds, getPostsForDate } from "@/lib/day-board";
 import { getDraw, getRoster } from "@/lib/draw-server";
 import { Notice, Page } from "@/components/ui";
 import { ConfirmButton, WarnSelectForm } from "@/components/confirm-button";
+import { EscortDrawForm, escortWorkers } from "@/components/escort-draw-form";
 import { addAssignmentAction, drawEscortAction, removeAssignmentAction, replaceAssignmentAction } from "./actions";
 
 const SOURCE_LABEL = { wanted: "희망 확정", drafted: "차출", admin: "관리자 수정" } as const;
@@ -105,11 +106,7 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
   };
 
   // 선탑 대상자 후보 = 그날 동·진료실 출근자 (계급 높은 순 → 가나다)
-  const RANKS_DESC = ["병장", "상병", "일병", "이병"];
-  const rankIdx = (r: string | null) => (r && RANKS_DESC.includes(r) ? RANKS_DESC.indexOf(r) : 9);
-  const workers = [...new Map(roster.filter((r) => inPostRoster.has(r.memberId)).map((r) => [r.memberId, r])).values()].sort(
-    (a, b) => rankIdx(a.rank) - rankIdx(b.rank) || a.name.localeCompare(b.name, "ko"),
-  );
+  const workers = escortWorkers(roster, new Set(posts.filter((p) => p.pool === "clinic" || p.pool === "general").map((p) => p.id)));
 
   return (
     <Page title="명단 수정">
@@ -170,22 +167,13 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
                   {p.pool === "escort" && (
                     <li className="space-y-2 bg-amber-50 px-3 py-2 dark:bg-amber-950">
                       <p className="text-sm font-semibold">선탑 추첨 — 대상자를 체크하세요 (이 날 출근자)</p>
-                      <form action={drawEscortAction} className="space-y-2">
-                        <input type="hidden" name="date" value={date} />
-                        <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-                          {workers.map((w) => (
-                            <label key={w.memberId} className="flex items-center gap-1.5 text-sm">
-                              <input type="checkbox" name="candidate_ids" value={w.memberId} className="h-4 w-4" />
-                              {w.rank ? `${w.rank} ` : ""}
-                              {w.name}
-                            </label>
-                          ))}
-                        </div>
-                        <button type="submit" className="w-full rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-white">
-                          🎲 체크한 사람 중 랜덤으로 선탑 정하기
-                        </button>
-                        <p className="text-xs text-zinc-500">다시 누르면 다시 뽑습니다. 아래에서 직접 지정할 수도 있습니다.</p>
-                      </form>
+                      <EscortDrawForm
+                        date={date}
+                        workers={workers}
+                        action={drawEscortAction}
+                        returnTo="roster"
+                        note="다시 누르면 다시 뽑습니다. 아래에서 직접 지정할 수도 있습니다."
+                      />
                     </li>
                   )}
                   {/* 추가: 이 자리에 사람 넣기 */}

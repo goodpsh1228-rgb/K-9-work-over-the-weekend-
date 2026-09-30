@@ -19,11 +19,13 @@ import { isValidDate } from "@/lib/kst";
 import { getExcludedIds, getPostsForDate } from "@/lib/day-board";
 import { getDraw } from "@/lib/draw-server";
 
-function back(date: string, kind: "msg" | "error", text: string): never {
+// to = 돌아갈 화면 (기본: 명단 수정, "day" = 근무일 화면)
+function back(date: string, kind: "msg" | "error", text: string, to: "roster" | "day" = "roster"): never {
   revalidatePath(`/admin/roster/${date}`);
   revalidatePath(`/day/${date}`);
   revalidatePath("/home");
-  redirect(`/admin/roster/${date}?${kind}=${encodeURIComponent(text)}`);
+  const path = to === "day" ? `/day/${date}` : `/admin/roster/${date}`;
+  redirect(`${path}?${kind}=${encodeURIComponent(text)}`);
 }
 
 async function common(formData: FormData) {
@@ -153,23 +155,24 @@ export async function replaceAssignmentAction(formData: FormData) {
 //   이미 선탑이 있으면 새로 뽑은 사람으로 바뀝니다.
 export async function drawEscortAction(formData: FormData) {
   const { me, date, db } = await common(formData);
+  const to = formData.get("return_to") === "day" ? "day" : "roster"; // 근무일 화면에서 눌렀으면 그리로 돌아감
   const ids = formData.getAll("candidate_ids").map(Number).filter(Number.isInteger);
   const posts = await getPostsForDate(date);
   const escort = posts.find((p) => p.pool === "escort");
-  if (!escort) back(date, "error", "선탑 자리가 없습니다. 0008 SQL을 먼저 실행해 주세요.");
-  if (ids.length === 0) back(date, "error", "선탑 대상자를 한 명 이상 체크해 주세요.");
+  if (!escort) back(date, "error", "선탑 자리가 없습니다. 0008 SQL을 먼저 실행해 주세요.", to);
+  if (ids.length === 0) back(date, "error", "선탑 대상자를 한 명 이상 체크해 주세요.", to);
 
   // 대상자는 그날 동·진료실 출근자만 (화면을 거치지 않은 조작 방지)
   const workPostIds = posts.filter((p) => p.pool === "clinic" || p.pool === "general").map((p) => p.id);
   const { data: rows } = await db.from("assignments").select("member_id").eq("duty_date", date).in("post_id", workPostIds);
   const workers = new Set((rows ?? []).map((r) => r.member_id as number));
   const pool = [...new Set(ids)].filter((id) => workers.has(id));
-  if (pool.length === 0) back(date, "error", "대상자는 이 날 출근자 중에서 골라 주세요.");
+  if (pool.length === 0) back(date, "error", "대상자는 이 날 출근자 중에서 골라 주세요.", to);
 
   const picked = pool[randomInt(pool.length)]; // 대상자 모두 같은 확률
   await db.from("assignments").delete().eq("duty_date", date).eq("post_id", escort.id);
   const { error } = await db.from("assignments").insert({ duty_date: date, member_id: picked, post_id: escort.id, source: "drafted" });
-  if (error) back(date, "error", "저장 중 오류: " + error.message);
+  if (error) back(date, "error", "저장 중 오류: " + error.message, to);
 
   const { data: names } = await db.from("members").select("id, name").in("id", pool);
   const nameOf = new Map((names ?? []).map((m) => [m.id as number, m.name as string]));
@@ -181,5 +184,5 @@ export async function drawEscortAction(formData: FormData) {
     dutyDate: date,
     details: { picked: pickedName, candidates: pool.map((id) => nameOf.get(id) ?? "?") },
   });
-  back(date, "msg", `선탑 추첨: 대상자 ${pool.length}명 중 ${pickedName} 이(가) 뽑혔습니다.`);
+  back(date, "msg", `선탑 추첨: 대상자 ${pool.length}명 중 ${pickedName} 이(가) 뽑혔습니다.`, to);
 }
