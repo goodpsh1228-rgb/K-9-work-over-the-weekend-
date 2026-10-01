@@ -71,7 +71,12 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
 
   // 계산
   const stats = enlist && discharge ? serviceStats(enlist, discharge, today) : null;
-  const workLeft = discharge ? remainingWorkdays(today, discharge, leaves) : null;
+  // 관리자가 추가한 공휴일(내장 목록 밖)도 쉬는 날로 셈
+  const { data: added } = discharge
+    ? await db.from("duty_day_overrides").select("duty_date").eq("kind", "add").gte("duty_date", today).lt("duty_date", discharge)
+    : { data: [] };
+  const extraHolidays = new Set((added ?? []).map((r) => r.duty_date as string));
+  const workLeft = discharge ? remainingWorkdays(today, discharge, leaves, extraHolidays) : null;
   const nextLeave = leaves.find((l) => isFullLeave(l.kind) && l.start_date > today);
   const summary = leaveSummary(leaves);
 

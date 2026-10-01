@@ -8,6 +8,7 @@
 //   관리자: 마감 후 "지금 추첨" 버튼, 투표 중에는 "추첨 미리보기"(저장 안 됨)
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { requireMember } from "@/lib/session";
 import { addDays, dateRange, formatLong, formatShort, isValidDate } from "@/lib/kst";
@@ -72,6 +73,16 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
     .filter((r) => r.memberId === me.id)
     .map((r) => board.posts.find((p) => p.id === r.postId)?.name ?? "?");
   const myAssignment = myPostNames.length > 0;
+
+  // 미응답자 독촉 문구 (예: [10/3(토) 출근 투표 미응답 3명] … 9/30(수) 21:00 마감 + 바로가기 주소)
+  const h = await headers();
+  const siteUrl = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host") ?? ""}`;
+  const reminderText = [
+    `[${formatShort(date)} 출근 투표 미응답 ${board.unanswered.length}명]`,
+    board.unanswered.map((m) => m.name).join(", "),
+    `투표 마감: ${formatShort(win.closeDate)} 21:00`,
+    `${siteUrl}/day/${date}`,
+  ].join("\n");
 
   // 관리자가 이 날만 뺀 사람(관리자 제외) 목록
   const excusedRows = (
@@ -176,6 +187,12 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         <section className="mb-4 rounded-lg border border-orange-300 bg-orange-50 p-3 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100">
           <p className="font-bold">아직 응답하지 않은 사람 ({board.unanswered.length}명)</p>
           <p className="mt-1 text-sm leading-6">{board.unanswered.map((m) => m.name).join(", ")}</p>
+          {/* 단톡방에 붙여넣을 독촉 문구 (투표 중일 때) */}
+          {overall === "open" && (
+            <div className="mt-2">
+              <CopyButton text={reminderText} label="미응답자 독촉 문구 복사" />
+            </div>
+          )}
           {/* 관리자: 투표를 깜빡했지만 이 날 출근하지 않는 사람을 골라 이 날 추첨에서만 빼기 */}
           {me.is_admin && (
             <details className="mt-2 rounded-lg bg-white/70 dark:bg-black/20">

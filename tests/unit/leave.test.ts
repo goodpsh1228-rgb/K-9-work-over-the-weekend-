@@ -10,7 +10,8 @@ assert.strictEqual(remainingWorkdays("2026-10-01", "2026-10-09", [
   { kind: "regular", subkind: null, start_date: "2026-10-06", end_date: "2026-10-07" },
   { kind: "outing", subkind: null, start_date: "2026-10-08", end_date: "2026-10-08" },
 ]), 3);
-console.log("✔ 실제 남은 출근일: 주말·공휴일·휴가 제외, 외출은 포함");
+assert.strictEqual(remainingWorkdays("2026-10-01", "2026-10-09", [], new Set(["2026-10-08"])), 4);
+console.log("✔ 실제 남은 출근일: 주말·공휴일·휴가·관리자 추가 공휴일 제외, 외출은 포함");
 const s = leaveSummary([
   { kind: "reward", subkind: "mileage", start_date: "2026-10-06", end_date: "2026-10-08" },
   { kind: "annual", subkind: "sergeant", start_date: "2026-11-01", end_date: "2026-11-02" },

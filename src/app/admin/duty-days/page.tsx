@@ -11,7 +11,7 @@ import { getAllDays, viewRange } from "@/lib/duty-days-server";
 import { holidayListOutdated } from "@/lib/duty-days";
 import { formatShort } from "@/lib/kst";
 import { Notice, Page } from "@/components/ui";
-import { addDutyDayAction, removeDutyDayAction, restoreDutyDayAction } from "./actions";
+import { addDutyDayAction, importHolidaysAction, removeDutyDayAction, restoreDutyDayAction } from "./actions";
 
 export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/duty-days">) {
   await requireAdmin();
@@ -37,11 +37,32 @@ export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/d
         {error && <Notice kind="error">{error}</Notice>}
         {holidayListOutdated(to) && (
           <Notice kind="warn">
-            공휴일 내장 목록이 내년 날짜를 아직 포함하지 않습니다. README의 &quot;공휴일 목록 갱신&quot; 안내에 따라
-            목록을 추가해 주세요. (그 전까지는 주말만 자동으로 잡힙니다)
+            공휴일 내장 목록이 내년 날짜를 아직 포함하지 않습니다. 아래 &quot;공휴일 목록 붙여넣기&quot;로 내년 공휴일을
+            등록해 주세요. (그 전까지는 주말만 자동으로 잡힙니다)
           </Notice>
         )}
       </div>
+
+      {/* 공휴일 목록 붙여넣기 (한 해치를 한 번에) */}
+      <details id="import" className="mt-4 scroll-mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+        <summary className="cursor-pointer text-sm font-semibold">공휴일 목록 붙여넣기 (한 해치를 한 번에)</summary>
+        <form action={importHolidaysAction} className="mt-2 space-y-2">
+          <p className="text-xs text-zinc-500">
+            한국천문연구원 「월력요항」(astro.kasi.re.kr → 생활천문관 → 월력요항) 등에서 공휴일 날짜와 이름을 복사해 붙여넣으세요.
+            한 줄에 하나씩, 예) <b>2028-01-01 신정</b>, <b>2028.1.26 설날 연휴</b>. 주말과 겹치는 날·이미 근무일인 날은 자동으로 건너뜁니다.
+          </p>
+          <textarea
+            name="list"
+            required
+            rows={6}
+            placeholder={"2028-01-01 신정\n2028-01-26 설날 연휴\n…"}
+            className="w-full rounded-lg bg-input px-3 py-2 font-mono text-sm text-foreground outline-none ring-blue-600 focus:ring-2"
+          />
+          <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white">
+            목록 등록
+          </button>
+        </form>
+      </details>
 
       {/* 근무일 추가 폼 */}
       <form id="add" action={addDutyDayAction} className="mt-4 scroll-mt-4 space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">

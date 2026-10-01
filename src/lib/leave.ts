@@ -70,14 +70,15 @@ export function serviceStats(enlist: string, discharge: string, today: string) {
 }
 
 // 실제 남은 출근일: 오늘 ~ 전역 전날 중 일과일(평일·공휴일 아님)이면서 휴가가 아닌 날
-export function remainingWorkdays(today: string, discharge: string, leaves: LeaveRow[]): number {
+//   extraHolidays: 관리자가 추가한 공휴일(내장 목록 밖, 예: 2028년 붙여넣기)
+export function remainingWorkdays(today: string, discharge: string, leaves: LeaveRow[], extraHolidays: Set<string> = new Set()): number {
   const leaveDates = new Set<string>();
   for (const l of leaves) {
     if (!isFullLeave(l.kind)) continue; // 외출·면회는 하루 일과를 빼지 않음
     for (let d = l.start_date; d <= l.end_date; d = addDays(d, 1)) leaveDates.add(d);
   }
   let n = 0;
-  for (let d = today; d < discharge; d = addDays(d, 1)) if (isWorkday(d) && !leaveDates.has(d)) n++;
+  for (let d = today; d < discharge; d = addDays(d, 1)) if (isWorkday(d) && !extraHolidays.has(d) && !leaveDates.has(d)) n++;
   return n;
 }
 

@@ -182,6 +182,7 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
             <MenuLink href="/admin">🛠 관리자 메뉴</MenuLink>
           </>
         )}
+        <MenuLink href="/stats">📊 출근 기록·통계</MenuLink>
         <MenuLink href="/change-password">비밀번호 변경</MenuLink>
       </nav>
 

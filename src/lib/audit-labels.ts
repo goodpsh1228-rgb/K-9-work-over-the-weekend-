@@ -13,6 +13,11 @@ const LABELS: Record<string, string> = {
   "member.rank": "계급 변경",
   "member.rank_self": "계급 변경(본인)",
   "member.clinic": "진료반 변경",
+  "post.update": "동 설정 변경",
+  "post.add": "동 추가",
+  "post.deactivate": "동 사용 중지",
+  "post.activate": "동 다시 사용",
+  "dutyday.import": "공휴일 목록 등록",
   "member.driver": "운전병 변경",
   "member.delete": "인원 삭제",
   "member.deactivate": "인원 비활성화",
@@ -51,6 +56,17 @@ export function detailText(action: string, d: Record<string, unknown>): string {
       return `${s(d.name)}: ${s(d.from ?? "미지정")} → ${s(d.to ?? "미지정")}`;
     case "member.clinic":
       return `${s(d.name)}: ${d.to ? "진료반으로" : "진료반 해제"}`;
+    case "post.update": {
+      const c = (d.changes ?? {}) as Record<string, string>;
+      return Object.values(c).join(", ");
+    }
+    case "post.add":
+      return `${s(d.name)} ${s(d.count)}명`;
+    case "post.deactivate":
+    case "post.activate":
+      return s(d.name);
+    case "dutyday.import":
+      return `${s(d.count)}일`;
     case "member.driver":
       return `${s(d.name)}: ${d.to ? "운전병으로" : "운전병 해제"}`;
     case "member.add":

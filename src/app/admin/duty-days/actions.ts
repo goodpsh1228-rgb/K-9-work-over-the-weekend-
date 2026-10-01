@@ -12,7 +12,8 @@ import { requireAdmin } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { autoLabel } from "@/lib/duty-days";
-import { formatShort, isValidDate, todayKST } from "@/lib/kst";
+import { formatShort, isValidDate, isWeekend, todayKST } from "@/lib/kst";
+import { parseHolidayList } from "@/lib/holiday-import";
 import { getVoteInfo, isDrawn } from "@/lib/duty-days-server";
 
 const LIST = "/admin/duty-days";
@@ -133,4 +134,28 @@ export async function savePostCountsAction(formData: FormData) {
   await writeAudit({ actorId: me.id, action: "dutyday.post_counts", dutyDate: date, details: { changes } });
   revalidatePath(page);
   back(page, "msg", "저장했습니다.");
+}
+
+// ── 공휴일 목록 붙여넣기 (한 해치를 한 번에) ──────────────────────
+//   주말과 겹치는 날, 이미 근무일인 날, 지난 날은 건너뜁니다.
+export async function importHolidaysAction(formData: FormData) {
+  const me = await requireAdmin();
+  const { rows, errors } = parseHolidayList(String(formData.get("list") ?? ""));
+  if (errors.length) back(LIST, "error", errors.slice(0, 3).join(" / "));
+  if (rows.length === 0) back(LIST, "error", "날짜를 찾지 못했습니다. 예) 2028-01-01 신정");
+
+  const db = getSupabaseAdmin();
+  const today = todayKST();
+  const { data: existing } = await db.from("duty_day_overrides").select("duty_date").in("duty_date", rows.map((r) => r.date));
+  const has = new Set((existing ?? []).map((e) => e.duty_date as string));
+  const toAdd = rows.filter((r) => r.date >= today && !isWeekend(r.date) && !autoLabel(r.date) && !has.has(r.date));
+  const skipped = rows.length - toAdd.length;
+  if (toAdd.length === 0) back(LIST, "msg", `새로 추가할 날이 없습니다. (주말·이미 근무일·지난 날 ${skipped}일 건너뜀)`);
+
+  const { error } = await db
+    .from("duty_day_overrides")
+    .insert(toAdd.map((r) => ({ duty_date: r.date, kind: "add", note: r.name, created_by: me.id })));
+  if (error) back(LIST, "error", "저장 중 오류: " + error.message);
+  await writeAudit({ actorId: me.id, action: "dutyday.import", details: { count: toAdd.length, dates: toAdd.map((r) => `${r.date} ${r.name}`) } });
+  back(LIST, "msg", `공휴일 ${toAdd.length}일을 추가했습니다.${skipped ? ` (주말·이미 근무일·지난 날 ${skipped}일 건너뜀)` : ""}`);
 }
