@@ -13,10 +13,11 @@ import { AbsenceForm } from "@/components/absence-form";
 import { MyRankSelect } from "@/components/my-rank-select";
 import { updateMyRankAction } from "./actions";
 import { needsPromotionReminder } from "@/lib/rank";
-import { Notice } from "@/components/ui";
-import { formatShort, todayKST } from "@/lib/kst";
+import { Card, Notice } from "@/components/ui";
+import { CountdownCard } from "@/components/countdown-card";
+import { addDays, formatShort, kstMoment, mondayOf, todayKST, weekday } from "@/lib/kst";
 import { getMyStates, type MyState } from "@/lib/day-board";
-import { STATUS_LABEL, votingStatus } from "@/lib/voting";
+import { STATUS_LABEL, votingStatus, votingWindow } from "@/lib/voting";
 import { getFridayChecker } from "@/lib/duty-days-server";
 import { runPendingDrawsSafely } from "@/lib/draw-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
@@ -53,13 +54,37 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
     const prev = myPost.get(r.duty_date as string);
     myPost.set(r.duty_date as string, prev ? `${prev} + ${name}` : name);
   }
+  // 보라 카드의 남은 시간: 투표 중이면 마감까지, 열리기 전이면 (내 계급 기준) 시작까지, 없으면 다음 주 월요일까지
+  const nextOpen = days.find((d) => !drawn.has(d.date) && overall(d.date) !== "closed");
+  let countdown: { title: string; target: Date; sub: string };
+  if (nextOpen) {
+    const win = votingWindow(nextOpen.date, fridayIsDuty(nextOpen.date));
+    const cover = `대상 ${formatShort(win.coverFrom)} ~ ${formatShort(win.coverTo)} 근무일`;
+    countdown =
+      myStatus(nextOpen.date) === "open"
+        ? { title: "이번 주 투표 마감까지", target: win.closesAt, sub: `${formatShort(win.closeDate)} 21:00 마감 · ${cover}` }
+        : overall(nextOpen.date) === "open"
+          ? { title: "내 투표 시작까지", target: win.juniorOpensAt, sub: `${me.rank ?? "계급 미지정"}은(는) 화요일 00:00부터 · ${cover}` }
+          : { title: "투표 시작까지", target: win.seniorOpensAt, sub: `${formatShort(win.monday)} 00:00 시작 · ${cover}` };
+  } else {
+    const monday = addDays(mondayOf(todayKST()), 7);
+    countdown = { title: "다음 투표 시작까지", target: kstMoment(monday, 0), sub: `${formatShort(monday)} 00:00 시작` };
+  }
+
   return (
     <Page title="주말·공휴일 출근 투표">
-      <p className="text-lg">
-        <b>{me.name}</b> 님, 환영합니다.
-      </p>
+      {/* 내 정보: 이름 첫 글자 동그라미 + 이름 + 계급·구분 */}
+      <div className="flex items-center gap-3">
+        <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xl font-bold text-blue-700">
+          {me.name.slice(0, 1)}
+        </div>
+        <div>
+          <p className="text-lg leading-tight font-semibold">{me.name}</p>
+          <p className="text-sm text-zinc-500">{me.is_admin ? "관리자" : "인원"}</p>
+        </div>
+      </div>
       {/* 내 구분 표시 */}
-      <p className="mt-1 space-x-2 text-sm">
+      <p className="mt-3 space-x-2 text-sm">
         {/* 내 계급: 드롭다운에서 고르면 바로 저장 (진급 시 본인이 변경) */}
         <MyRankSelect action={updateMyRankAction} current={me.rank} />
         {me.is_admin && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800">관리자</span>}
@@ -83,8 +108,13 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         )
       )}
 
+      {/* 남은 시간 카드 (템플릿의 보라 그라데이션 카드) */}
+      <div className="mt-4">
+        <CountdownCard title={countdown.title} target={countdown.target.toISOString()} sub={countdown.sub} />
+      </div>
+
       {/* 휴가·부상·외출/면회·전역 면제 입력 — 맨 위에 바로 입력 */}
-      <section className="mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+      <Card className="mt-4 p-4">
         <p className="mb-2 text-sm font-semibold">휴가·부상·외출 등 제외 입력</p>
         {msg && <div className="mb-2"><Notice kind="success">{msg}</Notice></div>}
         {error && <div className="mb-2"><Notice kind="error">{error}</Notice></div>}
@@ -92,22 +122,30 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         <Link href="/absences" className="mt-2 block text-right text-sm text-zinc-500 underline">
           내 기록 보기·삭제
         </Link>
-      </section>
+      </Card>
 
       {/* 다가오는 근무일 목록 (다음 주 일요일까지): 누르면 투표 화면으로 */}
-      <h2 className="mt-6 mb-2 text-lg font-bold">다가오는 근무일</h2>
+      <h2 className="mt-8 mb-3 text-xl font-semibold">다가오는 근무일</h2>
       {days.length === 0 ? (
         <p className="text-sm text-zinc-500">다음 주 일요일까지 근무일이 없습니다.</p>
       ) : (
-        <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+        <ul className="space-y-3">
           {days.map((d) => (
             <li key={d.date}>
-              <Link href={`/day/${d.date}`} className="flex items-center justify-between gap-2 px-3 py-3">
-                <span>
-                  <span className="font-semibold">{formatShort(d.date)}</span>
-                  <span className="ml-2 text-xs text-zinc-500">{d.label}</span>
+              {/* 근무일 카드: 왼쪽 보라 날짜 칸 + 오른쪽 이름·상태 (템플릿의 후보 카드 모양) */}
+              <Link
+                href={`/day/${d.date}`}
+                className="flex overflow-hidden rounded-lg bg-white shadow-[0_4px_12px_rgba(15,16,32,0.08)] dark:bg-zinc-900"
+              >
+                {/* 화면 낭독기용 날짜·이름 (예: "10/3(토) 개천절") — 눈에는 안 보임 */}
+                <span className="sr-only">{`${formatShort(d.date)} ${d.label}`}</span>
+                <span aria-hidden className="flex w-20 shrink-0 flex-col items-center justify-center bg-blue-600 py-3 text-white">
+                  <span className="text-xl leading-tight font-bold">{`${Number(d.date.slice(5, 7))}/${Number(d.date.slice(8))}`}</span>
+                  <span className="text-xs font-semibold opacity-90">{"일월화수목금토"[weekday(d.date)]}요일</span>
                 </span>
-                <span className="flex shrink-0 items-center gap-1 text-xs">
+                <span className="flex min-w-0 flex-1 flex-col justify-center gap-1.5 px-3 py-3">
+                <span aria-hidden className="text-sm font-semibold">{d.label}</span>
+                <span className="flex flex-wrap items-center gap-1 text-xs">
                   {drawn.has(d.date) ? (
                     <>
                       {myPost.has(d.date) ? (
@@ -131,6 +169,7 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
                     </>
                   )}
                 </span>
+                </span>
               </Link>
             </li>
           ))}
@@ -148,7 +187,7 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
 
       {/* 로그아웃 버튼: 누르면 서버 액션이 쿠키를 지우고 로그인 화면으로 보냅니다 */}
       <form action={logoutAction} className="mt-8">
-        <button type="submit" className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-sm dark:border-zinc-700">
+        <button type="submit" className="h-14 w-full rounded-lg border border-blue-600 px-4 font-semibold text-blue-600">
           로그아웃
         </button>
       </form>
@@ -170,7 +209,7 @@ function MenuLink({ href, children }: { href: string; children: React.ReactNode 
   return (
     <Link
       href={href}
-      className="block rounded-lg border border-zinc-200 px-4 py-3 text-base dark:border-zinc-800"
+      className="block rounded-lg bg-white px-4 py-3 text-base font-medium shadow-[0_4px_12px_rgba(15,16,32,0.08)] dark:bg-zinc-900"
     >
       {children} →
     </Link>
