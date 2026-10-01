@@ -14,7 +14,7 @@ values ('주말 운전', 'driver', 1, 15)
 on conflict (name) do nothing;
 alter table absences drop constraint if exists absences_kind_check;
 alter table absences add constraint absences_kind_check
-  check (kind in ('leave', 'injury', 'outing', 'discharge'));
+  check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused'));
 
 -- ② 주말 운전 희망
 create table if not exists drive_wants (

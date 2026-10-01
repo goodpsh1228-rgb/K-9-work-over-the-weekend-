@@ -14,7 +14,11 @@ export const ABSENCE_KINDS = [
 
 export type AbsenceKind = (typeof ABSENCE_KINDS)[number]["value"];
 
-export const KIND_LABEL: Record<string, string> = Object.fromEntries(ABSENCE_KINDS.map((k) => [k.value, k.label]));
+// 화면 표시용 이름 (입력 목록에는 없는 "관리자 제외" 포함 — 관리자가 근무일 화면에서 미응답자를 그날만 뺄 때)
+export const KIND_LABEL: Record<string, string> = {
+  ...Object.fromEntries(ABSENCE_KINDS.map((k) => [k.value, k.label])),
+  excused: "관리자 제외",
+};
 
 export function isAbsenceKind(v: string): v is AbsenceKind {
   return ABSENCE_KINDS.some((k) => k.value === v);

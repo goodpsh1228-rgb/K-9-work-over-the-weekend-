@@ -20,7 +20,7 @@ import { buildDrawInput, getDraw, getRoster, runPendingDrawsSafely, simulateDraw
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { buildPostText, buildRankText } from "@/lib/roster-text";
 import { CopyButton } from "@/components/copy-button";
-import { manualDrawAction } from "./actions";
+import { excuseUnansweredAction, manualDrawAction, undoExcuseAction } from "./actions";
 import { VotePanel } from "./vote-panel";
 import { DrivePanel } from "./drive-panel";
 import { EscortDrawForm, escortWorkers } from "@/components/escort-draw-form";
@@ -72,6 +72,15 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
     .filter((r) => r.memberId === me.id)
     .map((r) => board.posts.find((p) => p.id === r.postId)?.name ?? "?");
   const myAssignment = myPostNames.length > 0;
+
+  // 관리자가 이 날만 뺀 사람(관리자 제외) 목록
+  const excusedRows = (
+    await getSupabaseAdmin().from("absences").select("id, member_id").eq("kind", "excused").eq("start_date", date)
+  ).data;
+  const nameById = new Map([...board.excluded].map((m) => [m.id, m.name]));
+  const excused = (excusedRows ?? [])
+    .filter((r) => nameById.has(r.member_id))
+    .map((r) => ({ id: r.id as number, name: nameById.get(r.member_id)! }));
 
   // 관리자 선탑 뽑기: 선탑 자리, 현재 선탑, 대상자 후보(그날 동·진료실 출근자)
   const escortPost = board.posts.find((p) => p.pool === "escort");
@@ -167,6 +176,27 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         <section className="mb-4 rounded-lg border border-orange-300 bg-orange-50 p-3 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100">
           <p className="font-bold">아직 응답하지 않은 사람 ({board.unanswered.length}명)</p>
           <p className="mt-1 text-sm leading-6">{board.unanswered.map((m) => m.name).join(", ")}</p>
+          {/* 관리자: 투표를 깜빡했지만 이 날 출근하지 않는 사람을 골라 이 날 추첨에서만 빼기 */}
+          {me.is_admin && (
+            <details className="mt-2 rounded-lg bg-white/70 dark:bg-black/20">
+              <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">관리자: 이 날 추첨에서 뺄 사람 고르기</summary>
+              <form action={excuseUnansweredAction} className="space-y-2 px-3 pb-3">
+                <input type="hidden" name="date" value={date} />
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                  {board.unanswered.map((m) => (
+                    <label key={m.id} className="flex items-center gap-1.5 text-sm">
+                      <input type="checkbox" name="ids" value={m.id} className="h-4 w-4" />
+                      {m.name}
+                    </label>
+                  ))}
+                </div>
+                <button type="submit" className="h-11 w-full rounded-lg bg-orange-600 text-sm font-bold text-white">
+                  선택한 사람 이 날 추첨에서 빼기
+                </button>
+                <p className="text-xs opacity-80">이 날 하루만 빠집니다. 아래 &quot;제외&quot; 목록에서 되돌릴 수 있습니다.</p>
+              </form>
+            </details>
+          )}
         </section>
       )}
 
@@ -262,6 +292,24 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           <b>제외 · 휴가/부상 등 ({board.excluded.length}명)</b>{" "}
           <span className="text-zinc-600 dark:text-zinc-400">{board.excluded.map((m) => m.name).join(", ") || "-"}</span>
         </p>
+        {/* 관리자가 이 날만 뺀 사람: 관리자에게 되돌리기 버튼 (추첨 전) */}
+        {excused.length > 0 && (
+          <div className="space-y-1">
+            <p className="text-xs text-zinc-500">그중 관리자 제외 (투표 깜빡한 사람을 이 날만 뺌)</p>
+            {excused.map((e) => (
+              <form key={e.id} action={undoExcuseAction} className="flex items-center justify-between gap-2">
+                <input type="hidden" name="date" value={date} />
+                <input type="hidden" name="absence_id" value={e.id} />
+                <span>{e.name}</span>
+                {me.is_admin && !draw && (
+                  <button type="submit" className="text-xs text-blue-600 underline">
+                    되돌리기
+                  </button>
+                )}
+              </form>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mt-8 flex justify-between text-sm text-zinc-500">

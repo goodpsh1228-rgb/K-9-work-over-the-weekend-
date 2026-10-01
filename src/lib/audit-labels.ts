@@ -13,8 +13,6 @@ const LABELS: Record<string, string> = {
   "member.rank": "계급 변경",
   "member.rank_self": "계급 변경(본인)",
   "member.clinic": "진료반 변경",
-  "member.draw_exclude": "추첨 제외",
-  "member.draw_include": "추첨 제외 해제",
   "member.driver": "운전병 변경",
   "member.delete": "인원 삭제",
   "member.deactivate": "인원 비활성화",
@@ -53,10 +51,6 @@ export function detailText(action: string, d: Record<string, unknown>): string {
       return `${s(d.name)}: ${s(d.from ?? "미지정")} → ${s(d.to ?? "미지정")}`;
     case "member.clinic":
       return `${s(d.name)}: ${d.to ? "진료반으로" : "진료반 해제"}`;
-    case "member.draw_exclude":
-      return `${s(d.name)}${d.reason ? ` (${s(d.reason)})` : ""}`;
-    case "member.draw_include":
-      return s(d.name);
     case "member.driver":
       return `${s(d.name)}: ${d.to ? "운전병으로" : "운전병 해제"}`;
     case "member.add":

@@ -14,8 +14,9 @@ import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { isValidDate } from "@/lib/kst";
 import { computeDutyDays } from "@/lib/duty-days";
 import { getOverrides, getVoteInfo } from "@/lib/duty-days-server";
-import { getExcludedIds, getPostsForDate } from "@/lib/day-board";
-import { executeDraw } from "@/lib/draw-server";
+import { getDayBoard, getExcludedIds, getPostsForDate } from "@/lib/day-board";
+import { executeDraw, getDraw } from "@/lib/draw-server";
+import { writeAudit } from "@/lib/audit";
 
 function back(date: string, kind: "msg" | "error", text: string): never {
   revalidatePath(`/day/${date}`);
@@ -108,4 +109,47 @@ export async function manualDrawAction(formData: FormData) {
   if (r.status === "not-ready") back(date, "error", r.reason);
   if (r.status === "already") back(date, "msg", "이미 추첨이 끝난 날입니다. (결과는 한 번만 만들어집니다)");
   back(date, "msg", "추첨을 완료했습니다.");
+}
+
+// ── 관리자: 투표를 깜빡한 미응답자 중 골라 이 날 추첨에서만 빼기 ──
+//   제외 기간(absences, 종류 "관리자 제외")을 그날 하루로 만듭니다. 추첨 전에만 가능.
+export async function excuseUnansweredAction(formData: FormData) {
+  const me = await requireAdmin();
+  const date = String(formData.get("date") ?? "");
+  if (!isValidDate(date)) redirect("/home");
+  const ids = [...new Set(formData.getAll("ids").map(Number).filter(Number.isInteger))];
+  if (ids.length === 0) back(date, "error", "뺄 사람을 체크해 주세요.");
+  if (computeDutyDays(date, date, await getOverrides(date, date)).length === 0) back(date, "error", "근무일이 아닙니다.");
+  if (await getDraw(date)) back(date, "error", "이미 추첨이 끝난 날입니다. 명단 수정을 이용하세요.");
+
+  // 지금 미응답인 사람만 (활성, 제외 아님, 응답 없음) — 화면을 거치지 않은 조작 방지
+  const board = await getDayBoard(date);
+  const unanswered = new Map(board.unanswered.map((m) => [m.id, m.name]));
+  const targets = ids.filter((id) => unanswered.has(id));
+  if (targets.length === 0) back(date, "error", "미응답자 중에서 골라 주세요.");
+
+  const db = getSupabaseAdmin();
+  const { error } = await db
+    .from("absences")
+    .insert(targets.map((id) => ({ member_id: id, kind: "excused", start_date: date, end_date: date, created_by: me.id })));
+  if (error) back(date, "error", error.code === "23514" ? "관리자 제외용 SQL(0011)을 먼저 실행해 주세요." : "저장 중 오류: " + error.message);
+  for (const id of targets) {
+    await writeAudit({ actorId: me.id, action: "absence.add", targetMemberId: id, details: { kind: "excused", start_date: date, end_date: date, name: unanswered.get(id) } });
+  }
+  back(date, "msg", `${targets.map((id) => unanswered.get(id)).join(", ")} — 이 날 추첨에서 뺐습니다.`);
+}
+
+// 관리자 제외 되돌리기 (다시 미응답 → 추첨 대상)
+export async function undoExcuseAction(formData: FormData) {
+  const me = await requireAdmin();
+  const date = String(formData.get("date") ?? "");
+  if (!isValidDate(date)) redirect("/home");
+  const id = Number(formData.get("absence_id"));
+  const db = getSupabaseAdmin();
+  const { data: row } = await db.from("absences").select("id, member_id, kind, start_date, end_date").eq("id", id).maybeSingle();
+  if (!row || row.kind !== "excused") back(date, "error", "기록을 찾을 수 없습니다.");
+  if (await getDraw(date)) back(date, "error", "이미 추첨이 끝난 날입니다. 명단 수정을 이용하세요.");
+  await db.from("absences").delete().eq("id", id);
+  await writeAudit({ actorId: me.id, action: "absence.delete", targetMemberId: row.member_id, details: row });
+  back(date, "msg", "되돌렸습니다. 다시 추첨 대상입니다.");
 }
