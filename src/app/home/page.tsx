@@ -72,7 +72,7 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
   }
 
   return (
-    <Page title="주말·공휴일 출근 투표">
+    <Page title="군견훈육중대 주말출근 관리체계">
       {/* 내 정보: 이름 첫 글자 동그라미 + 이름 + 계급·구분 */}
       <div className="flex items-center gap-3">
         <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xl font-bold text-blue-700">

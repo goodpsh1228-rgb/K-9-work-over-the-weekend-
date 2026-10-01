@@ -16,7 +16,7 @@ const poppins = Poppins({
 
 // 브라우저 탭에 보이는 제목과 설명
 export const metadata: Metadata = {
-  title: "주말·공휴일 출근 투표",
+  title: "군견훈육중대 주말출근 관리체계",
   description: "주말·공휴일 출근 희망 투표 및 추첨",
 };
 

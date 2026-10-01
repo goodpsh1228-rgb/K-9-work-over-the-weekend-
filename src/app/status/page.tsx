@@ -122,7 +122,7 @@ export default async function Home() {
 
   return (
     <main className="mx-auto w-full max-w-md px-4 py-8">
-      <h1 className="text-2xl font-bold">주말·공휴일 출근 투표</h1>
+      <h1 className="text-2xl font-bold">군견훈육중대 주말출근 관리체계</h1>
       <p className="mt-1 text-sm text-zinc-500">준비 상태 점검 화면</p>
 
       <ul className="mt-6 space-y-3">

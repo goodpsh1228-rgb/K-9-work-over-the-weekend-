@@ -123,20 +123,19 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           )}
           {/* 관리자: 선탑 뽑기 (따로 눈에 띄게) */}
           {me.is_admin && escortPost && (
-            <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
-              <p className="font-bold">🎲 선탑 뽑기 (관리자)</p>
-              <p className="mt-1 mb-2 text-sm">
-                현재 선탑:{" "}
-                <b>{currentEscort.length ? currentEscort.map((r) => `${r.rank ? `${r.rank} ` : ""}${r.name}`).join(", ") : "미정"}</b>
-              </p>
+            <Fold
+              title="🎲 선탑 뽑기 (관리자)"
+              hint={`현재 선탑: ${currentEscort.length ? currentEscort.map((r) => `${r.rank ? `${r.rank} ` : ""}${r.name}`).join(", ") : "미정"}`}
+              className="border-2 border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950"
+            >
               <p className="mb-2 text-xs text-zinc-600 dark:text-zinc-400">이 날 출근자 중 대상자를 체크한 뒤 버튼을 누르세요.</p>
               <EscortDrawForm date={date} workers={escortCandidates} action={drawEscortAction} returnTo="day" />
-            </div>
+            </Fold>
           )}
 
           {/* 출근 명단 글 두 가지 — 글을 보여 주고, 버튼으로 복사 */}
           {postText && rankText && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <TextBlock title="동별 출근 인원" text={postText} label="동별 명단 복사" />
               <TextBlock title="계급별 출근 인원" text={rankText} label="계급별 명단 복사" />
               {kakaoWeek && <CopyButton text={kakaoWeek} label="이번 투표 주 동별 명단 전체 복사" />}
@@ -278,13 +277,34 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
 }
 
 // 복사용 글 한 덩어리: 제목 + 글 + 복사 버튼
+//   처음에는 제목만 보이고, 누르면 글과 복사 버튼이 펼쳐집니다.
 function TextBlock({ title, text, label }: { title: string; text: string; label: string }) {
   return (
-    <div className="space-y-2">
-      <p className="text-sm font-semibold">{title}</p>
-      <pre className="whitespace-pre-wrap rounded-lg bg-zinc-100 p-3 font-sans text-sm leading-6 dark:bg-zinc-900">{text}</pre>
-      <CopyButton text={text} label={label} />
-    </div>
+    <Fold title={title} className="bg-white shadow-[0_4px_12px_rgba(15,16,32,0.08)] dark:bg-zinc-900">
+      <div className="space-y-2">
+        <pre className="whitespace-pre-wrap rounded-lg bg-zinc-100 p-3 font-sans text-sm leading-6 dark:bg-zinc-800">{text}</pre>
+        <CopyButton text={text} label={label} />
+      </div>
+    </Fold>
+  );
+}
+
+// 접었다 펼치는 칸: 제목(+짧은 안내)만 보이다가 누르면 내용이 펼쳐짐 (▾ 표시가 돌아감)
+//   <details> = 브라우저 기본 "펼치기" 상자라 따로 프로그램 없이 동작합니다.
+function Fold({ title, hint, className, children }: { title: string; hint?: string; className: string; children: React.ReactNode }) {
+  return (
+    <details className={`group rounded-lg ${className}`}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-3 [&::-webkit-details-marker]:hidden">
+        <span>
+          <span className="block font-bold">{title}</span>
+          {hint && <span className="mt-0.5 block text-sm">{hint}</span>}
+        </span>
+        <span aria-hidden className="text-xl text-zinc-500 transition-transform group-open:rotate-180">
+          ▾
+        </span>
+      </summary>
+      <div className="px-3 pb-3">{children}</div>
+    </details>
   );
 }
 
