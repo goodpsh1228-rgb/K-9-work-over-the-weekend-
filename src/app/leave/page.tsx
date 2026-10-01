@@ -152,7 +152,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                 <p className="tabular-nums">{formatShort(discharge)}</p>
               </li>
             </ul>
-            <p className="mt-2 text-xs text-zinc-500">계급은 입대일 기준으로 매월 1일 자동 진급되고, 전역일이 되면 자동으로 비활성화됩니다.</p>
+            <p className="mt-2 text-xs text-zinc-500">계급은 입대일 기준으로 매월 1일 자동 진급됩니다(홈에서 직접 바꾸면 다음 진급일까지 유지). 전역일이 되면 자동으로 비활성화됩니다.</p>
           </Card>
           <details className="mt-3 text-sm">
             <summary className="cursor-pointer text-zinc-500">입대일·전역일 수정</summary>

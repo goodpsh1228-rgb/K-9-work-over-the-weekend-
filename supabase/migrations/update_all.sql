@@ -1,4 +1,4 @@
--- 추가 업데이트 한 번에 (0002 + 0003 + 0004 + 0005 + 0006 + 0007 + 0008 + 0009 + 0011) — 여러 번 실행해도 안전합니다
+-- 추가 업데이트 한 번에 (0002 + 0003 + 0004 + 0005 + 0006 + 0007 + 0008 + 0009 + 0011 + 0012) — 여러 번 실행해도 안전합니다
 alter table responses add column if not exists post_id bigint references posts(id);
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'responses_post_matches_choice') then
@@ -119,3 +119,6 @@ comment on table leaves is '휴가 계산기 기록 (위로·정기·포상·공
 alter table absences drop constraint if exists absences_kind_check;
 alter table absences add constraint absences_kind_check
   check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused'));
+
+-- ── 0012: 계급 수동 변경 ──
+alter table members add column if not exists rank_manual_on date;

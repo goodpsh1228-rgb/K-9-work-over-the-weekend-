@@ -41,6 +41,8 @@ export async function saveServiceDatesAction(formData: FormData) {
   if (discharge > addDays(enlist, 365 * 3)) back(formData, "error", "복무 기간이 너무 깁니다. 날짜를 확인해 주세요.");
   const { error } = await getSupabaseAdmin().from("members").update({ enlist_date: enlist, discharge_date: discharge }).eq("id", me.id);
   if (error) back(formData, "error", SQL_HINT);
+  // 입대일을 저장하면 자동 진급을 새로 시작: 예전에 직접 바꾼 기록은 지움 (SQL 0012 전이면 조용히 넘어감)
+  await getSupabaseAdmin().from("members").update({ rank_manual_on: null }).eq("id", me.id);
   await syncServiceStatusSafely({ force: true }); // 계급을 입대일 기준으로 바로 맞춤
   back(formData, "msg", `입대일·전역일을 저장했습니다. 계급은 입대일 기준으로 자동 진급됩니다 (지금: ${rankOn(enlist, todayKST())}).`);
 }

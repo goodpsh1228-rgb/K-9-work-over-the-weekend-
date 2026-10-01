@@ -87,14 +87,9 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
       </div>
       {/* 내 구분 표시 */}
       <p className="mt-3 space-x-2 text-sm">
-        {/* 내 계급: 입대일이 있으면 자동(매월 1일 진급), 없으면 드롭다운에서 직접 선택 */}
-        {enlisted ? (
-          <Link href="/leave" className="rounded bg-zinc-100 px-2 py-0.5 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-            {me.rank} <span className="text-xs text-zinc-500">· 자동</span>
-          </Link>
-        ) : (
-          <MyRankSelect action={updateMyRankAction} current={me.rank} />
-        )}
+        {/* 내 계급: 드롭다운에서 직접 바꿀 수 있음. 입대일이 있으면 매월 1일 자동 진급 */}
+        <MyRankSelect action={updateMyRankAction} current={me.rank} />
+        {enlisted && <span className="text-xs text-zinc-500">자동 진급 중</span>}
         {me.is_admin && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800">관리자</span>}
         {me.is_clinic && <span className="rounded bg-teal-100 px-2 py-0.5 text-teal-800">진료반</span>}
         {me.is_driver && <span className="rounded bg-orange-100 px-2 py-0.5 text-orange-800">운전병</span>}

@@ -13,6 +13,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
+import { setRankManually } from "@/lib/service-sync";
 import { todayKST } from "@/lib/kst";
 import { RANKS } from "@/lib/voting";
 import { DEFAULT_INITIAL_PASSWORD, hashPassword } from "@/lib/password";
@@ -34,7 +35,7 @@ export async function updateRankAction(formData: FormData) {
   const db = getSupabaseAdmin();
   const { data: m } = await db.from("members").select("name, rank").eq("id", id).maybeSingle();
   if (!m) back("error", "인원을 찾을 수 없습니다.");
-  await db.from("members").update({ rank }).eq("id", id);
+  await setRankManually(id, rank); // 직접 바꾼 계급은 다음 진급일까지 유지
   await writeAudit({ actorId: me.id, action: "member.rank", targetMemberId: id, details: { name: m.name, from: m.rank, to: rank } });
   back("msg", `${m.name}: 계급을 ${rank ?? "미지정"}(으)로 바꿨습니다.`);
 }
