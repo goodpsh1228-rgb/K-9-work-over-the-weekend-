@@ -1,4 +1,4 @@
--- 추가 업데이트 한 번에 (0002 + 0003 + 0004 + 0005 + 0006 + 0007 + 0008) — 여러 번 실행해도 안전합니다
+-- 추가 업데이트 한 번에 (0002 + 0003 + 0004 + 0005 + 0006 + 0007 + 0008 + 0009) — 여러 번 실행해도 안전합니다
 alter table responses add column if not exists post_id bigint references posts(id);
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'responses_post_matches_choice') then
@@ -93,3 +93,23 @@ alter table posts add constraint posts_pool_check check (pool in ('clinic', 'gen
 insert into posts (name, pool, default_count, sort_order)
 values ('선탑', 'escort', 1, 16)
 on conflict (name) do nothing;
+
+-- ── 0009: 휴가 계산기 ──
+alter table members add column if not exists enlist_date date;
+alter table members add column if not exists discharge_date date;
+
+create table if not exists leaves (
+  id          bigint generated always as identity primary key,
+  member_id   bigint not null references members(id) on delete cascade,
+  kind        text not null check (kind in ('comfort', 'regular', 'reward', 'official', 'annual', 'outing', 'visit')),
+  subkind     text check (subkind is null or subkind in ('mileage', 'merit', 'junior', 'corporal', 'sergeant')),
+  start_date  date not null,
+  end_date    date not null,
+  memo        text check (memo is null or length(memo) <= 100),
+  absence_id  bigint references absences(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  check (end_date >= start_date)
+);
+create index if not exists leaves_by_member on leaves (member_id, start_date);
+alter table leaves enable row level security;
+comment on table leaves is '휴가 계산기 기록 (위로·정기·포상·공가·연가·외출·면회)';

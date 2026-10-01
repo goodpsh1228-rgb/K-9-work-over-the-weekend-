@@ -5,6 +5,7 @@
 import type { Metadata, Viewport } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
+import { BottomTabs } from "@/components/bottom-tabs";
 
 // 템플릿 글꼴 Poppins (영문·숫자용). 배포할 때 사이트 안에 함께 저장되어 외부 접속 없이 보입니다.
 const poppins = Poppins({
@@ -30,7 +31,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // lang="ko": 이 사이트가 한국어라는 표시
     <html lang="ko" className={`h-full antialiased ${poppins.variable}`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        {/* 아래 고정 탭: 주말출근 투표 / 휴가 계산기 */}
+        <BottomTabs />
+      </body>
     </html>
   );
 }
