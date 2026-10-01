@@ -13,6 +13,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
+import { todayKST } from "@/lib/kst";
 import { RANKS } from "@/lib/voting";
 import { DEFAULT_INITIAL_PASSWORD, hashPassword } from "@/lib/password";
 
@@ -193,6 +194,8 @@ export async function setActiveAction(formData: FormData) {
     .from("members")
     .update(value ? { is_active: true } : { is_active: false, session_version: m.session_version + 1 })
     .eq("id", id);
+  // 다시 활성화할 때 전역일이 이미 지났으면 지움 (안 지우면 자동 전역 처리로 곧바로 다시 비활성화됨)
+  if (value) await getSupabaseAdmin().from("members").update({ discharge_date: null }).eq("id", id).lte("discharge_date", todayKST());
   await writeAudit({ actorId: me.id, action: value ? "member.activate" : "member.deactivate", targetMemberId: id, details: { name: m.name } });
   backTo(page, "msg", value ? "다시 활성화했습니다." : "비활성화했습니다. (로그인·투표·추첨에서 빠짐, 과거 명단은 유지)");
 }

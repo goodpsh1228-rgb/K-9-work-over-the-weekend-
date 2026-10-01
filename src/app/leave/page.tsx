@@ -11,6 +11,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { Card, Notice, Page } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
 import { ServiceProgress } from "@/components/service-progress";
+import { nextPromotion, promotionDates } from "@/lib/promotion";
 import { HOLIDAYS } from "@/lib/holidays";
 import { formatShort, todayKST, weekday } from "@/lib/kst";
 import {
@@ -79,6 +80,8 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
   const workLeft = discharge ? remainingWorkdays(today, discharge, leaves, extraHolidays) : null;
   const nextLeave = leaves.find((l) => isFullLeave(l.kind) && l.start_date > today);
   const summary = leaveSummary(leaves);
+  const promos = enlist ? promotionDates(enlist) : null;
+  const next = enlist ? nextPromotion(enlist, today) : null;
 
   // 이 달 달력과 기록
   const grid = monthGrid(month);
@@ -95,7 +98,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
       </div>
 
       {/* ① 입대일·전역일 → 진행률 */}
-      {stats && enlist && discharge ? (
+      {stats && enlist && discharge && promos ? (
         <>
           <div className="mt-3 flex items-center gap-3">
             <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xl font-bold text-blue-700">
@@ -126,6 +129,31 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
             />
           </div>
           <p className="mt-2 text-center text-xs text-zinc-500">실제 남은 출근일 = 오늘~전역 전날 중 주말·공휴일·휴가를 뺀 평일 수</p>
+          {/* 진급 일정 (매월 1일 자동 진급) */}
+          <Card className="mt-4 p-4">
+            <div className="flex items-baseline justify-between">
+              <p className="font-semibold">진급 일정</p>
+              {next && (
+                <p className="text-sm font-bold text-blue-600">
+                  {next.rank} 진급 D-{daysBetween(today, next.date)}
+                </p>
+              )}
+            </div>
+            <ul className="mt-2 grid grid-cols-4 text-center text-sm">
+              {(["일병", "상병", "병장"] as const).map((r) => (
+                <li key={r} className={promos[r] <= today ? "text-zinc-400" : ""}>
+                  <p className="font-semibold">{r}</p>
+                  <p className="tabular-nums">{formatShort(promos[r])}</p>
+                  {promos[r] <= today && <p className="text-xs">✓</p>}
+                </li>
+              ))}
+              <li>
+                <p className="font-semibold">전역</p>
+                <p className="tabular-nums">{formatShort(discharge)}</p>
+              </li>
+            </ul>
+            <p className="mt-2 text-xs text-zinc-500">계급은 입대일 기준으로 매월 1일 자동 진급되고, 전역일이 되면 자동으로 비활성화됩니다.</p>
+          </Card>
           <details className="mt-3 text-sm">
             <summary className="cursor-pointer text-zinc-500">입대일·전역일 수정</summary>
             <DatesForm enlist={enlist} discharge={discharge} month={month} />
@@ -279,10 +307,11 @@ function DatesForm({ enlist, discharge, month }: { enlist: string | null; discha
           <input type="date" name="enlist_date" required defaultValue={enlist ?? ""} className={inputClass} />
         </label>
         <label className="block text-xs text-zinc-500">
-          전역일
-          <input type="date" name="discharge_date" required defaultValue={discharge ?? ""} className={inputClass} />
+          전역일 (비우면 자동)
+          <input type="date" name="discharge_date" defaultValue={discharge ?? ""} className={inputClass} />
         </label>
       </div>
+      <p className="text-xs text-zinc-500">전역일을 비워 두면 입대일 + 21개월 − 1일로 계산합니다. 계급은 입대일 기준으로 자동 진급됩니다.</p>
       <button type="submit" className="h-12 w-full rounded-lg bg-blue-600 font-bold text-white">
         저장
       </button>

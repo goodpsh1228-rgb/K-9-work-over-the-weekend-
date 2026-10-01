@@ -12,7 +12,6 @@ import { addAbsenceAction } from "@/app/absences/actions";
 import { AbsenceForm } from "@/components/absence-form";
 import { MyRankSelect } from "@/components/my-rank-select";
 import { updateMyRankAction } from "./actions";
-import { needsPromotionReminder } from "@/lib/rank";
 import { Card, Notice } from "@/components/ui";
 import { CountdownCard } from "@/components/countdown-card";
 import { addDays, formatShort, kstMoment, mondayOf, todayKST, weekday } from "@/lib/kst";
@@ -41,6 +40,9 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
     db.from("posts").select("id, name"),
   ]);
   const now = new Date();
+  // 입대일을 넣었는지 (넣었으면 계급 자동) — SQL 0009 전이면 칸이 없어 오류 → 입력 안 한 것으로
+  const { data: svc } = await db.from("members").select("enlist_date").eq("id", me.id).maybeSingle();
+  const enlisted = Boolean(svc?.enlist_date);
   const myStatus = (date: string) => votingStatus(date, fridayIsDuty(date), now, me.rank); // 내 계급 기준
   const overall = (date: string) => votingStatus(date, fridayIsDuty(date), now); // 투표 전체 기준
 
@@ -85,27 +87,30 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
       </div>
       {/* 내 구분 표시 */}
       <p className="mt-3 space-x-2 text-sm">
-        {/* 내 계급: 드롭다운에서 고르면 바로 저장 (진급 시 본인이 변경) */}
-        <MyRankSelect action={updateMyRankAction} current={me.rank} />
+        {/* 내 계급: 입대일이 있으면 자동(매월 1일 진급), 없으면 드롭다운에서 직접 선택 */}
+        {enlisted ? (
+          <Link href="/leave" className="rounded bg-zinc-100 px-2 py-0.5 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+            {me.rank} <span className="text-xs text-zinc-500">· 자동</span>
+          </Link>
+        ) : (
+          <MyRankSelect action={updateMyRankAction} current={me.rank} />
+        )}
         {me.is_admin && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800">관리자</span>}
         {me.is_clinic && <span className="rounded bg-teal-100 px-2 py-0.5 text-teal-800">진료반</span>}
         {me.is_driver && <span className="rounded bg-orange-100 px-2 py-0.5 text-orange-800">운전병</span>}
       </p>
 
-      {/* 계급 안내: 미지정이면 항상, 이병·일병·상병은 월말 마지막 주·월초 첫 주에 진급 확인 */}
-      {me.rank === null ? (
+      {/* 계급·입대일 안내: 입대일을 넣으면 계급이 자동으로 진급됨 */}
+      {!enlisted && (
         <div className="mt-3">
-          <Notice kind="warn">위에서 내 계급을 선택해 주세요. 계급이 없으면 화요일부터만 투표할 수 있습니다.</Notice>
+          <Notice kind="warn">
+            <Link href="/leave" className="font-semibold underline">
+              📅 휴가 계산기
+            </Link>
+            에서 입대일을 입력하면 계급이 매월 1일 자동으로 진급됩니다.
+            {me.rank === null && " (계급이 없으면 화요일부터만 투표할 수 있습니다)"}
+          </Notice>
         </div>
-      ) : (
-        needsPromotionReminder(me.rank, todayKST()) && (
-          <div className="mt-3">
-            <Notice kind="warn">
-              진급 시기입니다. 이번에 진급했다면 위의 계급(<b>{me.rank}</b>)을 새 계급으로 바꿔 주세요. 상병·병장은 월요일부터
-              투표할 수 있습니다.
-            </Notice>
-          </div>
-        )
       )}
 
       {/* 남은 시간 카드 (템플릿의 보라 그라데이션 카드) */}

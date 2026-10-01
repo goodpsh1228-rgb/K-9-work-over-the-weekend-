@@ -12,6 +12,7 @@ const LABELS: Record<string, string> = {
   "member.add": "인원 추가",
   "member.rank": "계급 변경",
   "member.rank_self": "계급 변경(본인)",
+  "member.rank_auto": "계급 자동 진급",
   "member.clinic": "진료반 변경",
   "post.update": "동 설정 변경",
   "post.add": "동 추가",
@@ -53,6 +54,7 @@ export function detailText(action: string, d: Record<string, unknown>): string {
       return `${s(d.count)}명`;
     case "member.rank":
     case "member.rank_self":
+    case "member.rank_auto":
       return `${s(d.name)}: ${s(d.from ?? "미지정")} → ${s(d.to ?? "미지정")}`;
     case "member.clinic":
       return `${s(d.name)}: ${d.to ? "진료반으로" : "진료반 해제"}`;
@@ -71,8 +73,9 @@ export function detailText(action: string, d: Record<string, unknown>): string {
       return `${s(d.name)}: ${d.to ? "운전병으로" : "운전병 해제"}`;
     case "member.add":
       return `${s(d.name)}${d.rank ? ` (${d.rank})` : ""}${d.is_clinic ? " · 진료반" : ""}${d.is_driver ? " · 운전병" : ""}`;
-    case "member.delete":
     case "member.deactivate":
+      return `${s(d.name)}${d.reason ? ` (${s(d.reason)})` : ""}`;
+    case "member.delete":
     case "member.activate":
     case "member.reset_password":
     case "member.grant_admin":

@@ -11,7 +11,9 @@ import { revalidatePath } from "next/cache";
 import { requireMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
-import { addDays, formatShort, isValidDate } from "@/lib/kst";
+import { addDays, formatShort, isValidDate, todayKST } from "@/lib/kst";
+import { defaultDischarge, rankOn } from "@/lib/promotion";
+import { syncServiceStatusSafely } from "@/lib/service-sync";
 import { isFullLeave, isLeaveKind, isValidMonth, isValidSubkind, LEAVE_LABEL } from "@/lib/leave";
 
 const SQL_HINT = "휴가 계산기용 SQL(0009)을 관리자가 먼저 실행해야 합니다.";
@@ -30,13 +32,17 @@ function back(formData: FormData, kind: "msg" | "error", text: string): never {
 export async function saveServiceDatesAction(formData: FormData) {
   const me = await requireMember();
   const enlist = String(formData.get("enlist_date") ?? "");
-  const discharge = String(formData.get("discharge_date") ?? "");
-  if (!isValidDate(enlist) || !isValidDate(discharge)) back(formData, "error", "입대일과 전역일을 모두 입력해 주세요.");
+  const rawDischarge = String(formData.get("discharge_date") ?? "");
+  if (!isValidDate(enlist)) back(formData, "error", "입대일을 입력해 주세요.");
+  // 전역일을 비우면 입대일 + 21개월 − 1일
+  const discharge = rawDischarge === "" ? defaultDischarge(enlist) : rawDischarge;
+  if (!isValidDate(discharge)) back(formData, "error", "전역일을 올바르게 입력해 주세요.");
   if (discharge <= enlist) back(formData, "error", "전역일은 입대일보다 뒤여야 합니다.");
   if (discharge > addDays(enlist, 365 * 3)) back(formData, "error", "복무 기간이 너무 깁니다. 날짜를 확인해 주세요.");
   const { error } = await getSupabaseAdmin().from("members").update({ enlist_date: enlist, discharge_date: discharge }).eq("id", me.id);
   if (error) back(formData, "error", SQL_HINT);
-  back(formData, "msg", "입대일·전역일을 저장했습니다.");
+  await syncServiceStatusSafely({ force: true }); // 계급을 입대일 기준으로 바로 맞춤
+  back(formData, "msg", `입대일·전역일을 저장했습니다. 계급은 입대일 기준으로 자동 진급됩니다 (지금: ${rankOn(enlist, todayKST())}).`);
 }
 
 // 기록 하나를 제외 기간(absences)으로 보내기 — 추가할 때와 "보내기" 버튼이 같이 씀

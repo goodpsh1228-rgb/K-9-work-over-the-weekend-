@@ -14,6 +14,7 @@ import { votingStatus } from "@/lib/voting";
 import { addDays, isValidDate, todayKST } from "@/lib/kst";
 import { writeAudit } from "@/lib/audit";
 import { getDriverIds, getDriveWants } from "@/lib/drivers";
+import { syncServiceStatusSafely } from "@/lib/service-sync";
 import { runDraw, type DrawInput, type DrawResult } from "@/lib/draw";
 
 export type Trigger = "cron" | "visit" | "manual";
@@ -151,6 +152,7 @@ export async function runPendingDraws(trigger: Trigger) {
 
 // 화면을 열 때 쓰는 안전장치: 실패해도 화면은 정상적으로 보이도록 오류를 삼킵니다.
 export async function runPendingDrawsSafely() {
+  await syncServiceStatusSafely(); // 계급 자동 진급·전역 자동 비활성화 (추첨 전에 먼저)
   try {
     await runPendingDraws("visit");
   } catch (e) {

@@ -16,6 +16,8 @@ export async function updateMyRankAction(formData: FormData) {
   if (!RANKS.includes(rank as (typeof RANKS)[number])) {
     redirect(`/home?error=${encodeURIComponent("계급을 다시 선택해 주세요.")}`);
   }
+  const { data: svc } = await getSupabaseAdmin().from("members").select("enlist_date").eq("id", me.id).maybeSingle();
+  if (svc?.enlist_date) redirect(`/home?error=${encodeURIComponent("입대일이 입력되어 있어 계급은 자동으로 진급됩니다.")}`);
   if (rank !== me.rank) {
     await getSupabaseAdmin().from("members").update({ rank }).eq("id", me.id);
     await writeAudit({ actorId: me.id, action: "member.rank_self", targetMemberId: me.id, details: { name: me.name, from: me.rank, to: rank } });

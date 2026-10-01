@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────
 import { createHash, timingSafeEqual } from "node:crypto";
 import { runPendingDraws } from "@/lib/draw-server";
+import { syncServiceStatusSafely } from "@/lib/service-sync";
 
 // 두 글자를 길이·시간 차이 없이 비교 (추측 공격 방지)
 function sameSecret(a: string, b: string) {
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, error: "권한 없음" }, { status: 401 });
   }
   try {
+    await syncServiceStatusSafely({ force: true }); // 계급 자동 진급·전역 자동 비활성화
     const result = await runPendingDraws("cron");
     return Response.json({ ok: true, ...result });
   } catch (e) {
