@@ -10,6 +10,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { getDriverIds } from "@/lib/drivers";
+import { getDrawExcludedIds } from "@/lib/day-board";
 import { Notice, Page } from "@/components/ui";
 import { addMemberAction, deleteMembersAction, updateRankAction } from "./actions";
 import { DeleteButton, RankSelect } from "./member-controls";
@@ -30,7 +31,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
   const all = members ?? [];
   const inactiveCount = all.filter((m) => !m.is_active).length;
   const list = showInactive ? all : all.filter((m) => m.is_active);
-  const drivers = await getDriverIds();
+  const [drivers, drawExcluded] = await Promise.all([getDriverIds(), getDrawExcludedIds()]);
   const noRank = all.filter((m) => m.is_active && !m.rank).length;
 
   return (
@@ -119,6 +120,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
               <span className="ml-1 space-x-1 text-[11px]">
                 {m.is_clinic && <span className="rounded bg-teal-100 px-1 py-0.5 text-teal-800">진료반</span>}
                 {drivers.has(m.id) && <span className="rounded bg-orange-100 px-1 py-0.5 text-orange-800">운전병</span>}
+                {drawExcluded.has(m.id) && <span className="rounded bg-red-100 px-1 py-0.5 text-red-800">추첨 제외</span>}
                 {m.is_admin && <span className="rounded bg-blue-100 px-1 py-0.5 text-blue-800">관리자</span>}
                 {!m.is_active && <span className="rounded bg-zinc-200 px-1 py-0.5 text-zinc-600">비활성</span>}
                 {m.must_change_password && m.is_active && (

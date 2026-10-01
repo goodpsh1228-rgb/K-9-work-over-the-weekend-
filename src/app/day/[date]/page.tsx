@@ -185,7 +185,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         </p>
 
         {mine.kind === "excluded" && (
-          <p className="mt-1 text-sm text-zinc-500">휴가·부상 기간에 걸쳐 이 날은 추첨에서 제외됩니다.</p>
+          <p className="mt-1 text-sm text-zinc-500">이 날은 추첨에서 제외됩니다. (휴가·부상 등 제외 기간 또는 관리자 지정 제외)</p>
         )}
         {status === "before" && (
           <p className="mt-1 text-sm text-zinc-500">
@@ -259,7 +259,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           <span className="text-zinc-600 dark:text-zinc-400">{board.declines.map((m) => m.name).join(", ") || "-"}</span>
         </p>
         <p>
-          <b>제외 · 휴가/부상 ({board.excluded.length}명)</b>{" "}
+          <b>제외 · 휴가/부상 등 ({board.excluded.length}명)</b>{" "}
           <span className="text-zinc-600 dark:text-zinc-400">{board.excluded.map((m) => m.name).join(", ") || "-"}</span>
         </p>
       </div>
@@ -400,6 +400,6 @@ function StatusChip({ status }: { status: "before" | "open" | "closed" }) {
 function MyStateText({ state }: { state: ReturnType<typeof myStateFrom> }) {
   if (state.kind === "want") return <span className="text-blue-700 dark:text-blue-300">희망 · {state.postName}</span>;
   if (state.kind === "decline") return <span>미희망</span>;
-  if (state.kind === "excluded") return <span className="text-zinc-500">제외 (휴가·부상)</span>;
+  if (state.kind === "excluded") return <span className="text-zinc-500">제외</span>;
   return <span className="text-orange-600">미응답</span>;
 }

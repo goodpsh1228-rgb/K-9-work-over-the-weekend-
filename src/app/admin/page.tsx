@@ -19,6 +19,7 @@ const GROUPS: { title: string; items: [string, string, string][] }[] = [
     items: [
       ["/admin/members", "인원 관리 · 삭제", "계급, 진료반, 비밀번호 초기화, 관리자 지정, 비활성화·삭제"],
       ["/admin/members/import", "인원 일괄 등록", "엑셀/CSV 목록으로 한 번에 등록"],
+      ["/admin/exclusions", "추첨 제외 인원", "특정 인원을 골라 다시 풀 때까지 추첨에서 제외"],
       ["/absences", "휴가·부상 (전체)", "모든 인원의 휴가·부상 기록 보기, 대신 입력·삭제"],
     ],
   },

@@ -1,4 +1,4 @@
--- 추가 업데이트 한 번에 (0002 + 0003 + 0004 + 0005 + 0006 + 0007 + 0008 + 0009) — 여러 번 실행해도 안전합니다
+-- 추가 업데이트 한 번에 (0002 + 0003 + 0004 + 0005 + 0006 + 0007 + 0008 + 0009 + 0010) — 여러 번 실행해도 안전합니다
 alter table responses add column if not exists post_id bigint references posts(id);
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'responses_post_matches_choice') then
@@ -113,3 +113,7 @@ create table if not exists leaves (
 create index if not exists leaves_by_member on leaves (member_id, start_date);
 alter table leaves enable row level security;
 comment on table leaves is '휴가 계산기 기록 (위로·정기·포상·공가·연가·외출·면회)';
+
+-- ── 0010: 추첨 제외 인원 ──
+alter table members add column if not exists draw_excluded boolean not null default false;
+alter table members add column if not exists draw_excluded_reason text check (draw_excluded_reason is null or length(draw_excluded_reason) <= 50);

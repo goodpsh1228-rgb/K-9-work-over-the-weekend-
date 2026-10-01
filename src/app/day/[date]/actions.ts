@@ -47,7 +47,7 @@ export async function voteAction(date: string, choice: VoteChoice): Promise<Vote
     };
   }
   if (info.status === "closed") return { ok: false, message: "투표가 마감되었습니다." };
-  if (excluded.has(me.id)) return { ok: false, message: "휴가·부상 기간이라 이 날은 제외 상태입니다." };
+  if (excluded.has(me.id)) return { ok: false, message: "이 날은 추첨 제외 상태입니다. (휴가·부상 등 또는 관리자 지정)" };
 
   const db = getSupabaseAdmin();
   let message: string;
@@ -88,7 +88,7 @@ export async function driveVoteAction(date: string, want: boolean): Promise<Vote
   if (computeDutyDays(date, date, overrides).length === 0) return { ok: false, message: "근무일이 아닙니다." };
   if (info.status === "before") return { ok: false, message: "아직 투표할 수 없는 시간입니다." };
   if (info.status === "closed") return { ok: false, message: "투표가 마감되었습니다." };
-  if (excluded.has(me.id)) return { ok: false, message: "휴가·부상 기간이라 이 날은 제외 상태입니다." };
+  if (excluded.has(me.id)) return { ok: false, message: "이 날은 추첨 제외 상태입니다. (휴가·부상 등 또는 관리자 지정)" };
 
   const db = getSupabaseAdmin();
   const { error } = want
