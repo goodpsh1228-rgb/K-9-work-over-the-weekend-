@@ -122,6 +122,14 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         <Link href="/absences" className="mt-2 block text-right text-sm text-zinc-500 underline">
           내 기록 보기·삭제
         </Link>
+        {/* 안내: 휴가 계산기에 적은 휴가·외출·면회도 여기로 보낼 수 있음 */}
+        <p className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100">
+          💡{" "}
+          <Link href="/leave" className="font-semibold underline">
+            📅 휴가 계산기
+          </Link>
+          에 입력한 휴가·외출·면회도 기록마다 <b>&quot;주말출근 제외로 보내기&quot;</b>를 누르면 여기와 똑같이 추첨에서 제외됩니다.
+        </p>
       </Card>
 
       {/* 다가오는 근무일 목록 (다음 주 일요일까지): 누르면 투표 화면으로 */}
