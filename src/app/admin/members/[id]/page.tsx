@@ -29,7 +29,7 @@ function isLockedNow(until: string | null): boolean {
   return Boolean(until) && new Date(until!).getTime() > Date.now();
 }
 
-const btn = "w-full rounded-lg border px-4 py-3 text-sm font-semibold";
+const btn = "w-full rounded-full border px-4 py-3 text-sm font-semibold";
 
 export default async function MemberDetailPage({ params, searchParams }: PageProps<"/admin/members/[id]">) {
   const me = await requireAdmin();
@@ -59,8 +59,8 @@ export default async function MemberDetailPage({ params, searchParams }: PagePro
     <Page title={m.name}>
       <p className="-mt-4 mb-4 space-x-1 text-sm">
         <span className="rounded bg-zinc-100 px-2 py-0.5 text-zinc-700">{m.rank ?? "계급 미지정"}</span>
-        {m.is_clinic && <span className="rounded bg-teal-100 px-2 py-0.5 text-teal-800">진료반</span>}
-        {isDriver && <span className="rounded bg-orange-100 px-2 py-0.5 text-orange-800">운전병</span>}
+        {m.is_clinic && <span className="rounded bg-hairline/60 text-foreground/80 px-2 py-0.5">진료반</span>}
+        {isDriver && <span className="rounded bg-hairline/60 text-foreground/80 px-2 py-0.5">운전병</span>}
         {m.is_admin && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800">관리자</span>}
         {!m.is_active && <span className="rounded bg-zinc-200 px-2 py-0.5 text-zinc-600">비활성</span>}
         {m.must_change_password && <span className="rounded bg-zinc-100 px-2 py-0.5 text-zinc-500">첫 로그인 전</span>}
@@ -78,7 +78,7 @@ export default async function MemberDetailPage({ params, searchParams }: PagePro
           <input type="hidden" name="value" value={String(!m.is_clinic)} />
           <ConfirmButton
             message={m.is_clinic ? `${m.name} 을(를) 진료반에서 뺄까요? (일반 추첨 대상이 됩니다)` : `${m.name} 을(를) 진료반으로 바꿀까요? (진료실 추첨에만 들어갑니다)`}
-            className={`${btn} border-teal-300 text-teal-800 dark:text-teal-300`}
+            className={`${btn} border-hairline text-foreground`}
           >
             {m.is_clinic ? "진료반에서 빼기" : "진료반으로 지정"}
           </ConfirmButton>
@@ -101,7 +101,7 @@ export default async function MemberDetailPage({ params, searchParams }: PagePro
           <input type="hidden" name="member_id" value={m.id} />
           <ConfirmButton
             message={`${m.name} 의 비밀번호를 1111 로 초기화할까요?\n다음 로그인 때 새 비밀번호로 바꾸게 되고, 로그인 차단도 풀립니다.`}
-            className={`${btn} border-zinc-300 dark:border-zinc-700`}
+            className={`${btn} border-hairline `}
           >
             비밀번호 초기화 (1111)
           </ConfirmButton>
@@ -154,7 +154,7 @@ export default async function MemberDetailPage({ params, searchParams }: PagePro
         )}
       </div>
 
-      <h2 className="mt-8 mb-2 text-lg font-bold">최근 변경 이력</h2>
+      <h2 className="mt-8 mb-2 text-lg font-semibold">최근 변경 이력</h2>
       {(logs ?? []).length === 0 ? (
         <p className="text-sm text-zinc-500">기록이 없습니다.</p>
       ) : (
@@ -169,7 +169,7 @@ export default async function MemberDetailPage({ params, searchParams }: PagePro
           ))}
         </ul>
       )}
-      <Link href={`/admin/audit?member=${m.id}`} className="mt-2 block text-sm text-blue-600 underline">
+      <Link href={`/admin/audit?member=${m.id}`} className="mt-2 block text-sm text-link underline">
         전체 이력 보기
       </Link>
 

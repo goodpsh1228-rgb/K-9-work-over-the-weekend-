@@ -35,11 +35,11 @@ export function CopyButton({ text, label = "카카오톡용 명단 복사" }: { 
         setState((await copyText(text)) ? "done" : "fail");
         setTimeout(() => setState("idle"), 2500);
       }}
-      className={`w-full rounded-lg px-4 py-3 font-semibold ${
-        state === "done" ? "bg-green-600 text-white" : state === "fail" ? "bg-red-600 text-white" : "bg-yellow-300 text-zinc-900"
+      className={`min-h-12 w-full rounded-full px-[22px] text-base font-normal text-white ${
+        state === "done" ? "bg-green-600" : state === "fail" ? "bg-red-600" : "bg-blue-600"
       }`}
     >
-      {state === "done" ? "✓ 복사했습니다. 카카오톡에 붙여넣으세요" : state === "fail" ? "복사 실패 — 아래 글을 길게 눌러 복사하세요" : `📋 ${label}`}
+      {state === "done" ? "✓ 복사했습니다. 카카오톡에 붙여넣으세요" : state === "fail" ? "복사 실패 — 아래 글을 길게 눌러 복사하세요" : `${label}`}
     </button>
   );
 }

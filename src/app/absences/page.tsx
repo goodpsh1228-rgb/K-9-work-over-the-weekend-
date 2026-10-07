@@ -42,7 +42,7 @@ export default async function AbsencesPage({ searchParams }: PageProps<"/absence
         {error && <Notice kind="error">{error}</Notice>}
       </div>
 
-      <div className="mt-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+      <div className="mt-3 rounded-[18px] border border-hairline p-3 bg-card">
         <AbsenceForm
           action={addAbsenceAction}
           myId={me.id}
@@ -53,11 +53,11 @@ export default async function AbsencesPage({ searchParams }: PageProps<"/absence
         </p>
       </div>
 
-      <h2 className="mt-8 mb-2 text-lg font-bold">{me.is_admin ? "전체 기록" : "내 기록"}</h2>
+      <h2 className="mt-8 mb-2 text-lg font-semibold">{me.is_admin ? "전체 기록" : "내 기록"}</h2>
       {(rows ?? []).length === 0 ? (
         <p className="text-sm text-zinc-500">기록이 없습니다.</p>
       ) : (
-        <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+        <ul className="divide-y divide-hairline rounded-[18px] border border-hairline bg-card">
           {(rows ?? []).map((r) => (
             <li key={r.id} className="flex items-center gap-2 px-3 py-2">
               <div className="min-w-0 flex-1 text-sm">
@@ -72,7 +72,7 @@ export default async function AbsencesPage({ searchParams }: PageProps<"/absence
               </div>
               <form action={deleteAbsenceAction}>
                 <input type="hidden" name="id" value={r.id} />
-                <button type="submit" className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700">
+                <button type="submit" className="rounded border border-hairline px-2 py-1 text-xs ">
                   삭제
                 </button>
               </form>

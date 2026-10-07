@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { LEAVE_KINDS, SUBKINDS } from "@/lib/leave";
 
-const inputClass = "h-12 w-full rounded-lg bg-input px-3 text-base text-foreground outline-none ring-blue-600 focus:ring-2";
+const inputClass = "h-12 w-full rounded-full border border-hairline bg-input px-4 text-base text-foreground outline-none focus:border-blue-500";
 
 export function LeaveForm({
   action,
@@ -33,8 +33,8 @@ export function LeaveForm({
         {LEAVE_KINDS.map((k) => (
           <label
             key={k.value}
-            className={`cursor-pointer rounded-lg py-2 text-center text-sm font-semibold ${
-              kind === k.value ? "bg-blue-600 text-white" : "bg-input text-foreground"
+            className={`flex min-h-11 cursor-pointer items-center justify-center rounded-full bg-card text-center text-sm ${
+              kind === k.value ? "border-2 border-blue-500 font-semibold" : "m-px border border-hairline"
             }`}
           >
             <input
@@ -63,12 +63,12 @@ export function LeaveForm({
       <div className={oneDay ? "" : "grid grid-cols-2 gap-2"}>
         <label className="block text-xs text-zinc-500">
           {oneDay ? "날짜" : "시작일"}
-          <input type="date" name="start_date" required defaultValue={defaultDate} className={inputClass} />
+          <input type="date" name="start_date" required defaultValue={defaultDate} className={`${inputClass} px-3! text-sm!`} />
         </label>
         {!oneDay && (
           <label className="block text-xs text-zinc-500">
             종료일
-            <input type="date" name="end_date" required defaultValue={defaultDate} className={inputClass} />
+            <input type="date" name="end_date" required defaultValue={defaultDate} className={`${inputClass} px-3! text-sm!`} />
           </label>
         )}
       </div>
@@ -77,7 +77,7 @@ export function LeaveForm({
         <input type="checkbox" name="send" defaultChecked className="h-4 w-4" />
         주말출근 추첨에서 제외되도록 바로 보내기
       </label>
-      <button type="submit" className="h-12 w-full rounded-lg bg-blue-600 font-bold text-white">
+      <button type="submit" className="h-12 w-full rounded-full bg-blue-600 font-normal text-white">
         저장
       </button>
     </form>

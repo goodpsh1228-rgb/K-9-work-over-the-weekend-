@@ -57,14 +57,14 @@ export function ImportForm() {
         </Notice>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-zinc-300 text-left dark:border-zinc-700">
+            <tr className="border-b border-hairline text-left ">
               <th className="py-1">이름</th>
               <th className="py-1">초기 비밀번호</th>
             </tr>
           </thead>
           <tbody>
             {state.created.map((r) => (
-              <tr key={r.name} className="border-b border-zinc-100 dark:border-zinc-900">
+              <tr key={r.name} className="border-b border-hairline ">
                 <td className="py-1">{r.name}</td>
                 <td className="py-1 font-mono">
                   {r.password} {r.generated && <span className="text-xs text-zinc-400">(기본)</span>}
@@ -76,14 +76,14 @@ export function ImportForm() {
         <button
           type="button"
           onClick={downloadResult}
-          className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white"
+          className="w-full min-h-11 rounded-full bg-blue-600 px-4 py-3 font-normal text-white"
         >
           결과 파일 받기 (CSV)
         </button>
         <button
           type="button"
           onClick={() => location.reload()}
-          className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-sm dark:border-zinc-700"
+          className="w-full rounded-full border border-hairline px-4 py-3 text-sm "
         >
           추가로 더 등록하기
         </button>
@@ -94,12 +94,12 @@ export function ImportForm() {
   // 입력 화면
   return (
     <ActionForm action={formAction} className="space-y-4">
-      <div className="rounded-lg bg-zinc-100 p-3 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+      <div className="rounded-[18px] bg-zinc-100 p-3 text-sm text-zinc-700  dark:text-zinc-300">
         <p className="font-semibold">목록 형식 (한 줄에 한 명)</p>
         <p className="mt-1">이름, 초기비밀번호, 진료반 여부(O/X), 관리자 여부(O/X), 계급(이병/일병/상병/병장)</p>
         <p className="mt-1">· 초기비밀번호를 비우면 <b>1111</b> 로 등록됩니다. (첫 로그인 때 각자 새 비밀번호로 변경)</p>
         <p>· 동명이인은 홍길동A / 홍길동B 처럼 이름이 겹치지 않게 적어 주세요.</p>
-        <button type="button" onClick={() => setText(EXAMPLE)} className="mt-2 text-blue-600 underline">
+        <button type="button" onClick={() => setText(EXAMPLE)} className="mt-2 text-link underline">
           예시 넣어 보기
         </button>
       </div>
@@ -118,7 +118,7 @@ export function ImportForm() {
           rows={10}
           required
           placeholder={EXAMPLE}
-          className="w-full rounded-lg border border-zinc-300 bg-white p-3 font-mono text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          className="w-full rounded-[18px] border border-hairline bg-card p-3 font-mono text-sm text-foreground"
         />
       </label>
 

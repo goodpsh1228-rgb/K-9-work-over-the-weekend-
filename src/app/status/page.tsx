@@ -140,7 +140,7 @@ export default async function Home() {
 
   return (
     <main className="mx-auto w-full max-w-md px-4 py-8">
-      <h1 className="text-2xl font-bold">군견훈육중대 주말출근 관리체계</h1>
+      <h1 className="text-2xl font-semibold">군견훈육중대 주말출근 관리체계</h1>
       <p className="mt-1 text-sm text-zinc-500">준비 상태 점검 화면</p>
 
       <ul className="mt-6 space-y-3">
@@ -157,16 +157,16 @@ export default async function Home() {
       </ul>
 
       {!conn.ok ? (
-        <p className="mt-6 rounded-lg bg-orange-50 p-4 text-orange-800">
+        <p className="mt-6 rounded-[11px] bg-orange-50 p-4 text-orange-800">
           ⚠️ Supabase 접속 설정이 아직 덜 되었습니다. README의 &quot;1단계&quot; 안내를 확인해 주세요.
         </p>
       ) : !tables.ok || !m0002.ok || !m0003.ok || !m0004.ok || !m0006.ok || !m0009.ok || !m0012.ok ? (
-        <p className="mt-6 rounded-lg bg-orange-50 p-4 text-orange-800">
+        <p className="mt-6 rounded-[11px] bg-orange-50 p-4 text-orange-800">
           ⚠️ 접속은 성공! 아직 실행하지 않은 SQL 파일(supabase/migrations 폴더)을 Supabase SQL Editor에서
           실행해 주세요. (README 참고)
         </p>
       ) : (
-        <p className="mt-6 rounded-lg bg-green-50 p-4 text-green-800">
+        <p className="mt-6 rounded-[11px] bg-green-50 p-4 text-green-800">
           ✅ 서버·데이터 창고 모두 정상입니다.
         </p>
       )}
@@ -177,7 +177,7 @@ export default async function Home() {
 // 점검 항목 한 줄을 그리는 작은 부품(컴포넌트)
 function StatusRow({ label, ok, detail }: { label: string; ok: boolean; detail?: string }) {
   return (
-    <li className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+    <li className="rounded-[18px] border border-hairline p-3 bg-card">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm">{label}</span>
         <span

@@ -20,7 +20,7 @@ export function MyRankSelect({
         aria-label="내 계급"
         // 값을 바꾸면 바로 저장
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+        className="h-8 rounded-full border border-hairline bg-card px-3 text-sm text-foreground"
       >
         {current === null && (
           <option value="" disabled>

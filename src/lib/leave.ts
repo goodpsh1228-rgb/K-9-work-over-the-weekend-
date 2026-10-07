@@ -11,13 +11,13 @@ import { addDays, isWeekend } from "./kst";
 
 // 휴가 종류 (color = 달력·목록 표시 색)
 export const LEAVE_KINDS = [
-  { value: "comfort", label: "위로", isLeave: true, color: "bg-pink-500" },
+  { value: "comfort", label: "위로", isLeave: true, color: "bg-blue-600" },
   { value: "regular", label: "정기", isLeave: true, color: "bg-blue-600" },
-  { value: "reward", label: "포상", isLeave: true, color: "bg-amber-500" },
-  { value: "official", label: "공가", isLeave: true, color: "bg-teal-600" },
-  { value: "annual", label: "연가", isLeave: true, color: "bg-green-600" },
-  { value: "outing", label: "외출", isLeave: false, color: "bg-sky-500" },
-  { value: "visit", label: "면회", isLeave: false, color: "bg-violet-500" },
+  { value: "reward", label: "포상", isLeave: true, color: "bg-blue-600" },
+  { value: "official", label: "공가", isLeave: true, color: "bg-blue-600" },
+  { value: "annual", label: "연가", isLeave: true, color: "bg-blue-600" },
+  { value: "outing", label: "외출", isLeave: false, color: "bg-muted" },
+  { value: "visit", label: "면회", isLeave: false, color: "bg-muted" },
 ] as const;
 export type LeaveKind = (typeof LEAVE_KINDS)[number]["value"];
 export const LEAVE_LABEL: Record<string, string> = Object.fromEntries(LEAVE_KINDS.map((k) => [k.value, k.label]));

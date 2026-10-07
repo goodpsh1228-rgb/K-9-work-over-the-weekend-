@@ -43,7 +43,7 @@ type Leave = {
 };
 
 const subLabel = (kind: string, sub: string | null) => SUBKINDS[kind]?.find((s) => s.value === sub)?.label;
-const inputClass = "h-12 w-full rounded-lg bg-input px-3 text-base text-foreground outline-none ring-blue-600 focus:ring-2";
+const inputClass = "h-12 w-full rounded-full border border-hairline bg-input px-4 text-base text-foreground outline-none focus:border-blue-500";
 
 export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
   const me = await requireMember();
@@ -101,9 +101,6 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
       {stats && enlist && discharge && promos ? (
         <>
           <div className="mt-3 flex items-center gap-3">
-            <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xl font-bold text-blue-700">
-              {me.name.slice(0, 1)}
-            </div>
             <div className="text-sm leading-6">
               <p className="text-lg font-semibold">
                 {me.rank ? `${me.rank} ` : ""}
@@ -134,7 +131,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
             <div className="flex items-baseline justify-between">
               <p className="font-semibold">진급 일정</p>
               {next && (
-                <p className="text-sm font-bold text-blue-600">
+                <p className="text-sm font-semibold text-link">
                   {next.rank} 진급 D-{daysBetween(today, next.date)}
                 </p>
               )}
@@ -174,7 +171,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
           {summary.quotas.map((q) => (
             <li key={q.label} className="flex items-center justify-between gap-2">
               <span>{q.label}</span>
-              <span className={`tabular-nums ${q.used > q.quota ? "font-bold text-red-600" : ""}`}>
+              <span className={`tabular-nums ${q.used > q.quota ? "font-semibold text-red-600" : ""}`}>
                 {q.used} / {q.quota}일 <span className="text-zinc-500">(남은 {Math.max(0, q.quota - q.used)}일)</span>
               </span>
             </li>
@@ -186,25 +183,25 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
       {/* ③ 달력 */}
       <Card className="mt-6 p-3">
         <div className="mb-2 flex items-center justify-between">
-          <Link href={`/leave?month=${shiftMonth(month, -1)}`} className="px-3 py-1 text-xl text-blue-600" aria-label="이전 달">
+          <Link href={`/leave?month=${shiftMonth(month, -1)}`} className="px-3 py-1 text-xl text-link" aria-label="이전 달">
             ‹
           </Link>
-          <p className="font-bold">
+          <p className="font-semibold">
             {y}년 {m}월
           </p>
-          <Link href={`/leave?month=${shiftMonth(month, 1)}`} className="px-3 py-1 text-xl text-blue-600" aria-label="다음 달">
+          <Link href={`/leave?month=${shiftMonth(month, 1)}`} className="px-3 py-1 text-xl text-link" aria-label="다음 달">
             ›
           </Link>
         </div>
         <div className="grid grid-cols-7 text-center text-xs text-zinc-500">
           {"일월화수목금토".split("").map((w, i) => (
-            <span key={w} className={i === 0 ? "text-red-500" : i === 6 ? "text-blue-600" : ""}>
+            <span key={w} className={i === 0 ? "text-red-500" : i === 6 ? "text-link" : ""}>
               {w}
             </span>
           ))}
         </div>
         {grid.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7 border-t border-zinc-100 dark:border-zinc-800">
+          <div key={wi} className="grid grid-cols-7 border-t border-hairline ">
             {week.map((d, di) =>
               d === null ? (
                 <span key={di} />
@@ -212,8 +209,8 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                 <div key={d} className={`min-h-14 px-0.5 py-1 ${d === today ? "rounded-md bg-blue-50 dark:bg-blue-950" : ""}`}>
                   <p
                     className={`text-center text-xs ${
-                      weekday(d) === 0 || HOLIDAYS[d] ? "text-red-500" : weekday(d) === 6 ? "text-blue-600" : ""
-                    } ${d === today ? "font-bold" : ""}`}
+                      weekday(d) === 0 || HOLIDAYS[d] ? "text-red-500" : weekday(d) === 6 ? "text-link" : ""
+                    } ${d === today ? "font-semibold" : ""}`}
                   >
                     {Number(d.slice(8))}
                   </p>
@@ -274,7 +271,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                       </button>
                     </>
                   ) : (
-                    <button type="submit" className="h-9 w-full rounded-lg border border-blue-600 text-sm font-semibold text-blue-600">
+                    <button type="submit" className="h-9 w-full rounded-full border border-blue-600 text-sm font-semibold text-link">
                       주말출근 제외로 보내기
                     </button>
                   )}
@@ -291,7 +288,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
 function Stat({ n, label, strong }: { n: number | string; label: string; strong?: boolean }) {
   return (
     <div>
-      <p className={`text-2xl font-bold tabular-nums ${strong ? "text-blue-600" : ""}`}>{n}</p>
+      <p className={`text-2xl font-semibold tabular-nums ${strong ? "text-link" : ""}`}>{n}</p>
       <p className="text-xs text-zinc-500">{label}</p>
     </div>
   );
@@ -304,15 +301,15 @@ function DatesForm({ enlist, discharge, month }: { enlist: string | null; discha
       <div className="grid grid-cols-2 gap-2">
         <label className="block text-xs text-zinc-500">
           입대일
-          <input type="date" name="enlist_date" required defaultValue={enlist ?? ""} className={inputClass} />
+          <input type="date" name="enlist_date" required defaultValue={enlist ?? ""} className={`${inputClass} px-3! text-sm!`} />
         </label>
         <label className="block text-xs text-zinc-500">
           전역일 (비우면 자동)
-          <input type="date" name="discharge_date" defaultValue={discharge ?? ""} className={inputClass} />
+          <input type="date" name="discharge_date" defaultValue={discharge ?? ""} className={`${inputClass} px-3! text-sm!`} />
         </label>
       </div>
       <p className="text-xs text-zinc-500">전역일을 비워 두면 입대일 + 21개월 − 1일로 계산합니다. 계급은 입대일 기준으로 자동 진급됩니다.</p>
-      <button type="submit" className="h-12 w-full rounded-lg bg-blue-600 font-bold text-white">
+      <button type="submit" className="h-12 w-full rounded-full bg-blue-600 font-normal text-white">
         저장
       </button>
     </form>

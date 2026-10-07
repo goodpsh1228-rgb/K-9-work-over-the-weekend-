@@ -11,7 +11,7 @@ export function RankSelect({ defaultValue }: { defaultValue: string }) {
       defaultValue={defaultValue}
       // 값을 바꾸면 이 select 가 들어 있는 폼(계급 저장)을 바로 제출
       onChange={(e) => e.currentTarget.form?.requestSubmit()}
-      className="rounded border border-zinc-300 bg-white px-1 py-1 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+      className="rounded border border-hairline bg-card px-1 py-1 text-sm text-foreground"
     >
       <option value="">계급?</option>
       <option value="이병">이병</option>
@@ -39,7 +39,7 @@ export function DeleteButton() {
         }
         // 확인을 누르면 그대로 제출됩니다. (버튼을 여기서 비활성화하면 제출이 취소될 수 있어 두지 않음)
       }}
-      className="w-full rounded-lg bg-red-600 px-4 py-3 font-semibold text-white"
+      className="w-full rounded-full bg-red-600 px-4 py-3 font-semibold text-white"
     >
       선택한 사람 삭제
     </button>

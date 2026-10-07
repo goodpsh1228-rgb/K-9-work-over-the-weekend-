@@ -70,7 +70,7 @@ export default async function AdminMenuPage() {
         {GROUPS.map((g) => (
           <section key={g.title}>
             <h2 className="mb-2 text-sm font-semibold text-zinc-500">{g.title}</h2>
-            <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+            <ul className="divide-y divide-hairline rounded-[18px] border border-hairline bg-card">
               {g.items.map(([href, title, desc]) => (
                 <li key={href}>
                   <Link href={href} className="block px-4 py-3">

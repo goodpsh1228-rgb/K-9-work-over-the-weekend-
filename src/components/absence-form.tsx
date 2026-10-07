@@ -11,7 +11,7 @@ import { ABSENCE_KINDS, dischargeRange } from "@/lib/absence-kinds";
 import { formatShort } from "@/lib/kst";
 
 const inputClass =
-  "min-w-0 w-full rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+  "h-12 min-w-0 w-full rounded-full border border-hairline bg-input px-4 text-base text-foreground outline-none focus:border-blue-500";
 
 export function AbsenceForm({
   action,
@@ -43,10 +43,15 @@ export function AbsenceForm({
       )}
 
       {/* 종류 선택 */}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+      <div className="grid grid-cols-2 gap-2 text-sm">
         {ABSENCE_KINDS.map((k) => (
-          <label key={k.value} className="flex items-center gap-1">
-            <input type="radio" name="kind" value={k.value} checked={kind === k.value} onChange={() => setKind(k.value)} />
+          <label
+            key={k.value}
+            className={`flex min-h-11 cursor-pointer items-center justify-center rounded-full bg-card px-2 text-center ${
+              kind === k.value ? "border-2 border-blue-500 font-semibold" : "m-px border border-hairline"
+            }`}
+          >
+            <input type="radio" name="kind" value={k.value} checked={kind === k.value} onChange={() => setKind(k.value)} className="sr-only" />
             {k.label}
           </label>
         ))}
@@ -74,12 +79,12 @@ export function AbsenceForm({
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
-          <input type="date" name="start_date" required aria-label="시작일" className={inputClass} />
-          <input type="date" name="end_date" required aria-label="종료일" className={inputClass} />
+          <input type="date" name="start_date" required aria-label="시작일" className={`${inputClass} px-3! text-sm!`} />
+          <input type="date" name="end_date" required aria-label="종료일" className={`${inputClass} px-3! text-sm!`} />
         </div>
       )}
 
-      <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">
+      <button type="submit" className="w-full min-h-11 rounded-full bg-blue-600 px-4 py-2 text-base font-normal text-white">
         {isDischarge ? "저장 (전역일 기준)" : "저장 (시작일 ~ 종료일)"}
       </button>
     </form>

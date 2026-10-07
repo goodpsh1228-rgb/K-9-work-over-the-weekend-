@@ -61,13 +61,13 @@ export function VotePanel({
               key={p.id}
               type="button"
               onClick={() => send({ kind: "want", postId: p.id })}
-              className={`w-full rounded-lg px-2 py-3 text-sm font-semibold transition-colors ${
-                selected ? "bg-blue-600 text-white" : "border border-blue-300 text-blue-700 dark:text-blue-300"
+              className={`w-full rounded-[18px] bg-card px-2 py-3 text-sm ${
+                selected ? "border-2 border-blue-500 font-semibold" : "m-px border border-hairline"
               }`}
             >
               {selected ? "✓ " : ""}
               {p.name} 희망
-              <span className="block text-xs font-normal opacity-80">
+              <span className="block text-xs font-normal text-muted">
                 {countFor(p)}/{p.required}명
               </span>
             </button>
@@ -77,14 +77,14 @@ export function VotePanel({
       <button
         type="button"
         onClick={() => send({ kind: "decline" })}
-        className={`w-full rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
-          optimistic.kind === "decline" ? "bg-zinc-700 text-white" : "border border-zinc-300 dark:border-zinc-700"
+        className={`min-h-12 w-full rounded-full bg-card px-4 text-base ${
+          optimistic.kind === "decline" ? "border-2 border-blue-500 font-semibold" : "m-px border border-hairline"
         }`}
       >
         {optimistic.kind === "decline" ? "✓ " : ""}이날은 어려워요 (미희망)
       </button>
       {optimistic.kind !== "none" && (
-        <button type="button" onClick={() => send({ kind: "cancel" })} className="w-full py-2 text-sm text-zinc-500 underline">
+        <button type="button" onClick={() => send({ kind: "cancel" })} className="min-h-11 w-full py-2 text-sm text-muted underline">
           응답 취소 (미응답으로 되돌리기)
         </button>
       )}

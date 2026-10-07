@@ -3,15 +3,15 @@
 // 여기서 정한 설정(언어, 제목, 글꼴 등)이 모든 페이지에 적용됩니다.
 // ─────────────────────────────────────────────────────────────
 import type { Metadata, Viewport } from "next";
-import { Poppins } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { BottomTabs } from "@/components/bottom-tabs";
+import { GlobalBar } from "@/components/global-bar";
 
-// 템플릿 글꼴 Poppins (영문·숫자용). 배포할 때 사이트 안에 함께 저장되어 외부 접속 없이 보입니다.
-const poppins = Poppins({
+// 애플 기기(SF Pro)가 아닌 곳에서 쓰는 대체 글꼴 Inter (영문·숫자용). 배포할 때 사이트 안에 함께 저장되어 외부 접속 없이 보입니다.
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-poppins",
+  variable: "--font-inter",
   display: "swap",
 });
 
@@ -30,8 +30,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // lang="ko": 이 사이트가 한국어라는 표시
-    <html lang="ko" className={`h-full antialiased ${poppins.variable}`}>
+    <html lang="ko" className={`h-full antialiased ${inter.variable}`}>
       <body className="min-h-full flex flex-col">
+        {/* 맨 위 얇은 검정 바 (애플 global-nav: 높이 44px, 12px 글자) */}
+        <GlobalBar />
         {children}
         {/* 아래 고정 탭: 주말출근 투표 / 휴가 계산기 */}
         <BottomTabs />

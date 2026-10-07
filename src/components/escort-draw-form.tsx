@@ -31,8 +31,8 @@ export function EscortDrawForm({
           </label>
         ))}
       </div>
-      <button type="submit" className="w-full rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-white">
-        🎲 체크한 사람 중 랜덤으로 선탑 정하기
+      <button type="submit" className="min-h-11 w-full rounded-full bg-blue-600 px-3 py-2 text-base font-normal text-white">
+        체크한 사람 중 랜덤으로 선탑 정하기
       </button>
       <p className="text-xs text-zinc-500">{note ?? "다시 누르면 다시 뽑습니다."}</p>
     </form>

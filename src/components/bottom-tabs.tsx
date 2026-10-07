@@ -1,7 +1,8 @@
 "use client";
 // ─────────────────────────────────────────────────────────────
-// 화면 아래 고정 탭 (템플릿의 하단 메뉴 모양)
-//   🗳️ 주말출근 투표 (홈·근무일·관리자 화면)  /  📅 휴가 계산기
+// 화면 아래 고정 탭 — 애플식 반투명 유리(frosted) 바
+//   주말출근 투표 (홈·근무일·관리자 화면)  /  휴가 계산기
+//   배경은 흰색 80% + 흐림 효과, 윗선은 가는 테두리, 그림자 없음.
 //   로그인·비밀번호 변경·점검 화면에서는 보이지 않습니다.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
@@ -9,28 +10,43 @@ import { usePathname } from "next/navigation";
 
 const HIDDEN = ["/login", "/change-password", "/emergency", "/status"];
 
+// 선 모양 아이콘 (색은 글자색을 따라감: 선택하면 파랑)
+function BallotIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 13h16v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6Z" />
+      <path d="M8 13V4.5A.5.5 0 0 1 8.5 4h7a.5.5 0 0 1 .5.5V13" />
+      <path d="m10 8.5 1.6 1.6L14.5 7" />
+    </svg>
+  );
+}
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </svg>
+  );
+}
+
 export function BottomTabs() {
   const path = usePathname();
   if (path === "/" || HIDDEN.some((h) => path.startsWith(h))) return null;
   const onLeave = path.startsWith("/leave");
   const tab = (active: boolean) =>
-    `flex flex-1 flex-col items-center gap-0.5 py-2 text-sm ${active ? "font-bold text-blue-600" : "font-medium text-zinc-500"}`;
+    `flex flex-1 flex-col items-center gap-0.5 pt-2 pb-1.5 text-xs ${active ? "font-semibold text-link" : "font-normal text-muted"}`;
   return (
     <>
       {/* 탭에 가려지지 않도록 화면 맨 아래 빈 공간 */}
       <div aria-hidden className="h-24" />
-      <nav className="fixed inset-x-0 bottom-0 z-20 px-3 pb-[max(env(safe-area-inset-bottom),12px)]">
-        <div className="mx-auto flex max-w-md rounded-2xl bg-white shadow-[0_0_10px_rgba(0,0,0,0.18)] dark:bg-zinc-900">
-          <Link href="/home" className={tab(!onLeave)} aria-current={!onLeave ? "page" : undefined}>
-            <span className="text-2xl" aria-hidden>
-              🗳️
-            </span>
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-hairline bg-card/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl backdrop-saturate-150">
+        <div className="mx-auto flex max-w-md">
+          <Link href="/home" data-press className={tab(!onLeave)} aria-current={!onLeave ? "page" : undefined}>
+            <BallotIcon />
             주말출근 투표
           </Link>
-          <Link href="/leave" className={tab(onLeave)} aria-current={onLeave ? "page" : undefined}>
-            <span className="text-2xl" aria-hidden>
-              📅
-            </span>
+          <Link href="/leave" data-press className={tab(onLeave)} aria-current={onLeave ? "page" : undefined}>
+            <CalendarIcon />
             휴가 계산기
           </Link>
         </div>

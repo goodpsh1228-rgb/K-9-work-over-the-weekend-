@@ -49,11 +49,11 @@ export default async function DutyDayDetailPage({ params, searchParams }: PagePr
       <form action={savePostCountsAction} className="mt-4 space-y-2">
         <input type="hidden" name="date" value={date} />
         {(posts ?? []).map((p) => (
-          <label key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800">
+          <label key={p.id} className="flex items-center justify-between gap-3 rounded-[11px] border border-hairline px-3 py-2 ">
             <span>
               {p.name}
               <span className="ml-2 text-xs text-zinc-500">기본 {p.default_count}명</span>
-              {custom.has(p.id) && <span className="ml-1 text-xs text-purple-700">· 변경됨</span>}
+              {custom.has(p.id) && <span className="ml-1 text-xs text-link">· 변경됨</span>}
             </span>
             <input
               type="number"
@@ -64,7 +64,7 @@ export default async function DutyDayDetailPage({ params, searchParams }: PagePr
               required
               disabled={drawn}
               inputMode="numeric"
-              className="w-20 rounded-lg border border-zinc-300 bg-white px-2 py-2 text-right text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              className="w-20 rounded-[18px] border border-hairline bg-card px-2 py-2 text-right text-foreground"
             />
           </label>
         ))}
@@ -72,7 +72,7 @@ export default async function DutyDayDetailPage({ params, searchParams }: PagePr
           합계: 진료실 {clinicTotal}명 · 일반 {generalTotal}명 · 운전 {driverTotal}명
         </p>
         {!drawn && (
-          <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white">
+          <button type="submit" className="w-full min-h-11 rounded-full bg-blue-600 px-4 py-3 font-normal text-white">
             저장
           </button>
         )}

@@ -50,23 +50,23 @@ export default async function StatsPage() {
   return (
     <Page title="출근 기록·통계">
       {/* ① 내 기록 요약 */}
-      <div className="rounded-2xl bg-[linear-gradient(141deg,#4b2afa_15%,#2c1994_94%)] p-4 text-white shadow-lg shadow-blue-600/25">
-        <p className="font-bold">{me.name} 님의 출근</p>
-        <div className="mt-3 grid grid-cols-3 text-center">
+      <div className="rounded-[18px] bg-tile px-5 py-6 text-white">
+        <p className="text-[21px] leading-[1.19] font-semibold tracking-[-0.01em]">{me.name} 님의 출근</p>
+        <div className="mt-4 grid grid-cols-3 text-center">
           <div>
-            <p className="text-3xl font-bold tabular-nums">{mine.days}</p>
-            <p className="text-sm opacity-90">전체 출근일</p>
+            <p className="text-[40px] leading-[1.1] font-semibold tracking-[-0.02em] tabular-nums">{mine.days}</p>
+            <p className="mt-1 text-sm text-[#cccccc]">전체 출근일</p>
           </div>
           <div>
-            <p className="text-3xl font-bold tabular-nums">{mine.recent}</p>
-            <p className="text-sm opacity-90">최근 4주</p>
+            <p className="text-[40px] leading-[1.1] font-semibold tracking-[-0.02em] tabular-nums">{mine.recent}</p>
+            <p className="mt-1 text-sm text-[#cccccc]">최근 4주</p>
           </div>
           <div>
-            <p className="text-3xl font-bold tabular-nums">{avg.toFixed(1)}</p>
-            <p className="text-sm opacity-90">중대 평균</p>
+            <p className="text-[40px] leading-[1.1] font-semibold tracking-[-0.02em] tabular-nums">{avg.toFixed(1)}</p>
+            <p className="mt-1 text-sm text-[#cccccc]">중대 평균</p>
           </div>
         </div>
-        <p className="mt-3 text-center text-sm opacity-90">
+        <p className="mt-4 text-center text-xs text-[#cccccc]">
           희망 {mine.wanted} · 차출 {mine.drafted} · 관리자 {mine.admin}
           {mine.drive ? ` · 운전 ${mine.drive}` : ""}
           {mine.escort ? ` · 선탑 ${mine.escort}` : ""}
@@ -77,10 +77,10 @@ export default async function StatsPage() {
       {myByDate.size === 0 ? (
         <p className="text-sm text-zinc-500">아직 출근 기록이 없습니다.</p>
       ) : (
-        <Card className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        <Card className="divide-y divide-hairline ">
           {[...myByDate.entries()].map(([d, labels]) => (
             <Link key={d} href={`/day/${d}`} className="flex items-center justify-between gap-2 px-3 py-2.5 text-sm">
-              <span className={`font-semibold ${d > today ? "text-blue-600" : ""}`}>
+              <span className={`font-semibold ${d > today ? "text-link" : ""}`}>
                 {formatShort(d)}
                 {d > today && <span className="ml-1 text-xs font-normal">예정</span>}
               </span>
@@ -104,7 +104,7 @@ export default async function StatsPage() {
               <th className="px-3 py-2 text-right font-medium">최근4주</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <tbody className="divide-y divide-hairline ">
             {table.map((m) => (
               <tr key={m.id} className={m.id === me.id ? "bg-blue-50 font-semibold dark:bg-blue-950" : ""}>
                 <td className="px-3 py-2">

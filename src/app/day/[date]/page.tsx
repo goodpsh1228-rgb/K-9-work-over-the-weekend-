@@ -130,7 +130,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
       {/* 추첨 결과: 확정 명단 */}
       {roster && draw && (
         <section className="mb-4 space-y-3">
-          <p className={`rounded-lg p-3 font-semibold ${myAssignment ? "bg-blue-600 text-white" : "bg-zinc-100 dark:bg-zinc-900"}`}>
+          <p className={`rounded-[18px] px-5 py-5 text-[21px] leading-[1.19] font-semibold tracking-[-0.01em] ${myAssignment ? "bg-tile text-white" : "border border-hairline bg-card"}`}>
             {myAssignment
               ? `${me.name} 님은 ${myPostNames.join(" + ")} 출근입니다.`
               : `${me.name} 님은 이 날 출근하지 않습니다.`}
@@ -144,9 +144,9 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           {/* 관리자: 선탑 뽑기 (따로 눈에 띄게) */}
           {me.is_admin && escortPost && (
             <Fold
-              title="🎲 선탑 뽑기 (관리자)"
+              title="선탑 뽑기 (관리자)"
               hint={`현재 선탑: ${currentEscort.length ? currentEscort.map((r) => `${r.rank ? `${r.rank} ` : ""}${r.name}`).join(", ") : "미정"}`}
-              className="border-2 border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950"
+              className="border border-hairline bg-card"
             >
               <p className="mb-2 text-xs text-zinc-600 dark:text-zinc-400">이 날 출근자 중 대상자를 체크한 뒤 버튼을 누르세요.</p>
               <EscortDrawForm date={date} workers={escortCandidates} action={drawEscortAction} returnTo="day" />
@@ -165,7 +165,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           {me.is_admin && (
             <Link
               href={`/admin/roster/${date}`}
-              className="block rounded-lg border border-purple-300 px-3 py-2 text-center text-sm font-semibold text-purple-800 dark:text-purple-300"
+              className="flex min-h-12 items-center justify-center rounded-full border border-blue-600 px-[22px] text-base font-normal text-link"
             >
               명단 수정 (관리자) →
             </Link>
@@ -184,8 +184,8 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
 
       {/* 1) 미응답자 — 최상단 주황색 (추첨 전까지) */}
       {!draw && board.unanswered.length > 0 && (
-        <section className="mb-4 rounded-lg border border-orange-300 bg-orange-50 p-3 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100">
-          <p className="font-bold">아직 응답하지 않은 사람 ({board.unanswered.length}명)</p>
+        <section className="mb-4 rounded-[11px] border border-orange-300 bg-orange-50 p-3 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100">
+          <p className="font-semibold">아직 응답하지 않은 사람 ({board.unanswered.length}명)</p>
           <p className="mt-1 text-sm leading-6">{board.unanswered.map((m) => m.name).join(", ")}</p>
           {/* 단톡방에 붙여넣을 독촉 문구 (투표 중일 때) */}
           {overall === "open" && (
@@ -195,7 +195,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           )}
           {/* 관리자: 투표를 깜빡했지만 이 날 출근하지 않는 사람을 골라 이 날 추첨에서만 빼기 */}
           {me.is_admin && (
-            <details className="mt-2 rounded-lg bg-white/70 dark:bg-black/20">
+            <details className="mt-2 rounded-[18px] bg-white/70 dark:bg-black/20">
               <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">관리자: 이 날 추첨에서 뺄 사람 고르기</summary>
               <form action={excuseUnansweredAction} className="space-y-2 px-3 pb-3">
                 <input type="hidden" name="date" value={date} />
@@ -207,7 +207,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
                     </label>
                   ))}
                 </div>
-                <button type="submit" className="h-11 w-full rounded-lg bg-orange-600 text-sm font-bold text-white">
+                <button type="submit" className="h-11 w-full rounded-full bg-orange-600 text-sm font-semibold text-white">
                   선택한 사람 이 날 추첨에서 빼기
                 </button>
                 <p className="text-xs opacity-80">이 날 하루만 빠집니다. 아래 &quot;제외&quot; 목록에서 되돌릴 수 있습니다.</p>
@@ -219,7 +219,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
 
 
       {/* 2) 투표 기간 + 내 투표 */}
-      <section className="mt-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+      <section className="mt-3 rounded-[18px] border border-hairline bg-card p-4">
         <p className="text-sm">
           <StatusChip status={overall} /> {formatShort(win.monday)} 00:00 ~ {formatShort(win.closeDate)} 21:00
         </p>
@@ -264,17 +264,17 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
 
       {/* 관리자: 수동 추첨 / 미리보기 */}
       {me.is_admin && !draw && (
-        <section className="mt-3 rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+        <section className="mt-3 rounded-[18px] border border-dashed border-hairline p-3 ">
           <p className="text-sm font-semibold">관리자</p>
           {overall === "closed" ? (
             <form action={manualDrawAction} className="mt-2">
               <input type="hidden" name="date" value={date} />
-              <button type="submit" className="w-full rounded-lg bg-red-600 px-4 py-3 font-semibold text-white">
+              <button type="submit" className="min-h-12 w-full rounded-full bg-red-600 px-[22px] text-base font-normal text-white">
                 지금 추첨 (한 번만 실행됩니다)
               </button>
             </form>
           ) : (
-            <Link href={`/day/${date}?preview=1`} className="mt-2 block text-sm text-blue-600 underline">
+            <Link href={`/day/${date}?preview=1`} className="mt-2 block text-sm text-link underline">
               추첨 미리보기 (현재 응답 기준 · 저장 안 됨 · 누를 때마다 결과가 달라짐)
             </Link>
           )}
@@ -288,7 +288,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
       )}
 
       {/* 3) 자리별 희망 현황 */}
-      <h2 className="mt-6 mb-2 text-lg font-bold">희망 현황</h2>
+      <h2 className="mt-10 mb-3 text-[28px] leading-[1.14] font-semibold tracking-[-0.02em]">희망 현황</h2>
       <PostTable title="진료실 (진료반)" posts={clinicPosts} />
       <div className="h-3" />
       <PostTable title="일반" posts={generalPosts} />
@@ -319,7 +319,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
                 <input type="hidden" name="absence_id" value={e.id} />
                 <span>{e.name}</span>
                 {me.is_admin && !draw && (
-                  <button type="submit" className="text-xs text-blue-600 underline">
+                  <button type="submit" className="text-xs text-link underline">
                     되돌리기
                   </button>
                 )}
@@ -345,9 +345,9 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
 //   처음에는 제목만 보이고, 누르면 글과 복사 버튼이 펼쳐집니다.
 function TextBlock({ title, text, label }: { title: string; text: string; label: string }) {
   return (
-    <Fold title={title} className="bg-white shadow-[0_4px_12px_rgba(15,16,32,0.08)] dark:bg-zinc-900">
+    <Fold title={title} className="bg-card border border-hairline ">
       <div className="space-y-2">
-        <pre className="whitespace-pre-wrap rounded-lg bg-zinc-100 p-3 font-sans text-sm leading-6 dark:bg-zinc-800">{text}</pre>
+        <pre className="whitespace-pre-wrap rounded-[11px] bg-zinc-100 p-3 font-sans text-sm leading-6 dark:bg-zinc-800">{text}</pre>
         <CopyButton text={text} label={label} />
       </div>
     </Fold>
@@ -358,10 +358,10 @@ function TextBlock({ title, text, label }: { title: string; text: string; label:
 //   <details> = 브라우저 기본 "펼치기" 상자라 따로 프로그램 없이 동작합니다.
 function Fold({ title, hint, className, children }: { title: string; hint?: string; className: string; children: React.ReactNode }) {
   return (
-    <details className={`group rounded-lg ${className}`}>
+    <details className={`group rounded-[18px] ${className}`}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-3 [&::-webkit-details-marker]:hidden">
         <span>
-          <span className="block font-bold">{title}</span>
+          <span className="block font-semibold">{title}</span>
           {hint && <span className="mt-0.5 block text-sm">{hint}</span>}
         </span>
         <span aria-hidden className="text-xl text-zinc-500 transition-transform group-open:rotate-180">
@@ -377,14 +377,14 @@ function Fold({ title, hint, className, children }: { title: string; hint?: stri
 const SOURCE_LABEL = { wanted: "희망 확정", drafted: "차출", admin: "관리자 수정" } as const;
 const SOURCE_COLOR = {
   wanted: "bg-blue-100 text-blue-800",
-  drafted: "bg-amber-100 text-amber-800",
-  admin: "bg-purple-100 text-purple-800",
+  drafted: "bg-hairline/60 text-foreground/80",
+  admin: "bg-foreground text-background",
 } as const;
 function RosterView({ title, posts, roster }: { title: string; posts: PostSlot[]; roster: RosterEntry[] }) {
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-      <p className="border-b border-zinc-200 px-3 py-2 text-sm font-semibold dark:border-zinc-800">{title}</p>
-      <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+    <div className="rounded-[18px] border border-hairline bg-card">
+      <p className="border-b border-hairline px-3 py-2 text-sm font-semibold ">{title}</p>
+      <ul className="divide-y divide-hairline ">
         {posts
           .filter((p) => p.required > 0 || roster.some((r) => r.postId === p.id))
           .map((p) => {
@@ -422,14 +422,14 @@ function PostTable({ title, posts }: { title: string; posts: PostSlot[] }) {
   const wantTotal = posts.reduce((s, p) => s + p.wanters.length, 0);
   const reqTotal = posts.reduce((s, p) => s + p.required, 0);
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-      <p className="flex justify-between border-b border-zinc-200 px-3 py-2 text-sm font-semibold dark:border-zinc-800">
+    <div className="rounded-[18px] border border-hairline bg-card">
+      <p className="flex justify-between border-b border-hairline px-3 py-2 text-sm font-semibold ">
         <span>{title}</span>
         <span>
           희망 {wantTotal} / 정원 {reqTotal}
         </span>
       </p>
-      <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+      <ul className="divide-y divide-hairline ">
         {posts.map((p) => {
           const over = p.wanters.length > p.required;
           const full = p.wanters.length === p.required;

@@ -11,7 +11,7 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { addPostAction, savePostsAction, togglePostAction } from "./actions";
 
 const POOL_LABEL: Record<string, string> = { clinic: "진료반", general: "일반", driver: "운전병", escort: "관리자 지정" };
-const input = "h-11 rounded-lg bg-input px-3 text-base text-foreground outline-none ring-blue-600 focus:ring-2";
+const input = "h-11 rounded-full border border-hairline bg-input px-4 text-base text-foreground outline-none focus:border-blue-500";
 
 export default async function PostsPage({ searchParams }: PageProps<"/admin/posts">) {
   await requireAdmin();
@@ -40,7 +40,7 @@ export default async function PostsPage({ searchParams }: PageProps<"/admin/post
 
       {/* 이름·기본 인원 */}
       <form action={savePostsAction}>
-        <Card className="mt-3 divide-y divide-zinc-100 dark:divide-zinc-800">
+        <Card className="mt-3 divide-y divide-hairline ">
           {active.map((p) => (
             <div key={p.id} className="flex items-center gap-2 px-3 py-2">
               <input name={`name_${p.id}`} defaultValue={p.name} maxLength={30} aria-label="동 이름" className={`${input} min-w-0 flex-1`} />
@@ -59,7 +59,7 @@ export default async function PostsPage({ searchParams }: PageProps<"/admin/post
           ))}
         </Card>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">일반 동 합계: {generalTotal}명</p>
-        <button type="submit" className="mt-3 h-12 w-full rounded-lg bg-blue-600 font-bold text-white">
+        <button type="submit" className="mt-3 h-12 w-full rounded-full bg-blue-600 font-normal text-white">
           저장
         </button>
       </form>
@@ -70,7 +70,7 @@ export default async function PostsPage({ searchParams }: PageProps<"/admin/post
         <form action={addPostAction} className="flex gap-2">
           <input name="name" required maxLength={30} placeholder="동 이름" className={`${input} min-w-0 flex-1`} />
           <input type="number" name="count" required min={0} max={50} defaultValue={1} inputMode="numeric" aria-label="인원" className={`${input} w-16 text-right`} />
-          <button type="submit" className="h-11 shrink-0 rounded-lg bg-blue-600 px-4 font-semibold text-white">
+          <button type="submit" className="h-11 shrink-0 rounded-full bg-blue-600 px-4 font-normal text-white">
             추가
           </button>
         </form>

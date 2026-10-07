@@ -38,7 +38,7 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
       {memberId && (
         <p className="-mt-4 mb-3 text-sm">
           <b>{nameOf.get(memberId) ?? "삭제된 인원"}</b> 관련 기록만 보는 중 ·{" "}
-          <Link href="/admin/audit" className="text-blue-600 underline">
+          <Link href="/admin/audit" className="text-link underline">
             전체 보기
           </Link>
         </p>
@@ -46,7 +46,7 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
       {list.length === 0 ? (
         <p className="text-sm text-zinc-500">기록이 없습니다.</p>
       ) : (
-        <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 text-sm dark:divide-zinc-800 dark:border-zinc-800">
+        <ul className="divide-y divide-hairline rounded-[18px] border border-hairline text-sm bg-card">
           {list.map((l) => {
             const detail = detailText(l.action, (l.details ?? {}) as Record<string, unknown>);
             const target = l.target_member_id && l.target_member_id !== l.actor_id ? nameOf.get(l.target_member_id) : null;
@@ -88,7 +88,7 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
       {list.length === PAGE_SIZE && (
         <Link
           href={`/admin/audit?${memberId ? `member=${memberId}&` : ""}before=${list[list.length - 1].id}`}
-          className="mt-3 block rounded-lg border border-zinc-300 py-2 text-center text-sm dark:border-zinc-700"
+          className="mt-3 block rounded-full border border-hairline py-2 text-center text-sm "
         >
           더 보기 (이전 기록)
         </Link>

@@ -30,16 +30,16 @@ export function DrivePanel({
   const shown = count - (initial ? 1 : 0) + (on ? 1 : 0);
 
   return (
-    <div className="mt-3 rounded-lg border border-orange-200 p-2 dark:border-orange-900">
+    <div className="mt-3 rounded-[18px] bg-background p-3">
       <button
         type="button"
         onClick={toggle}
-        className={`w-full rounded-lg px-2 py-3 text-sm font-semibold transition-colors ${
-          on ? "bg-orange-600 text-white" : "border border-orange-300 text-orange-700 dark:text-orange-300"
+        className={`min-h-14 w-full rounded-full bg-card px-2 py-2 text-base ${
+          on ? "border-2 border-blue-500 font-semibold" : "m-px border border-hairline"
         }`}
       >
-        {on ? "✓ " : ""}🚗 주말 운전 희망
-        <span className="block text-xs font-normal opacity-80">
+        {on ? "✓ " : ""}주말 운전 희망
+        <span className="block text-xs font-normal text-muted">
           {shown}/{required}명
         </span>
       </button>

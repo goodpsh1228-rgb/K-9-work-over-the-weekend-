@@ -20,11 +20,11 @@ import { addAssignmentAction, drawEscortAction, removeAssignmentAction, replaceA
 const SOURCE_LABEL = { wanted: "희망 확정", drafted: "차출", admin: "관리자 수정" } as const;
 const SOURCE_COLOR = {
   wanted: "bg-blue-100 text-blue-800",
-  drafted: "bg-amber-100 text-amber-800",
-  admin: "bg-purple-100 text-purple-800",
+  drafted: "bg-hairline/60 text-foreground/80",
+  admin: "bg-foreground text-background",
 } as const;
 const selectClass =
-  "min-w-0 flex-1 rounded border border-zinc-300 bg-white px-1 py-1.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+  "min-w-0 flex-1 rounded border border-hairline bg-card px-1 py-1.5 text-sm text-foreground   ";
 
 export default async function RosterEditPage({ params, searchParams }: PageProps<"/admin/roster/[date]">) {
   await requireAdmin();
@@ -123,14 +123,14 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
             const people = roster.filter((r) => r.postId === p.id);
             const empty = Math.max(0, p.required - people.length);
             return (
-              <li key={p.id} className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-                <p className="flex justify-between border-b border-zinc-200 px-3 py-2 text-sm font-semibold dark:border-zinc-800">
+              <li key={p.id} className="rounded-[18px] border border-hairline bg-card">
+                <p className="flex justify-between border-b border-hairline px-3 py-2 text-sm font-semibold ">
                   <span>{p.name}</span>
                   <span className={empty > 0 ? "text-red-600" : "text-zinc-500"}>
                     {people.length}/{p.required}명{empty > 0 ? ` · 빈자리 ${empty}` : ""}
                   </span>
                 </p>
-                <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+                <ul className="divide-y divide-hairline ">
                   {people.map((r) => (
                     <li key={r.memberId} className="space-y-1.5 px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
@@ -157,7 +157,7 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
                         <input type="hidden" name="old_member_id" value={r.memberId} />
                         <input type="hidden" name="post_id" value={p.id} />
                         {candidateSelect(p.pool)}
-                        <button type="submit" className="shrink-0 rounded border border-zinc-300 px-2 py-1.5 text-xs dark:border-zinc-700">
+                        <button type="submit" className="shrink-0 rounded border border-hairline px-2 py-1.5 text-xs ">
                           교체
                         </button>
                       </WarnSelectForm>
@@ -165,7 +165,7 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
                   ))}
                   {/* 선탑 추첨: 출근자 중 대상자를 체크 → 그 안에서 랜덤 1명 */}
                   {p.pool === "escort" && (
-                    <li className="space-y-2 bg-amber-50 px-3 py-2 dark:bg-amber-950">
+                    <li className="space-y-2 bg-background px-3 py-2">
                       <p className="text-sm font-semibold">선탑 추첨 — 대상자를 체크하세요 (이 날 출근자)</p>
                       <EscortDrawForm
                         date={date}

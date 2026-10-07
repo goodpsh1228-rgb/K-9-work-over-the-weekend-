@@ -21,13 +21,13 @@ export default async function ImportPage() {
     <Page title="인원 일괄 등록">
       <ImportForm />
 
-      <h2 className="mt-10 mb-2 text-lg font-bold">현재 등록된 인원 ({members?.length ?? 0}명)</h2>
-      <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 text-sm dark:divide-zinc-800 dark:border-zinc-800">
+      <h2 className="mt-10 mb-2 text-lg font-semibold">현재 등록된 인원 ({members?.length ?? 0}명)</h2>
+      <ul className="divide-y divide-hairline rounded-[18px] border border-hairline text-sm bg-card">
         {(members ?? []).map((m) => (
           <li key={m.id} className="flex items-center justify-between gap-2 px-3 py-2">
             <span className={m.is_active ? "" : "text-zinc-400 line-through"}>{m.name}</span>
             <span className="space-x-1 text-xs">
-              {m.is_clinic && <span className="rounded bg-teal-100 px-1.5 py-0.5 text-teal-800">진료반</span>}
+              {m.is_clinic && <span className="rounded bg-hairline/60 text-foreground/80 px-1.5 py-0.5">진료반</span>}
               {m.is_admin && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-800">관리자</span>}
               {m.must_change_password && (
                 <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-zinc-600">첫 로그인 전</span>

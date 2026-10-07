@@ -44,7 +44,7 @@ export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/d
       </div>
 
       {/* 공휴일 목록 붙여넣기 (한 해치를 한 번에) */}
-      <details id="import" className="mt-4 scroll-mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+      <details id="import" className="mt-4 scroll-mt-4 rounded-[18px] border border-hairline p-3 bg-card">
         <summary className="cursor-pointer text-sm font-semibold">공휴일 목록 붙여넣기 (한 해치를 한 번에)</summary>
         <form action={importHolidaysAction} className="mt-2 space-y-2">
           <p className="text-xs text-zinc-500">
@@ -56,31 +56,31 @@ export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/d
             required
             rows={6}
             placeholder={"2028-01-01 신정\n2028-01-26 설날 연휴\n…"}
-            className="w-full rounded-lg bg-input px-3 py-2 font-mono text-sm text-foreground outline-none ring-blue-600 focus:ring-2"
+            className="w-full rounded-[18px] border border-hairline bg-input px-4 py-3 font-mono text-sm text-foreground outline-none focus:border-blue-500"
           />
-          <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white">
+          <button type="submit" className="w-full min-h-11 rounded-full bg-blue-600 px-4 py-2 font-normal text-white">
             목록 등록
           </button>
         </form>
       </details>
 
       {/* 근무일 추가 폼 */}
-      <form id="add" action={addDutyDayAction} className="mt-4 scroll-mt-4 space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+      <form id="add" action={addDutyDayAction} className="mt-4 scroll-mt-4 space-y-2 rounded-[18px] border border-hairline p-3 bg-card">
         <p className="text-sm font-semibold">공휴일 추가 (임시공휴일, 평일 출근일 등)</p>
         <input
           type="date"
           name="date"
           required
           min={from}
-          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          className="w-full rounded-[18px] border border-hairline bg-card px-3 py-2 text-foreground"
         />
         <input
           name="note"
           maxLength={50}
           placeholder="이름 (예: 임시공휴일, 국군의날)"
-          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          className="w-full rounded-[18px] border border-hairline bg-card px-3 py-2 text-foreground"
         />
-        <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white">
+        <button type="submit" className="w-full min-h-11 rounded-full bg-blue-600 px-4 py-2 font-normal text-white">
           공휴일 추가
         </button>
         <p className="text-xs text-zinc-500">
@@ -90,12 +90,12 @@ export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/d
       </form>
 
       {/* 근무일 목록 */}
-      <h2 className="mt-8 mb-2 text-lg font-bold">
+      <h2 className="mt-8 mb-2 text-lg font-semibold">
         {formatShort(from)} ~ {formatShort(to)}
       </h2>
-      <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+      <ul className="divide-y divide-hairline rounded-[18px] border border-hairline bg-card">
         {days.map((d) => (
-          <li key={d.date} className={`flex items-center gap-2 px-3 py-2 ${d.isDutyDay ? "" : "bg-zinc-50 dark:bg-zinc-900"}`}>
+          <li key={d.date} className={`flex items-center gap-2 px-3 py-2 ${d.isDutyDay ? "" : "bg-background"}`}>
             <div className="min-w-0 flex-1">
               {d.isDutyDay ? (
                 <Link href={`/admin/duty-days/${d.date}`} className="font-semibold underline decoration-zinc-300">
@@ -108,7 +108,7 @@ export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/d
                 {d.label}
               </span>
               {customCountDates.has(d.date) && d.isDutyDay && (
-                <span className="ml-2 rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-800">인원 변경</span>
+                <span className="ml-2 rounded-full bg-blue-100 px-1.5 py-0.5 text-xs text-blue-800">인원 변경</span>
               )}
             </div>
             {/* 오른쪽 버튼: 근무일이면 "근무 없음", 삭제된 날이면 "되돌리기" */}
@@ -116,7 +116,7 @@ export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/d
               <input type="hidden" name="date" value={d.date} />
               <button
                 type="submit"
-                className="shrink-0 rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700"
+                className="shrink-0 rounded border border-hairline px-2 py-1 text-xs "
               >
                 {d.isDutyDay ? "근무 없음" : "되돌리기"}
               </button>
