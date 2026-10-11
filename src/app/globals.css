@@ -45,6 +45,8 @@
   --font-sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter), "Apple SD Gothic Neo", "Noto Sans KR",
     "Malgun Gothic", sans-serif;
+  /* 제목·로고 글자 전용: 노토 산스 KR 굵게 (본문 글꼴과 따로) */
+  --font-display: var(--font-noto), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   /* 본문은 16px 이 아니라 17px (애플의 읽는 속도) */
   --text-base: 1.0625rem;
   --text-base--line-height: 1.47;

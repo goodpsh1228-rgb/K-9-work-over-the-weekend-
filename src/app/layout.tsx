@@ -3,7 +3,7 @@
 // 여기서 정한 설정(언어, 제목, 글꼴 등)이 모든 페이지에 적용됩니다.
 // ─────────────────────────────────────────────────────────────
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 import { BottomTabs } from "@/components/bottom-tabs";
 import { GlobalBar } from "@/components/global-bar";
@@ -13,6 +13,15 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
+});
+
+// 제목용 한글 글꼴: 노토 산스 KR 굵게(900). 빌드할 때 사이트 안에 저장되어 외부 접속 없이 보입니다.
+const noto = Noto_Sans_KR({
+  weight: ["900"],
+  subsets: ["latin"],
+  variable: "--font-noto",
+  display: "swap",
+  preload: false,
 });
 
 // 브라우저 탭에 보이는 제목과 설명
@@ -30,7 +39,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // lang="ko": 이 사이트가 한국어라는 표시
-    <html lang="ko" className={`h-full antialiased ${inter.variable}`}>
+    <html lang="ko" className={`h-full antialiased ${inter.variable} ${noto.variable}`}>
       <body className="min-h-full flex flex-col">
         {/* 맨 위 얇은 검정 바 (애플 global-nav: 높이 44px, 12px 글자) */}
         <GlobalBar />

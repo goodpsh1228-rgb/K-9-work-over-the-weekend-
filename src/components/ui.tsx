@@ -58,7 +58,7 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
 export function Page({ title, children }: { title: string; children: ReactNode }) {
   return (
     <main className="mx-auto w-full max-w-md px-4 py-8">
-      <h1 className="mb-6 text-[32px] leading-[1.12] font-semibold tracking-[-0.02em] text-foreground">{title}</h1>
+      <h1 className="mb-6 text-[32px] leading-[1.12] font-display font-black tracking-[-0.02em] text-foreground">{title}</h1>
       {children}
     </main>
   );
