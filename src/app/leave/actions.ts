@@ -3,6 +3,7 @@
 // 휴가 계산기 서버 액션 (본인 기록만)
 //   - 입대일·전역일 저장
 //   - 휴가·외출·면회 기록 추가 / 삭제
+//   - 휴가 "계획"(planned) 추가 / 실제로 확정 — 계획은 사용 현황·주말출근 제외에 반영되지 않음
 //   - "주말출근 제외로 보내기": 기록을 제외 기간(absences)으로 만들어 그 기간 추첨에서 빠지게 함
 //     (겹치는 출근 희망·운전 희망은 자동 취소) / "보내기 취소": 제외 기간 삭제
 // ─────────────────────────────────────────────────────────────
@@ -17,6 +18,7 @@ import { syncServiceStatusSafely } from "@/lib/service-sync";
 import { isFullLeave, isLeaveKind, isValidMonth, isValidSubkind, LEAVE_LABEL } from "@/lib/leave";
 
 const SQL_HINT = "휴가 계산기용 SQL(0009)을 관리자가 먼저 실행해야 합니다.";
+const PLAN_SQL_HINT = "휴가 계획용 SQL(0013)을 관리자가 먼저 실행해야 합니다.";
 
 // 저장 후 휴가 계산기 화면(보던 달)으로 돌아감
 function back(formData: FormData, kind: "msg" | "error", text: string): never {
@@ -98,7 +100,8 @@ export async function addLeaveAction(formData: FormData) {
   const endRaw = String(formData.get("end_date") ?? "");
   const end = endRaw === "" ? start : endRaw; // 외출·면회는 하루만 입력해도 됨
   const memo = String(formData.get("memo") ?? "").trim().slice(0, 100) || null;
-  const send = formData.get("send") === "on";
+  const planned = formData.get("planned") === "1"; // 계획 입력 칸에서 보낸 것
+  const send = !planned && formData.get("send") === "on"; // 계획은 주말출근 제외로 보내지 않음
 
   if (!isLeaveKind(kind)) back(formData, "error", "종류를 선택해 주세요.");
   if (!isValidSubkind(kind, subkind)) back(formData, "error", "세부 종류를 선택해 주세요.");
@@ -109,13 +112,14 @@ export async function addLeaveAction(formData: FormData) {
   const db = getSupabaseAdmin();
   const { data: leave, error } = await db
     .from("leaves")
-    .insert({ member_id: me.id, kind, subkind, start_date: start, end_date: end, memo })
+    .insert({ member_id: me.id, kind, subkind, start_date: start, end_date: end, memo, planned })
     .select("id, kind, start_date, end_date")
     .single();
-  if (error) back(formData, "error", SQL_HINT);
+  if (error) back(formData, "error", planned ? PLAN_SQL_HINT : SQL_HINT);
 
   formData.set("month", start.slice(0, 7)); // 저장한 기록이 있는 달로 달력 이동
   const period = start === end ? formatShort(start) : `${formatShort(start)} ~ ${formatShort(end)}`;
+  if (planned) back(formData, "msg", `${LEAVE_LABEL[kind]} ${period} 계획을 저장했습니다. (실제 휴가가 아니라 사용 현황·주말출근 추첨에는 반영되지 않습니다)`);
   let extra = "";
   if (send) {
     const r = await sendToDraw(me.id, leave);
@@ -131,21 +135,32 @@ async function myLeave(formData: FormData, meId: number) {
   const id = Number(formData.get("id"));
   const { data } = await getSupabaseAdmin()
     .from("leaves")
-    .select("id, member_id, kind, start_date, end_date, absence_id")
+    .select("id, member_id, kind, start_date, end_date, absence_id, planned")
     .eq("id", id)
     .maybeSingle();
   if (!data || data.member_id !== meId) back(formData, "error", "기록을 찾을 수 없습니다.");
-  return data as { id: number; member_id: number; kind: string; start_date: string; end_date: string; absence_id: number | null };
+  return data as { id: number; member_id: number; kind: string; start_date: string; end_date: string; absence_id: number | null; planned: boolean | null };
 }
 
 // 주말출근 제외로 보내기
 export async function sendLeaveAction(formData: FormData) {
   const me = await requireMember();
   const leave = await myLeave(formData, me.id);
+  if (leave.planned) back(formData, "error", "계획은 먼저 '실제로 확정'한 뒤에 주말출근 제외로 보낼 수 있습니다.");
   if (leave.absence_id) back(formData, "msg", "이미 주말출근 제외로 보낸 기록입니다.");
   const r = await sendToDraw(me.id, leave);
   if (r.error) back(formData, "error", "보내기 실패: " + r.error);
   back(formData, "msg", `주말출근 추첨에서 제외되도록 보냈습니다.${r.cancelled ? ` 겹친 출근 희망 ${r.cancelled}건은 취소되었습니다.` : ""}`);
+}
+
+// 계획을 실제 휴가로 확정 (이때부터 사용 현황에 반영, 주말출근 제외로 보낼 수 있음)
+export async function confirmPlanAction(formData: FormData) {
+  const me = await requireMember();
+  const leave = await myLeave(formData, me.id);
+  if (!leave.planned) back(formData, "msg", "이미 실제 휴가입니다.");
+  await getSupabaseAdmin().from("leaves").update({ planned: false }).eq("id", leave.id);
+  formData.set("month", leave.start_date.slice(0, 7));
+  back(formData, "msg", "계획을 실제 휴가로 확정했습니다. 주말출근 추첨에서도 빼려면 '주말출근 제외로 보내기'를 누르세요.");
 }
 
 // 보내기 취소 (제외 기간 삭제 → 다시 추첨 대상)

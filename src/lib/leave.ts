@@ -83,13 +83,16 @@ export function remainingWorkdays(today: string, discharge: string, leaves: Leav
 }
 
 // 휴가 사용 현황: 세부 종류마다 사용 일수와 한도, 그 밖의 종류는 사용 일수(외출·면회는 횟수)
-export function leaveSummary(leaves: LeaveRow[]) {
+//   leaves = 실제 휴가만, plans = 휴가 계획(한도에는 "계획 +n일"로만 따로 보여 줌)
+export function leaveSummary(leaves: LeaveRow[], plans: LeaveRow[] = []) {
   const used = (kind: string, sub?: string) =>
     leaves.filter((l) => l.kind === kind && (sub === undefined || l.subkind === sub)).reduce((s, l) => s + leaveDays(l), 0);
+  const planned = (kind: string, sub: string) =>
+    plans.filter((l) => l.kind === kind && l.subkind === sub).reduce((s, l) => s + leaveDays(l), 0);
   const count = (kind: string) => leaves.filter((l) => l.kind === kind).length;
   return {
     quotas: Object.entries(SUBKINDS).flatMap(([kind, subs]) =>
-      subs.map((s) => ({ kind, label: s.label, used: used(kind, s.value), quota: s.quota })),
+      subs.map((s) => ({ kind, label: s.label, used: used(kind, s.value), planned: planned(kind, s.value), quota: s.quota })),
     ),
     others: [
       { label: "위로", value: `${used("comfort")}일` },

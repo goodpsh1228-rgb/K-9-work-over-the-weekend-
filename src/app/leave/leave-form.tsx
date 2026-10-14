@@ -15,11 +15,13 @@ export function LeaveForm({
   month,
   defaultAnnual,
   defaultDate,
+  planned = false,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   month: string;
   defaultAnnual: string;
   defaultDate: string;
+  planned?: boolean; // true 면 "휴가 계획" 입력 칸 (주말출근 제외 보내기 없음)
 }) {
   const [kind, setKind] = useState("regular");
   const subs = SUBKINDS[kind];
@@ -28,6 +30,7 @@ export function LeaveForm({
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="month" value={month} />
+      {planned && <input type="hidden" name="planned" value="1" />}
       {/* 종류 버튼 */}
       <div className="grid grid-cols-4 gap-1.5">
         {LEAVE_KINDS.map((k) => (
@@ -73,12 +76,17 @@ export function LeaveForm({
         )}
       </div>
       <input name="memo" maxLength={100} placeholder="메모 (선택)" className={inputClass} />
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="send" defaultChecked className="h-4 w-4" />
-        주말출근 추첨에서 제외되도록 바로 보내기
-      </label>
-      <button type="submit" className="h-12 w-full rounded-full bg-blue-600 font-normal text-white">
-        저장
+      {!planned && (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="send" defaultChecked className="h-4 w-4" />
+          주말출근 추첨에서 제외되도록 바로 보내기
+        </label>
+      )}
+      <button
+        type="submit"
+        className={`h-12 w-full rounded-full font-normal ${planned ? "border border-blue-600 text-link" : "bg-blue-600 text-white"}`}
+      >
+        {planned ? "계획 저장" : "저장"}
       </button>
     </form>
   );

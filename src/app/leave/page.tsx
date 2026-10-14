@@ -2,8 +2,9 @@
 // 휴가 계산기 (/leave) — 본인만 보는 화면
 //   ① 입대일·전역일 → 전역 진행률(%)·D-day, 복무일, 실제 남은 출근일
 //   ② 휴가 사용 현황 (포상·연가 한도)
-//   ③ 달력: 휴가·외출·면회 표시 + 입력
-//   ④ 이 달 기록: "주말출근 제외로 보내기"(추첨 제외) / 취소 / 삭제
+//   ③ 달력: 실제 휴가(채움)·계획(점선) 표시
+//   ④ 입력 두 곳: "실제 휴가 입력"(주말출근 제외로 보낼 수 있음) / "휴가 계획"(참고용, 아무것도 바꾸지 않음)
+//   ⑤ 이 달 기록(실제) / 이 달 계획(실제로 확정·삭제)
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
 import { requireMember } from "@/lib/session";
@@ -29,7 +30,7 @@ import {
   shiftMonth,
   SUBKINDS,
 } from "@/lib/leave";
-import { addLeaveAction, deleteLeaveAction, saveServiceDatesAction, sendLeaveAction, unsendLeaveAction } from "./actions";
+import { addLeaveAction, confirmPlanAction, deleteLeaveAction, saveServiceDatesAction, sendLeaveAction, unsendLeaveAction } from "./actions";
 import { LeaveForm } from "./leave-form";
 
 type Leave = {
@@ -40,6 +41,7 @@ type Leave = {
   end_date: string;
   memo: string | null;
   absence_id: number | null;
+  planned: boolean; // true = 휴가 계획 (실제 휴가 아님)
 };
 
 const subLabel = (kind: string, sub: string | null) => SUBKINDS[kind]?.find((s) => s.value === sub)?.label;
@@ -55,10 +57,19 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
 
   // 내 입대일·전역일 + 내 기록 (SQL 0009 전이면 표가 없어 오류 → 안내만)
   const db = getSupabaseAdmin();
-  const [{ data: dates, error: e1 }, { data: rows, error: e2 }] = await Promise.all([
-    db.from("members").select("enlist_date, discharge_date").eq("id", me.id).maybeSingle(),
-    db.from("leaves").select("id, kind, subkind, start_date, end_date, memo, absence_id").eq("member_id", me.id).order("start_date"),
-  ]);
+  // planned 칸(SQL 0013)이 아직 없으면 계획 기능만 빼고 예전처럼 동작
+  const { data: dates, error: e1 } = await db.from("members").select("enlist_date, discharge_date").eq("id", me.id).maybeSingle();
+  const withPlan = await db
+    .from("leaves")
+    .select("id, kind, subkind, start_date, end_date, memo, absence_id, planned")
+    .eq("member_id", me.id)
+    .order("start_date");
+  const planSupported = !withPlan.error;
+  const legacy = planSupported
+    ? null
+    : await db.from("leaves").select("id, kind, subkind, start_date, end_date, memo, absence_id").eq("member_id", me.id).order("start_date");
+  const rows: Partial<Leave>[] | null = planSupported ? withPlan.data : (legacy?.data ?? null);
+  const e2 = planSupported ? null : legacy?.error;
   if (e1 || e2) {
     return (
       <Page title="휴가 계산기">
@@ -66,7 +77,9 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
       </Page>
     );
   }
-  const leaves = (rows ?? []) as Leave[];
+  const all = (rows ?? []).map((r) => ({ ...r, planned: r.planned === true })) as Leave[];
+  const leaves = all.filter((l) => !l.planned); // 실제 휴가·외출·면회
+  const plans = all.filter((l) => l.planned); // 휴가 계획
   const enlist = (dates?.enlist_date as string | null) ?? null;
   const discharge = (dates?.discharge_date as string | null) ?? null;
 
@@ -78,17 +91,22 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
     : { data: [] };
   const extraHolidays = new Set((added ?? []).map((r) => r.duty_date as string));
   const workLeft = discharge ? remainingWorkdays(today, discharge, leaves, extraHolidays) : null;
+  // 계획까지 다 썼다고 치면 남는 출근일 (참고용)
+  const workLeftWithPlans = discharge && plans.length ? remainingWorkdays(today, discharge, [...leaves, ...plans], extraHolidays) : null;
   const nextLeave = leaves.find((l) => isFullLeave(l.kind) && l.start_date > today);
-  const summary = leaveSummary(leaves);
+  const summary = leaveSummary(leaves, plans);
   const promos = enlist ? promotionDates(enlist) : null;
   const next = enlist ? nextPromotion(enlist, today) : null;
 
   // 이 달 달력과 기록
   const grid = monthGrid(month);
   const monthEnd = `${month}-31`;
-  const inMonth = leaves.filter((l) => l.start_date <= monthEnd && l.end_date >= `${month}-01`);
+  const inMonth = all.filter((l) => l.start_date <= monthEnd && l.end_date >= `${month}-01`);
   const onDay = (d: string) => inMonth.filter((l) => l.start_date <= d && d <= l.end_date);
   const [y, m] = month.split("-").map(Number);
+  const monthLeaves = inMonth.filter((l) => !l.planned);
+  const monthPlans = inMonth.filter((l) => l.planned);
+  const period = (l: Leave) => (l.start_date === l.end_date ? formatShort(l.start_date) : `${formatShort(l.start_date)} ~ ${formatShort(l.end_date)}`);
 
   return (
     <Page title="휴가 계산기">
@@ -125,7 +143,10 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
               label="예정 휴가일"
             />
           </div>
-          <p className="mt-2 text-center text-xs text-zinc-500">실제 남은 출근일 = 오늘~전역 전날 중 주말·공휴일·휴가를 뺀 평일 수</p>
+          <p className="mt-2 text-center text-xs text-zinc-500">실제 남은 출근일 = 오늘~전역 전날 중 주말·공휴일·실제 휴가를 뺀 평일 수</p>
+          {workLeftWithPlans !== null && (
+            <p className="mt-1 text-center text-xs text-link">계획한 휴가까지 모두 쓰면 실제 남은 출근일 {workLeftWithPlans}일</p>
+          )}
           {/* 진급 일정 (매월 1일 자동 진급) */}
           <Card className="mt-4 p-4">
             <div className="flex items-baseline justify-between">
@@ -166,13 +187,18 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
 
       {/* ② 휴가 사용 현황 */}
       <Card className="mt-6 p-4">
-        <p className="mb-2 font-semibold">휴가 사용 현황</p>
+        <p className="mb-2 font-semibold">휴가 사용 현황 <span className="text-xs font-normal text-zinc-500">(실제 휴가만)</span></p>
         <ul className="space-y-1.5 text-sm">
           {summary.quotas.map((q) => (
             <li key={q.label} className="flex items-center justify-between gap-2">
               <span>{q.label}</span>
               <span className={`tabular-nums ${q.used > q.quota ? "font-semibold text-red-600" : ""}`}>
                 {q.used} / {q.quota}일 <span className="text-zinc-500">(남은 {Math.max(0, q.quota - q.used)}일)</span>
+                {q.planned > 0 && (
+                  <span className={`block text-xs ${q.used + q.planned > q.quota ? "font-semibold text-red-600" : "text-link"}`}>
+                    계획 +{q.planned}일 → 다 쓰면 남은 {q.quota - q.used - q.planned}일
+                  </span>
+                )}
               </span>
             </li>
           ))}
@@ -217,7 +243,12 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                   {onDay(d)
                     .slice(0, 2)
                     .map((l) => (
-                      <p key={l.id} className={`mt-0.5 truncate rounded px-0.5 text-center text-[10px] leading-4 text-white ${LEAVE_COLOR[l.kind]}`}>
+                      <p
+                        key={l.id}
+                        className={`mt-0.5 truncate rounded px-0.5 text-center text-[10px] leading-4 ${
+                          l.planned ? "border border-dashed border-blue-600 text-link" : `text-white ${LEAVE_COLOR[l.kind]}`
+                        }`}
+                      >
                         {LEAVE_LABEL[l.kind]}
                       </p>
                     ))}
@@ -226,28 +257,48 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
             )}
           </div>
         ))}
+        {planSupported && (
+          <p className="mt-2 text-center text-[11px] text-zinc-500">
+            <span className="mr-1 inline-block h-2.5 w-4 rounded-sm bg-blue-600 align-middle" /> 실제 휴가
+            <span className="mr-1 ml-3 inline-block h-2.5 w-4 rounded-sm border border-dashed border-blue-600 align-middle" /> 계획
+          </p>
+        )}
       </Card>
 
-      {/* 입력 */}
+      {/* 입력 ① 실제 휴가 */}
       <Card className="mt-4 p-4">
-        <p className="mb-3 font-semibold">휴가·외출·면회 입력</p>
+        <p className="font-semibold">실제 휴가·외출·면회 입력</p>
+        <p className="mt-1 mb-3 text-xs text-zinc-500">이미 확정된(다녀왔거나 승인된) 기록입니다. 사용 현황에 반영되고, 주말출근 추첨에서 뺄 수 있습니다.</p>
         <LeaveForm action={addLeaveAction} month={month} defaultAnnual={annualSubkindFor(me.rank)} defaultDate={today} />
       </Card>
 
+      {/* 입력 ② 휴가 계획 (참고용) */}
+      {planSupported ? (
+        <Card className="mt-4 p-4">
+          <p className="font-semibold">휴가 계획 세우기</p>
+          <p className="mt-1 mb-3 text-xs text-zinc-500">
+            아직 확정되지 않은 계획입니다. 달력에 점선으로만 보이고, 사용 현황·주말출근 추첨에는 반영되지 않습니다. 확정되면 아래 &quot;이 달 계획&quot;에서 &quot;실제로 확정&quot;을 누르세요.
+          </p>
+          <LeaveForm action={addLeaveAction} month={month} defaultAnnual={annualSubkindFor(me.rank)} defaultDate={today} planned />
+        </Card>
+      ) : (
+        <Notice kind="warn">휴가 계획 기능을 쓰려면 관리자가 추가 SQL(supabase/migrations/0013_leave_plan.sql)을 실행해야 합니다.</Notice>
+      )}
+
       {/* ④ 이 달 기록 */}
       <h2 className="mt-6 mb-2 text-lg font-semibold">{m}월 기록</h2>
-      {inMonth.length === 0 ? (
+      {monthLeaves.length === 0 ? (
         <p className="text-sm text-zinc-500">이 달에 입력한 기록이 없습니다.</p>
       ) : (
         <ul className="space-y-2">
-          {inMonth.map((l) => (
+          {monthLeaves.map((l) => (
             <li key={l.id}>
               <Card className="p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm">
                     <span className={`mr-1.5 inline-block size-2.5 rounded-full ${LEAVE_COLOR[l.kind]}`} />
                     <b>{subLabel(l.kind, l.subkind) ?? LEAVE_LABEL[l.kind]}</b>{" "}
-                    {l.start_date === l.end_date ? formatShort(l.start_date) : `${formatShort(l.start_date)} ~ ${formatShort(l.end_date)}`}
+                    {period(l)}
                     {isFullLeave(l.kind) && <span className="text-zinc-500"> · {leaveDays(l)}일</span>}
                     {l.memo && <span className="block text-xs text-zinc-500">{l.memo}</span>}
                   </p>
@@ -280,6 +331,48 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* ⑤ 이 달 계획 */}
+      {planSupported && (
+        <>
+          <h2 className="mt-6 mb-2 text-lg font-semibold">{m}월 계획</h2>
+          {monthPlans.length === 0 ? (
+            <p className="text-sm text-zinc-500">이 달에 세운 계획이 없습니다.</p>
+          ) : (
+            <ul className="space-y-2">
+              {monthPlans.map((l) => (
+                <li key={l.id}>
+                  <Card className="border-dashed p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm">
+                        <span className="mr-1.5 inline-block size-2.5 rounded-full border border-dashed border-blue-600" />
+                        <b>{subLabel(l.kind, l.subkind) ?? LEAVE_LABEL[l.kind]}</b> {period(l)}
+                        {isFullLeave(l.kind) && <span className="text-zinc-500"> · {leaveDays(l)}일</span>}
+                        <span className="text-xs text-zinc-500"> · 계획</span>
+                        {l.memo && <span className="block text-xs text-zinc-500">{l.memo}</span>}
+                      </p>
+                      <form action={deleteLeaveAction}>
+                        <input type="hidden" name="id" value={l.id} />
+                        <input type="hidden" name="month" value={month} />
+                        <ConfirmButton message="이 계획을 삭제할까요?" className="text-xs text-red-600 underline">
+                          삭제
+                        </ConfirmButton>
+                      </form>
+                    </div>
+                    <form action={confirmPlanAction} className="mt-2">
+                      <input type="hidden" name="id" value={l.id} />
+                      <input type="hidden" name="month" value={month} />
+                      <button type="submit" className="h-9 w-full rounded-full border border-blue-600 text-sm font-semibold text-link">
+                        실제로 확정
+                      </button>
+                    </form>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </Page>
   );

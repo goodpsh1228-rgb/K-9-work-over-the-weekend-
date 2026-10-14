@@ -122,3 +122,7 @@ alter table absences add constraint absences_kind_check
 
 -- ── 0012: 계급 수동 변경 ──
 alter table members add column if not exists rank_manual_on date;
+
+
+-- ── 0013: 휴가 계획 (실제 휴가와 구분) ──
+alter table leaves add column if not exists planned boolean not null default false;
