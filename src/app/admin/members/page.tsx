@@ -11,7 +11,7 @@ import { requireAdmin } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { getDriverIds } from "@/lib/drivers";
 import { Notice, Page } from "@/components/ui";
-import { addMemberAction, deleteMembersAction, updateRankAction } from "./actions";
+import { addMemberAction, deleteMembersAction, updateCohortAction, updateRankAction } from "./actions";
 import { DeleteButton, RankSelect } from "./member-controls";
 
 export default async function MembersPage({ searchParams }: PageProps<"/admin/members">) {
@@ -31,6 +31,10 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
   const inactiveCount = all.filter((m) => !m.is_active).length;
   const list = showInactive ? all : all.filter((m) => m.is_active);
   const drivers = await getDriverIds();
+  // 기수 (SQL 0015 전이면 칸이 없어 오류 → 기수 입력칸 숨김)
+  const { data: cohortRows, error: cohortErr } = await getSupabaseAdmin().from("members").select("id, cohort");
+  const cohortReady = !cohortErr;
+  const cohortOf = new Map((cohortRows ?? []).map((r) => [r.id as number, (r.cohort as number | null) ?? null]));
   const noRank = all.filter((m) => m.is_active && !m.rank).length;
 
   return (
@@ -99,7 +103,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
       <form id="delete-form" action={deleteMembersAction} />
       <ul className="divide-y divide-hairline rounded-[18px] border border-hairline bg-card">
         {list.map((m) => (
-          <li key={m.id} className={`flex items-center gap-2 px-3 py-2 ${m.is_active ? "" : "bg-background"}`}>
+          <li key={m.id} className={`flex flex-wrap items-center gap-2 px-3 py-2 ${m.is_active ? "" : "bg-background"}`}>
             <input
               type="checkbox"
               name="ids"
@@ -130,6 +134,26 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
               <input type="hidden" name="member_id" value={m.id} />
               <RankSelect defaultValue={m.rank ?? ""} />
             </form>
+            {/* 기수: 숫자를 바꾸고 "저장" (비우면 삭제) */}
+            {cohortReady && (
+              <form action={updateCohortAction} className="flex items-center gap-1">
+                <input type="hidden" name="member_id" value={m.id} />
+                <input
+                  name="cohort"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={9999}
+                  defaultValue={cohortOf.get(m.id) ?? ""}
+                  placeholder="기수"
+                  aria-label={`${m.name} 기수`}
+                  className="h-8 w-16 rounded-full border border-hairline bg-input px-2 text-center text-sm"
+                />
+                <button type="submit" className="h-8 rounded-full border border-blue-600 px-2.5 text-xs font-semibold text-link">
+                  저장
+                </button>
+              </form>
+            )}
           </li>
         ))}
       </ul>

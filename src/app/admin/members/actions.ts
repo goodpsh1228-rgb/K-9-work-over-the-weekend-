@@ -25,6 +25,23 @@ function back(kind: "msg" | "error", text: string): never {
   redirect(`${PAGE}?${kind}=${encodeURIComponent(text)}`);
 }
 
+// 기수 입력·수정 (관리자). 비우면 기수 삭제. 숫자가 작을수록 높은 기수(866기 > 877기)
+export async function updateCohortAction(formData: FormData) {
+  const me = await requireAdmin();
+  const id = Number(formData.get("member_id"));
+  const raw = String(formData.get("cohort") ?? "").trim();
+  const cohort = raw === "" ? null : Number(raw);
+  if (cohort !== null && (!Number.isInteger(cohort) || cohort < 1 || cohort > 9999)) back("error", "기수는 1~9999 사이 숫자로 입력해 주세요.");
+  const db = getSupabaseAdmin();
+  const { data: m, error: e0 } = await db.from("members").select("name, cohort").eq("id", id).maybeSingle();
+  if (e0) back("error", "기수 기능용 SQL(0015)을 먼저 실행해 주세요.");
+  if (!m) back("error", "인원을 찾을 수 없습니다.");
+  await db.from("members").update({ cohort }).eq("id", id);
+  await writeAudit({ actorId: me.id, action: "member.squad_cohort", targetMemberId: id, details: { name: m.name, cohort_from: m.cohort, cohort } });
+  revalidatePath("/lineup");
+  back("msg", `${m.name}: ${cohort === null ? "기수를 지웠습니다." : `기수를 ${cohort}기로 저장했습니다.`}`);
+}
+
 export async function updateRankAction(formData: FormData) {
   const me = await requireAdmin();
   const id = Number(formData.get("member_id"));

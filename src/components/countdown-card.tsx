@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────
 import { useEffect, useState } from "react";
 
-export function CountdownCard({ title, target, sub }: { title: string; target: string; sub?: string }) {
+export function CountdownCard({ title, target, sub, compact = false }: { title: string; target: string; sub?: string; compact?: boolean }) {
   // 남은 밀리초 (처음엔 모름 → "--" 표시, 화면이 뜬 뒤 계산)
   const [left, setLeft] = useState<number | null>(null);
   useEffect(() => {
@@ -24,6 +24,21 @@ export function CountdownCard({ title, target, sub }: { title: string; target: s
     { n: s === null ? "--" : Math.floor((s % 3600) / 60), unit: "분" },
     { n: s === null ? "--" : s % 60, unit: "초" },
   ];
+
+  // 작은 한 줄 표시 (홈 화면: 눈에 덜 띄게)
+  if (compact) {
+    return (
+      <div className="mb-3 flex items-center justify-between gap-2 rounded-full bg-tile px-4 py-2 text-xs text-white">
+        <span className="min-w-0 truncate text-[#cccccc]">
+          {title}
+          {sub ? ` · ${sub}` : ""}
+        </span>
+        <span className="shrink-0 font-semibold tabular-nums">
+          {parts[0].n}일 {parts[1].n}시간 {parts[2].n}분
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-[18px] bg-tile px-5 py-6 text-white">

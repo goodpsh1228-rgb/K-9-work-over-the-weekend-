@@ -28,6 +28,8 @@ const noto = Noto_Sans_KR({
 export const metadata: Metadata = {
   title: "군견훈육중대 주말출근 관리체계",
   description: "주말·공휴일 출근 희망 투표 및 추첨",
+  // 아이폰 홈 화면에 추가할 때 아이콘 이름 (아이콘 그림은 src/app/apple-icon.png)
+  appleWebApp: { title: "주말출근" },
 };
 
 // 휴대폰 화면 폭에 맞춰 보이도록 하는 설정

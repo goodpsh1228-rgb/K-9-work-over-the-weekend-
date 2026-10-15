@@ -181,31 +181,48 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         </div>
       )}
 
-      {/* 핵심 ①: 투표 마감까지 남은 시간 (어두운 단색 타일) */}
-      <div className="mt-4">
-        <CountdownCard
-          title={countdown.title}
-          target={countdown.target.toISOString()}
-          sub={countdown.sub}
-        />
-      </div>
+      {/* 핵심 ①: 오늘 라인업 — 출근·불참 인원 + 오늘의 1차탑승 명단 */}
+      <Link href="/lineup" data-press className="mt-4 block rounded-[18px] bg-blue-600 p-4 text-white">
+        <div className="flex items-center justify-between">
+          <span className="text-xl font-black">오늘 라인업</span>
+          <span aria-hidden className="text-xl">›</span>
+        </div>
+        <p className="mt-1 text-base">
+          출근 {todayLineup.isDutyDay && !todayLineup.drawn ? "-" : todayLineup.presentCount}명 ·{" "}
+          <b className={todayAbsent ? "rounded bg-orange-400 px-1.5 py-0.5 text-black" : ""}>불참 {todayAbsent}명</b>
+        </p>
+        {todayLineup.boardingSupported && (
+          <div className="mt-3 border-t border-white/25 pt-3">
+            <p className="text-sm font-bold">1차탑승 {todayLineup.boarding.length}명</p>
+            {todayLineup.boarding.length > 0 ? (
+              <p className="mt-1.5 flex flex-wrap gap-1.5">
+                {todayLineup.boarding.map((p) => (
+                  <span key={p.id} className="rounded-full bg-white/20 px-2.5 py-1 text-sm">
+                    {p.name}
+                  </span>
+                ))}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-white/80">
+                {todayLineup.isDutyDay && !todayLineup.drawn ? "추첨이 끝나면 표시됩니다." : "기수를 입력한 출근자가 없습니다."}
+              </p>
+            )}
+          </div>
+        )}
+      </Link>
 
-      {/* 핵심 ②: 큰 버튼 둘 — 오늘 라인업 / 불참·휴가 입력 */}
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <Link href="/lineup" data-press className="flex min-h-[112px] min-w-0 flex-col justify-between rounded-[18px] bg-blue-600 p-4 text-white">
-          <span className="text-lg font-black">오늘 라인업</span>
-          <span className="text-sm">
-            출근 {todayLineup.isDutyDay && !todayLineup.drawn ? "-" : todayLineup.presentCount}명 ·{" "}
-            <b className={todayAbsent ? "rounded bg-orange-400 px-1.5 py-0.5 text-black" : ""}>불참 {todayAbsent}명</b>
-          </span>
-        </Link>
-        <Link href="/absences" data-press className="flex min-h-[112px] min-w-0 items-start rounded-[18px] border-2 border-blue-600 bg-card p-4 text-link">
-          <span className="text-lg font-black leading-snug">라인업 불참/휴가 입력</span>
-        </Link>
+      {/* 핵심 ②: 불참/휴가 입력 */}
+      <Link href="/absences" data-press className="mt-3 flex min-h-12 items-center justify-center rounded-full border-2 border-blue-600 bg-card px-4 text-base font-black text-link">
+        라인업 불참/휴가 입력
+      </Link>
+
+      {/* 투표 마감까지 남은 시간은 작게 */}
+      <div className="mt-8">
+        <CountdownCard compact title={countdown.title} target={countdown.target.toISOString()} sub={countdown.sub} />
       </div>
 
       {/* 다가오는 근무일 목록 (다음 주 일요일까지): 한 장의 카드 안에 줄마다 한 날짜. 누르면 투표 화면으로 */}
-      <h2 className="mt-8 mb-3 text-[28px] leading-[1.14] font-display font-black tracking-[-0.02em]">
+      <h2 className="mb-3 text-[28px] leading-[1.14] font-display font-black tracking-[-0.02em]">
         다가오는 근무일
       </h2>
       {days.length === 0 ? (
