@@ -150,17 +150,15 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
           {workLeftWithPlans !== null && (
             <p className="mt-1 text-center text-xs text-link">계획한 휴가까지 모두 쓰면 실제 남은 출근일 {workLeftWithPlans}일</p>
           )}
-          {/* 진급 일정 (매월 1일 자동 진급) */}
-          <Card className="mt-4 p-4">
-            <div className="flex items-baseline justify-between">
-              <p className="font-semibold">진급 일정</p>
-              {next && (
-                <p className="text-sm font-semibold text-link">
-                  {next.rank} 진급 D-{daysBetween(today, next.date)}
-                </p>
-              )}
-            </div>
-            <ul className="mt-2 grid grid-cols-4 text-center text-sm">
+          {/* 진급 일정 (매월 1일 자동 진급) — 평소엔 접어 둠 */}
+          <details className="mt-4 rounded-[18px] border border-hairline bg-card p-4">
+            <summary className="flex cursor-pointer list-none items-baseline justify-between">
+              <span className="font-semibold">진급 일정</span>
+              <span className="text-sm font-semibold text-link">
+                {next ? `${next.rank} 진급 D-${daysBetween(today, next.date)}` : "진급 완료"} ▾
+              </span>
+            </summary>
+            <ul className="mt-3 grid grid-cols-4 text-center text-sm">
               {(["일병", "상병", "병장"] as const).map((r) => (
                 <li key={r} className={promos[r] <= today ? "text-zinc-400" : ""}>
                   <p className="font-semibold">{r}</p>
@@ -174,7 +172,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
               </li>
             </ul>
             <p className="mt-2 text-xs text-zinc-500">계급은 입대일 기준으로 매월 1일 자동 진급됩니다(홈에서 직접 바꾸면 다음 진급일까지 유지). 전역일이 되면 자동으로 비활성화됩니다.</p>
-          </Card>
+          </details>
           <details className="mt-3 text-sm">
             <summary className="cursor-pointer text-zinc-500">입대일·전역일 수정</summary>
             <DatesForm enlist={enlist} discharge={discharge} month={month} />
@@ -188,14 +186,21 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
         </Card>
       )}
 
-      {/* ② 휴가 사용 현황 */}
-      <Card className="mt-6 p-4">
-        <p className="mb-2 font-semibold">휴가 사용 현황 <span className="text-xs font-normal text-zinc-500">(실제 휴가만)</span></p>
-        <ul className="space-y-1.5 text-sm">
+      {/* ② 휴가 사용 현황 — 평소엔 접어 두고, 눌러서 펼쳐 봄 */}
+      <details className="mt-4 rounded-[18px] border border-hairline bg-card p-4">
+        <summary className="flex cursor-pointer list-none items-baseline justify-between">
+          <span className="font-semibold">휴가 사용 현황</span>
+          <span className="text-sm text-muted">
+            {summary.quotas.some((q) => q.used > q.quota) && <b className="mr-2 text-red-600">한도 초과</b>}
+            {plans.length > 0 && <span className="mr-2 text-link">계획 {plans.length}건</span>}▾
+          </span>
+        </summary>
+        <p className="mt-1 text-xs text-zinc-500">실제 휴가만 반영됩니다. 계획은 &quot;계획 +n일&quot;로 따로 표시됩니다.</p>
+        <ul className="mt-3 space-y-1.5 text-sm">
           {summary.quotas.map((q) => (
             <li key={q.label} className="flex items-center justify-between gap-2">
               <span>{q.label}</span>
-              <span className={`tabular-nums ${q.used > q.quota ? "font-semibold text-red-600" : ""}`}>
+              <span className={`text-right tabular-nums ${q.used > q.quota ? "font-semibold text-red-600" : ""}`}>
                 {q.used} / {q.quota}일 <span className="text-zinc-500">(남은 {Math.max(0, q.quota - q.used)}일)</span>
                 {q.planned > 0 && (
                   <span className={`block text-xs ${q.used + q.planned > q.quota ? "font-semibold text-red-600" : "text-link"}`}>
@@ -206,11 +211,11 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{summary.others.map((o) => `${o.label} ${o.value}`).join(" · ")}</p>
-      </Card>
+        <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{summary.others.map((o) => `${o.label} ${o.value}`).join(" · ")}</p>
+      </details>
 
       {/* ③ 달력 */}
-      <Card className="mt-6 p-3">
+      <Card className="mt-4 p-3">
         <div className="mb-2 flex items-center justify-between">
           <Link href={`/leave?month=${shiftMonth(month, -1)}`} className="px-3 py-1 text-xl text-link" aria-label="이전 달">
             ‹
@@ -268,25 +273,12 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
         )}
       </Card>
 
-      {/* 입력 ① 실제 휴가 */}
+      {/* 입력: 하나의 카드에서 "실제 휴가 / 휴가 계획"을 위쪽 스위치로 고름 */}
       <Card className="mt-4 p-4">
-        <p className="font-semibold">실제 휴가·외출·면회 입력</p>
-        <p className="mt-1 mb-3 text-xs text-zinc-500">이미 확정된(다녀왔거나 승인된) 기록입니다. 사용 현황에 반영되고, 주말출근 추첨에서 뺄 수 있습니다.</p>
-        <LeaveForm action={addLeaveAction} month={month} defaultAnnual={annualSubkindFor(me.rank)} defaultDate={today} />
+        <p className="mb-3 text-lg font-black">휴가 입력</p>
+        <LeaveForm action={addLeaveAction} month={month} defaultAnnual={annualSubkindFor(me.rank)} defaultDate={today} planSupported={planSupported} />
       </Card>
-
-      {/* 입력 ② 휴가 계획 (참고용) */}
-      {planSupported ? (
-        <Card className="mt-4 p-4">
-          <p className="font-semibold">휴가 계획 세우기</p>
-          <p className="mt-1 mb-3 text-xs text-zinc-500">
-            아직 확정되지 않은 계획입니다. 달력에 점선으로만 보이고, 사용 현황·주말출근 추첨에는 반영되지 않습니다. 확정되면 아래 &quot;이 달 계획&quot;에서 &quot;실제로 확정&quot;을 누르세요.
-          </p>
-          <LeaveForm action={addLeaveAction} month={month} defaultAnnual={annualSubkindFor(me.rank)} defaultDate={today} planned />
-        </Card>
-      ) : (
-        <Notice kind="warn">휴가 계획 기능을 쓰려면 관리자가 추가 SQL(supabase/migrations/0013_leave_plan.sql)을 실행해야 합니다.</Notice>
-      )}
+      {!planSupported && <Notice kind="warn">휴가 계획 기능을 쓰려면 관리자가 추가 SQL(supabase/migrations/0013_leave_plan.sql)을 실행해야 합니다.</Notice>}
 
       {/* ④ 이 달 기록 */}
       <h2 className="mt-6 mb-2 text-lg font-semibold">{m}월 기록</h2>
