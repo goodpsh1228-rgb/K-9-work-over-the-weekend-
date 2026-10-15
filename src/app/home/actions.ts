@@ -26,7 +26,7 @@ export async function updateMyRankAction(formData: FormData) {
   redirect(`/home?msg=${encodeURIComponent(`계급을 ${rank}(으)로 저장했습니다.`)}`);
 }
 
-// 내 기수 입력·수정 (본인). 숫자가 작을수록 높은 기수(866기 > 877기). 비우면 기수 삭제.
+// 내 기수 입력 (본인, 처음 한 번만). 숫자가 작을수록 높은 기수(866기 > 877기). 비우면 기수 삭제.
 export async function updateMyCohortAction(formData: FormData) {
   const me = await requireMember();
   const raw = String(formData.get("cohort") ?? "").trim();
@@ -34,6 +34,9 @@ export async function updateMyCohortAction(formData: FormData) {
   if (cohort !== null && (!Number.isInteger(cohort) || cohort < 1 || cohort > 9999)) {
     redirect(`/home?error=${encodeURIComponent("기수는 1~9999 사이 숫자로 입력해 주세요.")}`);
   }
+  // 기수는 처음 한 번만 본인이 입력 (이미 있으면 고정 — 바꿔야 하면 관리자가 수정)
+  const { data: cur } = await getSupabaseAdmin().from("members").select("cohort").eq("id", me.id).maybeSingle();
+  if (cur?.cohort != null) redirect(`/home?error=${encodeURIComponent("기수는 한 번 입력하면 바꿀 수 없습니다. 수정이 필요하면 관리자에게 요청하세요.")}`);
   const { error } = await getSupabaseAdmin().from("members").update({ cohort }).eq("id", me.id);
   if (error) redirect(`/home?error=${encodeURIComponent("기수 기능용 SQL(0015)을 관리자가 먼저 실행해야 합니다.")}`);
   await writeAudit({ actorId: me.id, action: "member.cohort_self", targetMemberId: me.id, details: { name: me.name, to: cohort } });

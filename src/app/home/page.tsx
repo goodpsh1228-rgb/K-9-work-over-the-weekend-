@@ -131,7 +131,9 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
       <div className="-mt-3 flex flex-wrap items-center gap-2 text-sm">
         <MyRankSelect action={updateMyRankAction} current={me.rank} />
         {enlisted && <span className="text-xs text-muted">자동 진급 중</span>}
-        {cohortReady && (
+        {/* 기수: 한 번 입력하면 고정(칩으로만 표시). 바꿔야 하면 관리자가 수정 */}
+        {cohortReady && myCohort !== null && <Chip tone="blue">{myCohort}기</Chip>}
+        {cohortReady && myCohort === null && (
           <form action={updateMyCohortAction} className="inline-flex items-center gap-1">
             <input
               name="cohort"
@@ -139,13 +141,13 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
               inputMode="numeric"
               min={1}
               max={9999}
-              defaultValue={myCohort ?? ""}
+              required
               placeholder="기수"
               aria-label="내 기수"
-              className={`h-8 w-[72px] rounded-full border bg-card px-3 text-sm ${myCohort === null ? "border-orange-400" : "border-hairline"}`}
+              className="h-8 w-[72px] rounded-full border border-orange-400 bg-card px-3 text-sm"
             />
             <button type="submit" className="h-8 rounded-full border border-blue-600 px-3 text-xs font-semibold text-link">
-              {myCohort === null ? "기수 저장" : "저장"}
+              기수 저장
             </button>
           </form>
         )}
@@ -190,16 +192,15 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
 
       {/* 핵심 ②: 큰 버튼 둘 — 오늘 라인업 / 불참·휴가 입력 */}
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <Link href="/lineup" data-press className="flex min-h-[112px] flex-col justify-between rounded-[18px] bg-blue-600 p-4 text-white">
+        <Link href="/lineup" data-press className="flex min-h-[112px] min-w-0 flex-col justify-between rounded-[18px] bg-blue-600 p-4 text-white">
           <span className="text-lg font-black">오늘 라인업</span>
           <span className="text-sm">
             출근 {todayLineup.isDutyDay && !todayLineup.drawn ? "-" : todayLineup.presentCount}명 ·{" "}
             <b className={todayAbsent ? "rounded bg-orange-400 px-1.5 py-0.5 text-black" : ""}>불참 {todayAbsent}명</b>
           </span>
         </Link>
-        <Link href="/absences" data-press className="flex min-h-[112px] flex-col justify-between rounded-[18px] border-2 border-blue-600 bg-card p-4 text-link">
-          <span className="text-lg font-black">불참·휴가 입력</span>
-          <span className="text-sm text-foreground/70">휴가·교육·당직오프·근무오프·외진</span>
+        <Link href="/absences" data-press className="flex min-h-[112px] min-w-0 items-start rounded-[18px] border-2 border-blue-600 bg-card p-4 text-link">
+          <span className="text-lg font-black leading-snug">라인업 불참/휴가 입력</span>
         </Link>
       </div>
 
