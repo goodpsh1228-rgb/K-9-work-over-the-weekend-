@@ -45,6 +45,7 @@ export default async function AbsencesPage({ searchParams }: PageProps<"/absence
       <div className="mt-3 rounded-[18px] border border-hairline p-3 bg-card">
         <AbsenceForm
           action={addAbsenceAction}
+          defaultDate={today}
           myId={me.id}
           members={me.is_admin ? (members ?? []).filter((m) => m.is_active).map((m) => ({ id: m.id, name: m.name })) : undefined}
         />

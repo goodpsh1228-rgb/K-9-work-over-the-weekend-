@@ -4,6 +4,8 @@
 //      단, 본인·관리자가 계급을 직접 바꿨으면(rank_manual_on) 그 뒤 진급일이 올 때까지 그대로 둠
 //   ② 전역 자동 비활성화: 전역일이 오늘이거나 지났으면 비활성화
 //      (단, 마지막 관리자는 관리자 0명이 되지 않도록 남겨 둠)
+//   ③ 전역 1개월 전 면제 자동 적용: 전역일(휴가 계산기에 입력)이 있으면 한 달 전부터 전역일까지를
+//      주말출근 추첨 제외 기간(종류 "전역 1개월 전 면제")으로 자동 등록·갱신 (따로 입력할 필요 없음)
 // 사이트 접속 때(안전장치)와 밤 자동 실행(크론) 때 불립니다.
 // 너무 자주 돌지 않도록 서버 한 대에서 10분에 한 번만 실행합니다(force 로 즉시 실행 가능).
 // ─────────────────────────────────────────────────────────────
@@ -12,6 +14,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { todayKST } from "@/lib/kst";
 import { rankOn } from "@/lib/promotion";
+import { dischargeRange } from "@/lib/absence-kinds";
 
 let lastRun = 0;
 
@@ -48,6 +51,25 @@ export async function syncServiceStatus(options?: { force?: boolean }) {
       const patch = m.rank_manual_on !== undefined ? { rank, rank_manual_on: null } : { rank };
       await db.from("members").update(patch).eq("id", m.id);
       await writeAudit({ actorId: null, action: "member.rank_auto", targetMemberId: m.id, details: { name: m.name, from: m.rank, to: rank } });
+    }
+  }
+
+  // ③ 전역 1개월 전 면제 자동 적용 (전역일이 아직 안 지난 사람)
+  const upcoming = rows.filter((m) => m.discharge_date && m.discharge_date > today);
+  if (upcoming.length > 0) {
+    const { data: existing, error: exErr } = await db
+      .from("absences")
+      .select("id, member_id, start_date, end_date")
+      .eq("kind", "discharge")
+      .in("member_id", upcoming.map((m) => m.id));
+    if (!exErr) {
+      for (const m of upcoming) {
+        const want = dischargeRange(m.discharge_date!);
+        const mine = (existing ?? []).filter((e) => e.member_id === m.id);
+        const ok = mine.find((e) => e.start_date === want.start && e.end_date === want.end);
+        for (const e of mine) if (e !== ok) await db.from("absences").delete().eq("id", e.id); // 옛 전역일 기준 기록은 지움
+        if (!ok) await db.from("absences").insert({ member_id: m.id, kind: "discharge", start_date: want.start, end_date: want.end, created_by: m.id });
+      }
     }
   }
 

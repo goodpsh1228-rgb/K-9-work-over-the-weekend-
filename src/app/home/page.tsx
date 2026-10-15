@@ -305,7 +305,7 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
       <details className="mt-10 text-sm text-muted">
         <summary className="cursor-pointer py-2">빠른 불참 입력 (홈에서 바로)</summary>
         <Card className="mt-2 p-4">
-          <AbsenceForm action={addAbsenceAction} back="/home" />
+          <AbsenceForm action={addAbsenceAction} back="/home" defaultDate={todayKST()} />
           <p className="mt-3 text-xs text-muted">
             <Link href="/leave" className="text-link underline">
               휴가 계산기

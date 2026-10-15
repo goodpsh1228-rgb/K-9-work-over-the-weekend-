@@ -38,6 +38,7 @@ export async function addAbsenceAction(formData: FormData) {
   const start = kind === "discharge" && isValidDate(end) ? dischargeRange(end).start : String(formData.get("start_date") ?? "");
   // 관리자는 다른 인원을 고를 수 있음. 일반 인원은 항상 본인.
   const detail = takesDetail(kind) ? String(formData.get("detail") ?? "").trim().slice(0, 100) || null : null; // 상세 내용 (교육 이름, 외진 병원 등)
+  if (kind === "lineup" && !detail) done("error", "라인업 불참은 사유를 입력해 주세요. (예: 교육, 외진)");
   const targetId = me.is_admin && formData.get("member_id") ? Number(formData.get("member_id")) : me.id;
 
   if (!isAbsenceKind(kind)) done("error", "종류를 선택해 주세요.");
@@ -53,8 +54,8 @@ export async function addAbsenceAction(formData: FormData) {
     .from("absences")
     .insert({ member_id: targetId, kind, start_date: start, end_date: end, created_by: me.id, ...(detail ? { detail } : {}) });
   if (error) {
-    // 23514 = 데이터베이스 규칙 위반 / 42703 = 칸 없음: 새 종류(교육·당직오프·근무오프·외진)용 SQL(0014)을 아직 실행하지 않은 경우
-    done("error", error.code === "23514" || error.code === "42703" ? "이 종류를 쓰려면 관리자가 추가 SQL(0014)을 먼저 실행해야 합니다." : "저장 중 오류: " + error.message);
+    // 23514 = 데이터베이스 규칙 위반 / 42703 = 칸 없음: 새 종류(교육·당직오프·근무오프·외진·라인업 불참)용 SQL(0014·0016)을 아직 실행하지 않은 경우
+    done("error", error.code === "23514" || error.code === "42703" ? "이 종류를 쓰려면 관리자가 추가 SQL(0014, 0016)을 먼저 실행해야 합니다." : "저장 중 오류: " + error.message);
   }
 
   // 기간에 걸친 "희망" 응답 자동 취소

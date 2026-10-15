@@ -9,4 +9,4 @@
 alter table absences add column if not exists detail text check (detail is null or length(detail) <= 100);
 alter table absences drop constraint if exists absences_kind_check;
 alter table absences add constraint absences_kind_check
-  check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused', 'training', 'duty_off', 'work_off', 'outpatient'));
+  check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused', 'training', 'duty_off', 'work_off', 'outpatient', 'lineup'));

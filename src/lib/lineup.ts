@@ -146,4 +146,4 @@ export function lineupText(date: string, shortDate: string, l: Lineup): string {
   void date;
   return lines.join("\n");
 }
-const KIND_TEXT: Record<string, string> = { leave: "휴가", training: "교육", duty_off: "당직오프", work_off: "근무오프", outpatient: "외진" };
+const KIND_TEXT: Record<string, string> = { leave: "휴가", training: "교육", duty_off: "당직오프", work_off: "근무오프", outpatient: "외진", lineup: "기타 불참" };

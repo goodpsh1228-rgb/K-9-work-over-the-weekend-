@@ -67,7 +67,7 @@ values ('주말 운전', 'driver', 1, 15)
 on conflict (name) do nothing;
 alter table absences drop constraint if exists absences_kind_check;
 alter table absences add constraint absences_kind_check
-  check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused', 'training', 'duty_off', 'work_off', 'outpatient'));
+  check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused', 'training', 'duty_off', 'work_off', 'outpatient', 'lineup'));
 
 -- ── 0007: 주말 운전 따로 ──
 -- ② 주말 운전 희망
@@ -118,7 +118,7 @@ comment on table leaves is '휴가 계산기 기록 (위로·정기·포상·공
 -- ── 0011: 관리자 제외 ──
 alter table absences drop constraint if exists absences_kind_check;
 alter table absences add constraint absences_kind_check
-  check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused', 'training', 'duty_off', 'work_off', 'outpatient'));
+  check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused', 'training', 'duty_off', 'work_off', 'outpatient', 'lineup'));
 
 -- ── 0012: 계급 수동 변경 ──
 alter table members add column if not exists rank_manual_on date;
@@ -134,3 +134,8 @@ alter table absences add column if not exists detail text check (detail is null 
 alter table members add column if not exists cohort integer check (cohort is null or cohort between 1 and 9999);
 alter table members add column if not exists squad text check (squad is null or squad in ('미용반', '진료반', '훈련반', '관리반', '분만반'));
 update members set squad = '진료반' where is_clinic and squad is null;
+
+-- ── 0016: 라인업 불참(사유 직접 입력) ──
+alter table absences drop constraint if exists absences_kind_check;
+alter table absences add constraint absences_kind_check
+  check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused', 'training', 'duty_off', 'work_off', 'outpatient', 'lineup'));

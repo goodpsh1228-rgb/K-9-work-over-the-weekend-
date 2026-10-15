@@ -13,6 +13,7 @@ export const ABSENCE_KINDS = [
   { value: "duty_off", label: "당직오프" },
   { value: "work_off", label: "근무오프" },
   { value: "outpatient", label: "외진" },
+  { value: "lineup", label: "라인업 불참" }, // 사유를 직접 입력 (detail 에 저장)
   { value: "injury", label: "부상" },
   { value: "outing", label: "외출·면회" },
   { value: "discharge", label: "전역 1개월 전 면제" },
@@ -27,7 +28,7 @@ export const KIND_LABEL: Record<string, string> = {
 };
 
 // 라인업 불참으로 치는 종류 (이 순서대로 화면에 묶어 보여 줌)
-export const LINEUP_ABSENT_KINDS = ["leave", "training", "duty_off", "work_off", "outpatient"] as const;
+export const LINEUP_ABSENT_KINDS = ["leave", "training", "duty_off", "work_off", "outpatient", "lineup"] as const;
 export const isLineupAbsent = (kind: string) => (LINEUP_ABSENT_KINDS as readonly string[]).includes(kind);
 // 상세 내용을 입력받는 종류 (전역 면제는 날짜만)
 export const takesDetail = (kind: string) => kind !== "discharge";
@@ -38,6 +39,7 @@ export const KIND_BADGE: Record<string, string> = {
   duty_off: "bg-teal-600 text-white",
   work_off: "bg-amber-500 text-black",
   outpatient: "bg-rose-600 text-white",
+  lineup: "bg-zinc-700 text-white",
 };
 
 export function isAbsenceKind(v: string): v is AbsenceKind {
