@@ -9,7 +9,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { Card, Notice, Page } from "@/components/ui";
 import { LEAVE_KINDS } from "@/lib/leave";
 import { todayKST } from "@/lib/kst";
-import { dotsRange, effectiveSquad, peakOverlap, SQUADS } from "@/lib/squads";
+import { dotsRange, effectiveSquad, mergeConsecutive, peakOverlap, SQUADS } from "@/lib/squads";
 import { byRankName } from "@/lib/lineup";
 import { updateSquadCohortAction } from "./actions";
 
@@ -44,9 +44,12 @@ export default async function SquadsPage({ searchParams }: PageProps<"/admin/squ
   const groups = [...SQUADS, null].map((sq) => {
     const ms = members.filter((m) => squadOf(m) === sq);
     const ids = new Set(ms.map((m) => m.id));
-    const rows = leaves
-      .filter((l) => ids.has(l.member_id))
-      .map((l) => ({ ...l, m: byId.get(l.member_id)! }))
+    // 한 사람의 이어지는 휴가는 하나로 합쳐서 보여 줌 (예: 10.26~10.28 + 10.29~10.31 → 10.26~10.31)
+    const merged = mergeConsecutive(
+      leaves.filter((l) => ids.has(l.member_id)).map((l) => ({ key: l.member_id, start: l.start_date, end: l.end_date, planned: l.planned === true })),
+    );
+    const rows = merged
+      .map((l) => ({ member_id: l.key as number, start_date: l.start, end_date: l.end, planned: l.planned, m: byId.get(l.key as number)! }))
       .sort((a, b) => a.start_date.localeCompare(b.start_date) || byRankName(a.m, b.m));
     return { sq, ms, rows, peak: peakOverlap(rows.map((r) => ({ start: r.start_date, end: r.end_date }))) };
   });

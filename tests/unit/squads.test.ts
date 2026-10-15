@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { dotsRange, effectiveSquad, peakOverlap, pickFirstBoarding, spansOverlap } from "../../src/lib/squads";
+import { mergeConsecutive, dotsRange, effectiveSquad, peakOverlap, pickFirstBoarding, spansOverlap } from "../../src/lib/squads";
 const mk = (id: number, cohort: number | null) => ({ id, cohort });
 // 높은 기수(작은 숫자)부터 9명
 const people = [mk(1, 877), mk(2, 866), mk(3, 870), mk(4, null), ...Array.from({ length: 10 }, (_, i) => mk(10 + i, 880 + i))];
@@ -25,4 +25,15 @@ assert.ok(spansOverlap({ start: "2026-08-12", end: "2026-08-16" }, { start: "202
 assert.ok(!spansOverlap({ start: "2026-08-12", end: "2026-08-15" }, { start: "2026-08-16", end: "2026-08-20" }));
 assert.deepStrictEqual(peakOverlap([{ start: "2026-08-12", end: "2026-08-16" }, { start: "2026-08-14", end: "2026-08-18" }, { start: "2026-08-20", end: "2026-08-21" }]), { date: "2026-08-14", count: 2 });
 assert.strictEqual(dotsRange("2026-08-12", "2026-08-16"), "8.12~8.16"); assert.strictEqual(dotsRange("2026-08-12", "2026-08-12"), "8.12");
+const m = mergeConsecutive([
+  { key: 1, start: "2026-10-29", end: "2026-10-31", planned: false },
+  { key: 1, start: "2026-10-26", end: "2026-10-28", planned: false },
+  { key: 1, start: "2026-11-09", end: "2026-11-13", planned: false }, // 떨어진 날짜는 따로
+  { key: 2, start: "2026-10-27", end: "2026-10-28", planned: false }, // 다른 사람은 합치지 않음
+  { key: 1, start: "2026-11-14", end: "2026-11-15", planned: true }, // 희망(계획)은 확정과 합치지 않음
+  { key: 1, start: "2026-10-30", end: "2026-11-02", planned: false }, // 겹치는 것도 합침
+]);
+assert.deepStrictEqual(m.filter((x) => x.key === 1 && !x.planned).map((x) => `${x.start}~${x.end}`), ["2026-10-26~2026-11-02", "2026-11-09~2026-11-13"]);
+assert.strictEqual(m.filter((x) => x.key === 2).length, 1); assert.strictEqual(m.filter((x) => x.planned).length, 1);
+console.log("✔ 이어지는·겹치는 휴가 합치기 (사람별, 희망/확정 구분, 떨어진 날짜는 따로)");
 console.log("✔ 휴가 겹침(경계일 포함), 가장 많이 겹친 날, 8.12~8.16 표기"); console.log("ALL OK");

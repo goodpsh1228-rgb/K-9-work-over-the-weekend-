@@ -6,6 +6,7 @@
 //   - 휴가 TO: 같은 반 사람끼리 휴가 기간이 겹치는지 계산
 // ─────────────────────────────────────────────────────────────
 import { createHash } from "node:crypto";
+import { addDays } from "./kst";
 
 export const SQUADS = ["미용반", "진료반", "훈련반", "관리반", "분만반"] as const;
 export type Squad = (typeof SQUADS)[number];
@@ -36,6 +37,20 @@ export const spansOverlap = (a: LeaveSpan, b: LeaveSpan) => a.start <= b.end && 
 // 날짜 표시 "8.12" (월.일)
 export const dots = (date: string) => `${Number(date.slice(5, 7))}.${Number(date.slice(8, 10))}`;
 export const dotsRange = (s: string, e: string) => (s === e ? dots(s) : `${dots(s)}~${dots(e)}`);
+
+// 같은 사람의 이어지는(하루 차이로 붙거나 겹치는) 휴가를 하나로 합침. 예) 10.26~10.28 + 10.29~10.31 → 10.26~10.31
+//   휴가 희망(계획)과 확정 휴가는 서로 합치지 않음. 결과는 시작일 순.
+export function mergeConsecutive<T extends { key: number | string; start: string; end: string; planned: boolean }>(items: T[]): T[] {
+  const sorted = [...items].sort((a, b) => a.start.localeCompare(b.start));
+  const out: T[] = [];
+  for (const it of sorted) {
+    const prev = [...out].reverse().find((o) => o.key === it.key && o.planned === it.planned);
+    if (prev && it.start <= addDays(prev.end, 1)) {
+      if (it.end > prev.end) prev.end = it.end;
+    } else out.push({ ...it });
+  }
+  return out;
+}
 
 // 하루하루 겹친 인원이 가장 많은 날과 그 인원 수 (반별 휴가 TO 확인용)
 export function peakOverlap(spans: LeaveSpan[]): { date: string; count: number } | null {

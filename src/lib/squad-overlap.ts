@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────
 import { getSupabaseAdmin } from "./supabase-server";
 import { LEAVE_KINDS } from "./leave";
-import { effectiveSquad, spansOverlap, type Squad } from "./squads";
+import { effectiveSquad, mergeConsecutive, spansOverlap, type Squad } from "./squads";
 import { todayKST } from "./kst";
 
 export type MateLeave = { id: number; name: string; rank: string | null; start: string; end: string; planned: boolean };
@@ -24,9 +24,17 @@ export async function getSquadmateLeaves(meId: number): Promise<{ squad: Squad |
   const fullKinds = LEAVE_KINDS.filter((k) => k.isLeave).map((k) => k.value);
   let lv = await db.from("leaves").select("member_id, start_date, end_date, planned").in("member_id", [...mates.keys()]).in("kind", fullKinds).gte("end_date", todayKST());
   if (lv.error) lv = (await db.from("leaves").select("member_id, start_date, end_date").in("member_id", [...mates.keys()]).in("kind", fullKinds).gte("end_date", todayKST())) as typeof lv;
-  const leaves = ((lv.data ?? []) as { member_id: number; start_date: string; end_date: string; planned?: boolean }[]).map((l) => {
-    const m = mates.get(l.member_id)!;
-    return { id: m.id, name: m.name, rank: m.rank, start: l.start_date, end: l.end_date, planned: l.planned === true };
+  // 같은 사람의 이어지는 휴가는 하나로 합쳐 보여 줌
+  const leaves = mergeConsecutive(
+    ((lv.data ?? []) as { member_id: number; start_date: string; end_date: string; planned?: boolean }[]).map((l) => ({
+      key: l.member_id,
+      start: l.start_date,
+      end: l.end_date,
+      planned: l.planned === true,
+    })),
+  ).map((l) => {
+    const m = mates.get(l.key as number)!;
+    return { id: m.id, name: m.name, rank: m.rank, start: l.start, end: l.end, planned: l.planned };
   });
   return { squad, leaves, supported: true };
 }
