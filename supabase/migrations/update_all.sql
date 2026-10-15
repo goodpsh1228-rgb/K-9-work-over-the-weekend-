@@ -67,7 +67,7 @@ values ('주말 운전', 'driver', 1, 15)
 on conflict (name) do nothing;
 alter table absences drop constraint if exists absences_kind_check;
 alter table absences add constraint absences_kind_check
-  check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused'));
+  check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused', 'training', 'duty_off', 'work_off', 'outpatient'));
 
 -- ── 0007: 주말 운전 따로 ──
 -- ② 주말 운전 희망
@@ -118,7 +118,7 @@ comment on table leaves is '휴가 계산기 기록 (위로·정기·포상·공
 -- ── 0011: 관리자 제외 ──
 alter table absences drop constraint if exists absences_kind_check;
 alter table absences add constraint absences_kind_check
-  check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused'));
+  check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused', 'training', 'duty_off', 'work_off', 'outpatient'));
 
 -- ── 0012: 계급 수동 변경 ──
 alter table members add column if not exists rank_manual_on date;
@@ -126,3 +126,6 @@ alter table members add column if not exists rank_manual_on date;
 
 -- ── 0013: 휴가 계획 (실제 휴가와 구분) ──
 alter table leaves add column if not exists planned boolean not null default false;
+
+-- ── 0014: 라인업 불참 사유 + 상세 ──
+alter table absences add column if not exists detail text check (detail is null or length(detail) <= 100);

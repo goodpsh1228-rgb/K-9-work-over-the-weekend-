@@ -19,6 +19,7 @@ import { getMyStates, type MyState } from "@/lib/day-board";
 import { STATUS_LABEL, votingStatus, votingWindow } from "@/lib/voting";
 import { getFridayChecker } from "@/lib/duty-days-server";
 import { runPendingDrawsSafely } from "@/lib/draw-server";
+import { getLineup } from "@/lib/lineup";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 
 export default async function HomePage({ searchParams }: PageProps<"/home">) {
@@ -56,6 +57,8 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
     db.from("posts").select("id, name"),
   ]);
   const now = new Date();
+  const todayLineup = await getLineup(todayKST()); // 오늘 라인업 요약 (출근·불참 인원 수)
+  const todayAbsent = new Set(todayLineup.absent.map((a) => a.id)).size;
   // 입대일을 넣었는지 (넣었으면 계급 자동) — SQL 0009 전이면 칸이 없어 오류 → 입력 안 한 것으로
   const { data: svc } = await db
     .from("members")
@@ -141,7 +144,18 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         </div>
       )}
 
-      {/* 남은 시간 카드 (어두운 단색 타일) */}
+      {msg && (
+        <div className="mt-3">
+          <Notice kind="success">{msg}</Notice>
+        </div>
+      )}
+      {error && (
+        <div className="mt-3">
+          <Notice kind="error">{error}</Notice>
+        </div>
+      )}
+
+      {/* 핵심 ①: 투표 마감까지 남은 시간 (어두운 단색 타일) */}
       <div className="mt-4">
         <CountdownCard
           title={countdown.title}
@@ -150,42 +164,23 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         />
       </div>
 
-      {/* 휴가·부상·외출/면회·전역 면제 입력 — 맨 위에 바로 입력 */}
-      <Card className="mt-4 p-4">
-        <p className="mb-2 text-sm font-semibold">
-          휴가·부상·외출 등 제외 입력
-        </p>
-        {msg && (
-          <div className="mb-2">
-            <Notice kind="success">{msg}</Notice>
-          </div>
-        )}
-        {error && (
-          <div className="mb-2">
-            <Notice kind="error">{error}</Notice>
-          </div>
-        )}
-        <AbsenceForm action={addAbsenceAction} back="/home" />
-        <Link
-          href="/absences"
-          className="mt-2 block text-right text-sm text-zinc-500 underline"
-        >
-          내 기록 보기·삭제
+      {/* 핵심 ②: 큰 버튼 둘 — 오늘 라인업 / 불참·휴가 입력 */}
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <Link href="/lineup" data-press className="flex min-h-[112px] flex-col justify-between rounded-[18px] bg-blue-600 p-4 text-white">
+          <span className="text-lg font-black">오늘 라인업</span>
+          <span className="text-sm">
+            출근 {todayLineup.isDutyDay && !todayLineup.drawn ? "-" : todayLineup.presentCount}명 ·{" "}
+            <b className={todayAbsent ? "rounded bg-orange-400 px-1.5 py-0.5 text-black" : ""}>불참 {todayAbsent}명</b>
+          </span>
         </Link>
-        {/* 안내: 휴가 계산기에 적은 휴가·외출·면회도 여기로 보낼 수 있음 */}
-        <p className="mt-3 rounded-[11px] bg-background p-3 text-sm text-foreground/80">
-          {" "}
-          <Link href="/leave" className="text-link underline">
-            휴가 계산기
-          </Link>
-          에 입력한 휴가·외출·면회도 기록마다{" "}
-          <b>&quot;주말출근 제외로 보내기&quot;</b>를 누르면 여기와 똑같이
-          추첨에서 제외됩니다.
-        </p>
-      </Card>
+        <Link href="/absences" data-press className="flex min-h-[112px] flex-col justify-between rounded-[18px] border-2 border-blue-600 bg-card p-4 text-link">
+          <span className="text-lg font-black">불참·휴가 입력</span>
+          <span className="text-sm text-foreground/70">휴가·교육·당직오프·근무오프·외진</span>
+        </Link>
+      </div>
 
       {/* 다가오는 근무일 목록 (다음 주 일요일까지): 한 장의 카드 안에 줄마다 한 날짜. 누르면 투표 화면으로 */}
-      <h2 className="mt-10 mb-3 text-[28px] leading-[1.14] font-semibold tracking-[-0.02em]">
+      <h2 className="mt-8 mb-3 text-[28px] leading-[1.14] font-display font-black tracking-[-0.02em]">
         다가오는 근무일
       </h2>
       {days.length === 0 ? (
@@ -251,22 +246,33 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         </Card>
       )}
 
-      {/* 메뉴: 한 장의 카드 안에 줄마다 하나, 오른쪽에 › */}
-      <Card className="mt-6 divide-y divide-hairline overflow-hidden">
-        {me.is_admin && <MenuLink href="/admin">관리자 메뉴</MenuLink>}
-        <MenuLink href="/stats">출근 기록·통계</MenuLink>
-        <MenuLink href="/change-password">비밀번호 변경</MenuLink>
-      </Card>
-
-      {/* 로그아웃 버튼: 누르면 서버 액션이 쿠키를 지우고 로그인 화면으로 보냅니다 */}
-      <form action={logoutAction} className="mt-8">
-        <button
-          type="submit"
-          className="h-12 w-full rounded-full border border-blue-600 px-[22px] text-base font-normal text-link"
-        >
-          로그아웃
-        </button>
-      </form>
+      {/* 부가 기능(덜 쓰는 것)은 작게: 빠른 불참 입력 · 통계 · 비밀번호 · 로그아웃 */}
+      <details className="mt-10 text-sm text-muted">
+        <summary className="cursor-pointer py-2">빠른 불참 입력 (홈에서 바로)</summary>
+        <Card className="mt-2 p-4">
+          <AbsenceForm action={addAbsenceAction} back="/home" />
+          <p className="mt-3 text-xs text-muted">
+            <Link href="/leave" className="text-link underline">
+              휴가 계산기
+            </Link>
+            에 입력한 휴가·외출·면회는 기록마다 &quot;주말출근 제외로 보내기&quot;를 누르면 똑같이 추첨에서 제외됩니다.
+          </p>
+        </Card>
+      </details>
+      <nav className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
+        {me.is_admin && (
+          <Link href="/admin" className="font-semibold text-foreground">
+            관리자 메뉴
+          </Link>
+        )}
+        <Link href="/stats">출근 기록·통계</Link>
+        <Link href="/change-password">비밀번호 변경</Link>
+        <form action={logoutAction} className="ml-auto">
+          <button type="submit" className="text-muted underline">
+            로그아웃
+          </button>
+        </form>
+      </nav>
     </Page>
   );
 }
@@ -308,24 +314,4 @@ function StateBadge({
   if (state.kind === "excluded") return <Chip tone="gray">제외</Chip>;
   if (status === "open") return <Chip tone="orange">미응답</Chip>;
   return null;
-}
-
-function MenuLink({
-  href,
-  children,
-}: {
-  href: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex min-h-12 items-center justify-between px-5 py-3 text-base"
-    >
-      {children}
-      <span aria-hidden className="text-muted">
-        ›
-      </span>
-    </Link>
-  );
 }

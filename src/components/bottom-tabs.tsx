@@ -1,7 +1,7 @@
 "use client";
 // ─────────────────────────────────────────────────────────────
 // 화면 아래 고정 탭 — 애플식 반투명 유리(frosted) 바
-//   주말출근 투표 (홈·근무일·관리자 화면)  /  휴가 계산기
+//   주말출근 투표 (홈·근무일·관리자 화면)  /  라인업  /  휴가 계산기
 //   배경은 흰색 80% + 흐림 효과, 윗선은 가는 테두리, 그림자 없음.
 //   로그인·비밀번호 변경·점검 화면에서는 보이지 않습니다.
 // ─────────────────────────────────────────────────────────────
@@ -29,10 +29,20 @@ function CalendarIcon() {
   );
 }
 
+function LineupIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="4" y="4" width="16" height="16" rx="2.5" />
+      <path d="M8 9h8M8 13h8M8 17h5" />
+    </svg>
+  );
+}
+
 export function BottomTabs() {
   const path = usePathname();
   if (path === "/" || HIDDEN.some((h) => path.startsWith(h))) return null;
   const onLeave = path.startsWith("/leave");
+  const onLineup = path.startsWith("/lineup");
   const tab = (active: boolean) =>
     `flex flex-1 flex-col items-center gap-0.5 pt-2 pb-1.5 text-xs ${active ? "font-semibold text-link" : "font-normal text-muted"}`;
   return (
@@ -41,9 +51,13 @@ export function BottomTabs() {
       <div aria-hidden className="h-24" />
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-hairline bg-card/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl backdrop-saturate-150">
         <div className="mx-auto flex max-w-md">
-          <Link href="/home" data-press className={tab(!onLeave)} aria-current={!onLeave ? "page" : undefined}>
+          <Link href="/home" data-press className={tab(!onLeave && !onLineup)} aria-current={!onLeave && !onLineup ? "page" : undefined}>
             <BallotIcon />
             주말출근 투표
+          </Link>
+          <Link href="/lineup" data-press className={tab(onLineup)} aria-current={onLineup ? "page" : undefined}>
+            <LineupIcon />
+            라인업
           </Link>
           <Link href="/leave" data-press className={tab(onLeave)} aria-current={onLeave ? "page" : undefined}>
             <CalendarIcon />

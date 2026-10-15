@@ -25,7 +25,7 @@ export default async function AbsencesPage({ searchParams }: PageProps<"/absence
   const db = getSupabaseAdmin();
   let query = db
     .from("absences")
-    .select("id, member_id, kind, start_date, end_date, created_by")
+    .select("id, member_id, kind, start_date, end_date, created_by, detail")
     .gte("end_date", addDays(today, -30))
     .order("start_date");
   if (!me.is_admin) query = query.eq("member_id", me.id);
@@ -36,7 +36,7 @@ export default async function AbsencesPage({ searchParams }: PageProps<"/absence
   const nameOf = new Map((members ?? []).map((m) => [m.id as number, m.name as string]));
 
   return (
-    <Page title="휴가·부상·외출 등 제외 입력">
+    <Page title="불참·제외 입력">
       <div className="space-y-3">
         {msg && <Notice kind="success">{msg}</Notice>}
         {error && <Notice kind="error">{error}</Notice>}
@@ -66,6 +66,7 @@ export default async function AbsencesPage({ searchParams }: PageProps<"/absence
                   {KIND_LABEL[r.kind]}
                 </span>{" "}
                 {formatShort(r.start_date)} ~ {formatShort(r.end_date)}
+                {r.detail && <span className="ml-1 text-xs text-zinc-500">· {r.detail}</span>}
                 {r.created_by !== r.member_id && (
                   <span className="ml-1 text-xs text-zinc-500">(입력: {nameOf.get(r.created_by)})</span>
                 )}

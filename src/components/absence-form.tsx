@@ -7,7 +7,7 @@
 // 실제 저장과 규칙 확인은 서버 액션(addAbsenceAction)이 합니다.
 // ─────────────────────────────────────────────────────────────
 import { useState } from "react";
-import { ABSENCE_KINDS, dischargeRange } from "@/lib/absence-kinds";
+import { ABSENCE_KINDS, dischargeRange, takesDetail } from "@/lib/absence-kinds";
 import { formatShort } from "@/lib/kst";
 
 const inputClass =
@@ -18,11 +18,13 @@ export function AbsenceForm({
   back,
   members,
   myId,
+  defaultDate,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   back?: string; // 저장 후 돌아갈 화면 ("/home" 이면 홈으로)
   members?: { id: number; name: string }[]; // 관리자만: 대신 입력할 사람 목록
   myId?: number;
+  defaultDate?: string; // 시작일·종료일 칸에 미리 넣을 날짜 (라인업 화면에서 보던 날짜)
 }) {
   const [kind, setKind] = useState<string>("leave");
   const [discharge, setDischarge] = useState("");
@@ -43,16 +45,16 @@ export function AbsenceForm({
       )}
 
       {/* 종류 선택 */}
-      <div className="grid grid-cols-2 gap-2 text-sm">
+      <div className="grid grid-cols-3 gap-1.5 text-sm">
         {ABSENCE_KINDS.map((k) => (
           <label
             key={k.value}
-            className={`flex min-h-11 cursor-pointer items-center justify-center rounded-full bg-card px-2 text-center ${
+            className={`flex min-h-11 cursor-pointer items-center justify-center rounded-full bg-card px-1 text-center text-[13px] leading-tight ${
               kind === k.value ? "border-2 border-blue-500 font-semibold" : "m-px border border-hairline"
             }`}
           >
             <input type="radio" name="kind" value={k.value} checked={kind === k.value} onChange={() => setKind(k.value)} className="sr-only" />
-            {k.label}
+            {k.value === "discharge" ? "전역 면제" : k.label}
           </label>
         ))}
       </div>
@@ -79,9 +81,18 @@ export function AbsenceForm({
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
-          <input type="date" name="start_date" required aria-label="시작일" className={`${inputClass} px-3! text-sm!`} />
-          <input type="date" name="end_date" required aria-label="종료일" className={`${inputClass} px-3! text-sm!`} />
+          <input type="date" name="start_date" required defaultValue={defaultDate} aria-label="시작일" className={`${inputClass} px-3! text-sm!`} />
+          <input type="date" name="end_date" required defaultValue={defaultDate} aria-label="종료일" className={`${inputClass} px-3! text-sm!`} />
         </div>
+      )}
+      {/* 상세 내용 (선택): 교육 이름, 외진 병원 등 — 라인업에 같이 보입니다 */}
+      {takesDetail(kind) && (
+        <input
+          name="detail"
+          maxLength={100}
+          placeholder={kind === "training" ? "교육 내용 (예: 보수교육)" : kind === "outpatient" ? "외진 내용 (예: 정형외과)" : "상세 내용 (선택)"}
+          className={inputClass}
+        />
       )}
 
       <button type="submit" className="w-full min-h-11 rounded-full bg-blue-600 px-4 py-2 text-base font-normal text-white">
