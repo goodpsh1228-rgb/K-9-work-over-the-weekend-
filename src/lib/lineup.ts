@@ -10,8 +10,9 @@
 import { getSupabaseAdmin } from "./supabase-server";
 import { getDutyDays } from "./duty-days-server";
 import { isLineupAbsent, LINEUP_ABSENT_KINDS } from "./absence-kinds";
+import { BOARDING_COUNT, pickFirstBoarding } from "./squads";
 
-export type LineupPerson = { id: number; name: string; rank: string | null; tag?: string };
+export type LineupPerson = { id: number; name: string; rank: string | null; cohort: number | null; tag?: string };
 export type LineupAbsent = LineupPerson & { kind: string; detail: string | null; start: string; end: string };
 export type Lineup = {
   isDutyDay: boolean;
@@ -22,6 +23,9 @@ export type Lineup = {
   byPost: { post: string; people: LineupPerson[] }[]; // 출근자 자리별 (주말·공휴일, 추첨 후)
   presentCount: number;
   detailSupported: boolean;
+  boarding: LineupPerson[]; // 1차탑승: 그날 출근자 중 높은 기수 9명 (기수 순)
+  boardingSupported: boolean; // 기수 칸(SQL 0015)이 있는지
+  noCohort: number; // 출근자 중 기수를 아직 입력하지 않은 사람 수
 };
 
 export const RANK_ORDER = ["병장", "상병", "일병", "이병"];
@@ -38,14 +42,25 @@ export async function getLineup(date: string): Promise<Lineup> {
     detailSupported = false;
     abs = (await db.from("absences").select("member_id, kind, start_date, end_date").lte("start_date", date).gte("end_date", date)) as typeof abs;
   }
-  const [dutyDays, { data: members }, { data: draw }, { data: assigns }, { data: posts }] = await Promise.all([
+  // 기수 칸(SQL 0015)이 아직 없으면 기수 없이 읽음
+  let boardingSupported = true;
+  let mem = await db.from("members").select("id, name, rank, cohort").eq("is_active", true);
+  if (mem.error) {
+    boardingSupported = false;
+    mem = (await db.from("members").select("id, name, rank").eq("is_active", true)) as typeof mem;
+  }
+  const [dutyDays, { data: draw }, { data: assigns }, { data: posts }] = await Promise.all([
     getDutyDays(date, date),
-    db.from("members").select("id, name, rank").eq("is_active", true),
     db.from("draws").select("duty_date").eq("duty_date", date).maybeSingle(),
     db.from("assignments").select("member_id, post_id").eq("duty_date", date),
     db.from("posts").select("id, name, sort_order").order("sort_order"),
   ]);
-  const person = new Map((members ?? []).map((m) => [m.id as number, { id: m.id as number, name: m.name as string, rank: (m.rank as string | null) ?? null }]));
+  const person = new Map(
+    (mem.data ?? []).map((m) => [
+      m.id as number,
+      { id: m.id as number, name: m.name as string, rank: (m.rank as string | null) ?? null, cohort: ((m as { cohort?: number | null }).cohort ?? null) as number | null },
+    ]),
+  );
   const rows = (abs.data ?? []) as { member_id: number; kind: string; detail?: string | null; start_date: string; end_date: string }[];
 
   const absent: LineupAbsent[] = [];
@@ -65,7 +80,7 @@ export async function getLineup(date: string): Promise<Lineup> {
 
   const isDutyDay = dutyDays.length > 0;
   const drawn = Boolean(draw);
-  const withTag = (p: { id: number; name: string; rank: string | null }): LineupPerson => ({ ...p, tag: tagOf.get(p.id) });
+  const withTag = (p: { id: number; name: string; rank: string | null; cohort: number | null }): LineupPerson => ({ ...p, tag: tagOf.get(p.id) });
 
   let present: LineupPerson[] = [];
   const byPost: Lineup["byPost"] = [];
@@ -87,7 +102,11 @@ export async function getLineup(date: string): Promise<Lineup> {
     }
   }
   const presentCount = isDutyDay ? new Set((assigns ?? []).map((a) => a.member_id)).size : present.length;
-  return { isDutyDay, dutyLabel: dutyDays[0]?.label ?? null, drawn, absent, present, byPost, presentCount, detailSupported };
+  // 그날 출근자 전체(주말·공휴일은 여러 자리에 걸친 사람을 한 번만) 중 1차탑승 선정
+  const everyone = isDutyDay ? [...new Map(byPost.flatMap((g) => g.people).map((p) => [p.id, p])).values()] : present;
+  const boarding = boardingSupported ? pickFirstBoarding(everyone, date, BOARDING_COUNT).sort((a, b) => (a.cohort ?? 0) - (b.cohort ?? 0) || a.name.localeCompare(b.name, "ko")) : [];
+  const noCohort = everyone.filter((p) => p.cohort === null).length;
+  return { isDutyDay, dutyLabel: dutyDays[0]?.label ?? null, drawn, absent, present, byPost, presentCount, detailSupported, boarding, boardingSupported, noCohort };
 }
 
 // 카카오톡·수기 입력용 글
@@ -101,6 +120,10 @@ export function lineupText(date: string, shortDate: string, l: Lineup): string {
     if (!list.length) continue;
     lines.push(`${KIND_TEXT[kind]} (${list.length})`);
     for (const a of list) lines.push(`- ${nm(a)}${a.detail ? ` (${a.detail})` : ""}`);
+  }
+  if (l.boarding.length) {
+    lines.push(`■ 1차탑승 (${l.boarding.length}명)`);
+    for (const p of l.boarding) lines.push(`- ${p.cohort}기 ${nm(p)}`);
   }
   lines.push("■ 출근");
   if (l.isDutyDay) {

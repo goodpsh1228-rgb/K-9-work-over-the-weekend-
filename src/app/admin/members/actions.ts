@@ -160,6 +160,9 @@ export async function setClinicAction(formData: FormData) {
   const m = await loadMember(id);
   if (!m) back("error", "인원을 찾을 수 없습니다.");
   await getSupabaseAdmin().from("members").update({ is_clinic: value }).eq("id", id);
+  // 반(진료반)과 같은 뜻이라 함께 맞춤: 켜면 반이 비어 있을 때 진료반으로, 끄면 진료반이었을 때 비움 (SQL 0015 전이면 조용히 넘어감)
+  if (value) await getSupabaseAdmin().from("members").update({ squad: "진료반" }).eq("id", id).is("squad", null);
+  else await getSupabaseAdmin().from("members").update({ squad: null }).eq("id", id).eq("squad", "진료반");
   await writeAudit({ actorId: me.id, action: "member.clinic", targetMemberId: id, details: { name: m.name, from: m.is_clinic, to: value } });
   backTo(page, "msg", value ? "진료반으로 바꿨습니다. (진료실 추첨에만 들어갑니다)" : "진료반에서 뺐습니다. (일반 추첨에 들어갑니다)");
 }

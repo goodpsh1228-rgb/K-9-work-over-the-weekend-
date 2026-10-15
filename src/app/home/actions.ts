@@ -10,6 +10,7 @@ import { requireMember } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { RANKS } from "@/lib/voting";
 import { setRankManually } from "@/lib/service-sync";
+import { getSupabaseAdmin } from "@/lib/supabase-server";
 
 export async function updateMyRankAction(formData: FormData) {
   const me = await requireMember();
@@ -23,4 +24,20 @@ export async function updateMyRankAction(formData: FormData) {
   }
   revalidatePath("/home");
   redirect(`/home?msg=${encodeURIComponent(`계급을 ${rank}(으)로 저장했습니다.`)}`);
+}
+
+// 내 기수 입력·수정 (본인). 숫자가 작을수록 높은 기수(866기 > 877기). 비우면 기수 삭제.
+export async function updateMyCohortAction(formData: FormData) {
+  const me = await requireMember();
+  const raw = String(formData.get("cohort") ?? "").trim();
+  const cohort = raw === "" ? null : Number(raw);
+  if (cohort !== null && (!Number.isInteger(cohort) || cohort < 1 || cohort > 9999)) {
+    redirect(`/home?error=${encodeURIComponent("기수는 1~9999 사이 숫자로 입력해 주세요.")}`);
+  }
+  const { error } = await getSupabaseAdmin().from("members").update({ cohort }).eq("id", me.id);
+  if (error) redirect(`/home?error=${encodeURIComponent("기수 기능용 SQL(0015)을 관리자가 먼저 실행해야 합니다.")}`);
+  await writeAudit({ actorId: me.id, action: "member.cohort_self", targetMemberId: me.id, details: { name: me.name, to: cohort } });
+  revalidatePath("/home");
+  revalidatePath("/lineup");
+  redirect(`/home?msg=${encodeURIComponent(cohort === null ? "기수를 지웠습니다." : `기수를 ${cohort}기로 저장했습니다.`)}`);
 }

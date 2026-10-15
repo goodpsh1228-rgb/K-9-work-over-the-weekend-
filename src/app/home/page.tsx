@@ -11,7 +11,8 @@ import { getDutyDays, homeRange } from "@/lib/duty-days-server";
 import { addAbsenceAction } from "@/app/absences/actions";
 import { AbsenceForm } from "@/components/absence-form";
 import { MyRankSelect } from "@/components/my-rank-select";
-import { updateMyRankAction } from "./actions";
+import { updateMyCohortAction, updateMyRankAction } from "./actions";
+import { effectiveSquad } from "@/lib/squads";
 import { Card, Notice } from "@/components/ui";
 import { CountdownCard } from "@/components/countdown-card";
 import { addDays, formatShort, kstMoment, mondayOf, todayKST } from "@/lib/kst";
@@ -66,6 +67,11 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
     .eq("id", me.id)
     .maybeSingle();
   const enlisted = Boolean(svc?.enlist_date);
+  // 내 기수·반 (SQL 0015 전이면 칸이 없어 오류 → 기능 숨김)
+  const { data: extra, error: extraErr } = await db.from("members").select("cohort, squad, is_clinic").eq("id", me.id).maybeSingle();
+  const cohortReady = !extraErr;
+  const myCohort = (extra?.cohort as number | null | undefined) ?? null;
+  const mySquad = extra ? effectiveSquad(extra.squad as string | null, Boolean(extra.is_clinic)) : null;
   const myStatus = (date: string) =>
     votingStatus(date, fridayIsDuty(date), now, me.rank); // 내 계급 기준
   const overall = (date: string) => votingStatus(date, fridayIsDuty(date), now); // 투표 전체 기준
@@ -125,8 +131,26 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
       <div className="-mt-3 flex flex-wrap items-center gap-2 text-sm">
         <MyRankSelect action={updateMyRankAction} current={me.rank} />
         {enlisted && <span className="text-xs text-muted">자동 진급 중</span>}
+        {cohortReady && (
+          <form action={updateMyCohortAction} className="inline-flex items-center gap-1">
+            <input
+              name="cohort"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={9999}
+              defaultValue={myCohort ?? ""}
+              placeholder="기수"
+              aria-label="내 기수"
+              className={`h-8 w-[72px] rounded-full border bg-card px-3 text-sm ${myCohort === null ? "border-orange-400" : "border-hairline"}`}
+            />
+            <button type="submit" className="h-8 rounded-full border border-blue-600 px-3 text-xs font-semibold text-link">
+              {myCohort === null ? "기수 저장" : "저장"}
+            </button>
+          </form>
+        )}
+        {mySquad && <Chip tone="gray">{mySquad}</Chip>}
         {me.is_admin && <Chip tone="blue">관리자</Chip>}
-        {me.is_clinic && <Chip tone="gray">진료반</Chip>}
         {me.is_driver && <Chip tone="gray">운전병</Chip>}
       </div>
 

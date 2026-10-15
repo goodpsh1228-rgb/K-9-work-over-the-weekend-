@@ -14,6 +14,8 @@ const LABELS: Record<string, string> = {
   "member.rank_self": "계급 변경(본인)",
   "member.rank_auto": "계급 자동 진급",
   "member.clinic": "진료반 변경",
+  "member.cohort_self": "기수 변경(본인)",
+  "member.squad_cohort": "반·기수 변경",
   "post.update": "동 설정 변경",
   "post.add": "동 추가",
   "post.deactivate": "동 사용 중지",
@@ -56,6 +58,10 @@ export function detailText(action: string, d: Record<string, unknown>): string {
     case "member.rank_self":
     case "member.rank_auto":
       return `${s(d.name)}: ${s(d.from ?? "미지정")} → ${s(d.to ?? "미지정")}`;
+    case "member.cohort_self":
+      return `${s(d.name)}: ${d.to === null || d.to === undefined ? "기수 삭제" : `${s(d.to)}기`}`;
+    case "member.squad_cohort":
+      return `${s(d.name)}: 반 ${s(d.squad_from ?? "-")} → ${s(d.squad ?? "-")}, 기수 ${s(d.cohort_from ?? "-")} → ${s(d.cohort ?? "-")}`;
     case "member.clinic":
       return `${s(d.name)}: ${d.to ? "진료반으로" : "진료반 해제"}`;
     case "post.update": {

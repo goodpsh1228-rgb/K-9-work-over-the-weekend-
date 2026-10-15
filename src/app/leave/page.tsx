@@ -30,6 +30,8 @@ import {
   shiftMonth,
   SUBKINDS,
 } from "@/lib/leave";
+import { dotsRange } from "@/lib/squads";
+import { getSquadmateLeaves, overlapsWith } from "@/lib/squad-overlap";
 import { addLeaveAction, confirmPlanAction, deleteLeaveAction, saveServiceDatesAction, sendLeaveAction, unsendLeaveAction } from "./actions";
 import { LeaveForm } from "./leave-form";
 
@@ -104,6 +106,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
   const inMonth = all.filter((l) => l.start_date <= monthEnd && l.end_date >= `${month}-01`);
   const onDay = (d: string) => inMonth.filter((l) => l.start_date <= d && d <= l.end_date);
   const [y, m] = month.split("-").map(Number);
+  const mates = await getSquadmateLeaves(me.id); // 같은 반 사람들의 휴가·계획 (겹침 확인용)
   const monthLeaves = inMonth.filter((l) => !l.planned);
   const monthPlans = inMonth.filter((l) => l.planned);
   const period = (l: Leave) => (l.start_date === l.end_date ? formatShort(l.start_date) : `${formatShort(l.start_date)} ~ ${formatShort(l.end_date)}`);
@@ -360,6 +363,13 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                         </ConfirmButton>
                       </form>
                     </div>
+                    {/* 같은 반에서 나와 휴가가 겹치는 사람 */}
+                    {isFullLeave(l.kind) && mates.squad && (
+                      <SquadOverlap squad={mates.squad} hits={overlapsWith({ start: l.start_date, end: l.end_date }, mates.leaves)} />
+                    )}
+                    {isFullLeave(l.kind) && !mates.squad && mates.supported && (
+                      <p className="mt-2 text-xs text-muted">반이 지정되면 같은 반 사람과 휴가가 겹치는지 보여 드려요. (관리자가 반을 지정합니다)</p>
+                    )}
                     <form action={confirmPlanAction} className="mt-2">
                       <input type="hidden" name="id" value={l.id} />
                       <input type="hidden" name="month" value={month} />
@@ -406,5 +416,25 @@ function DatesForm({ enlist, discharge, month }: { enlist: string | null; discha
         저장
       </button>
     </form>
+  );
+}
+
+// 같은 반 휴가 겹침 표시: 겹치면 주황색 경고 + 누구·몇 명, 없으면 초록 안내
+function SquadOverlap({ squad, hits }: { squad: string; hits: { id: number; name: string; rank: string | null; start: string; end: string; planned: boolean }[] }) {
+  const people = new Set(hits.map((h) => h.id)).size;
+  if (hits.length === 0) return <p className="mt-2 text-xs font-semibold text-green-700 dark:text-green-400">✓ {squad}에서 겹치는 사람 없음</p>;
+  return (
+    <div className="mt-2 rounded-[11px] bg-orange-50 p-2.5 text-sm text-orange-900 dark:bg-orange-950 dark:text-orange-100">
+      <p className="font-bold">
+        ⚠️ {squad} {people}명과 휴가가 겹칩니다
+      </p>
+      <ul className="mt-1 space-y-0.5 text-xs">
+        {hits.map((h, i) => (
+          <li key={i}>
+            {h.rank ?? ""} <b>{h.name}</b> {dotsRange(h.start, h.end)} {h.planned ? "휴가 희망" : "휴가"}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

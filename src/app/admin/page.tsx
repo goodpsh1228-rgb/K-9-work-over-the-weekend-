@@ -22,6 +22,7 @@ const GROUPS: { title: string; items: [string, string, string][] }[] = [
     title: "인원",
     items: [
       ["/admin/members", "인원 관리 · 삭제", "계급, 진료반, 비밀번호 초기화, 관리자 지정, 비활성화·삭제"],
+      ["/admin/squads", "반·기수 · 반별 휴가 TO", "인원별 반(미용·진료·훈련·관리·분만)과 기수 지정, 반별 휴가 희망 인원·명단 확인"],
       ["/admin/members/import", "인원 일괄 등록", "엑셀/CSV 목록으로 한 번에 등록"],
       ["/absences", "휴가·부상 (전체)", "모든 인원의 휴가·부상 기록 보기, 대신 입력·삭제"],
     ],

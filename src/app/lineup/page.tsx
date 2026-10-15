@@ -27,6 +27,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
 
   const l = await getLineup(date);
   const absentCount = new Set(l.absent.map((a) => a.id)).size;
+  const first = new Set(l.boarding.map((p) => p.id)); // 1차탑승 표시용
   const text = lineupText(date, formatShort(date), l);
   const { data: members } = me.is_admin
     ? await getSupabaseAdmin().from("members").select("id, name").eq("is_active", true).order("name")
@@ -140,6 +141,34 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
         <CopyButton text={text} label="라인업 글 복사" />
       </div>
 
+      {/* 1차탑승 — 그날 출근자 중 높은 기수 9명 */}
+      {l.boardingSupported && (l.isDutyDay ? l.drawn : true) && (
+        <>
+          <h2 className="mt-8 mb-2 flex items-baseline justify-between text-xl font-black tracking-[-0.02em]">
+            <span>1차탑승 {l.boarding.length}명</span>
+            <span className="text-xs font-normal text-muted">그날 출근자 중 높은 기수 순</span>
+          </h2>
+          {l.boarding.length === 0 ? (
+            <Notice kind="warn">기수가 입력된 출근자가 없습니다. 홈에서 각자 기수를 입력해 주세요.</Notice>
+          ) : (
+            <Card className="overflow-hidden border-2 border-blue-600">
+              <ul className="divide-y divide-hairline">
+                {l.boarding.map((p, i) => (
+                  <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">{i + 1}</span>
+                    <span className="flex-1 text-base">
+                      <b>{p.rank ? `${p.rank} ` : ""}{p.name}</b>
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums text-link">{p.cohort}기</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+          {l.noCohort > 0 && <p className="mt-2 text-xs text-muted">출근자 중 기수 미입력 {l.noCohort}명은 1차탑승 선정에서 빠집니다. 같은 기수가 9명 컷에 걸리면 날짜마다 정해진 무작위로 뽑습니다.</p>}
+        </>
+      )}
+
       {/* ③ 출근자 */}
       <h2 className="mt-8 mb-2 text-xl font-black tracking-[-0.02em]">
         출근 {l.isDutyDay && !l.drawn ? "" : `${l.presentCount}명`}
@@ -153,7 +182,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
                 <p className="mb-1.5 text-sm font-semibold text-muted">
                   {g.post} ({g.people.length}명)
                 </p>
-                <Names people={g.people} />
+                <Names people={g.people} first={first} />
               </div>
             ))}
           </Card>
@@ -170,7 +199,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
                 <p className="mb-1.5 text-sm font-semibold text-muted">
                   {rank ?? "계급 미지정"} ({list.length}명)
                 </p>
-                <Names people={list} />
+                <Names people={list} first={first} />
               </div>
             );
           })}
@@ -195,12 +224,13 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
   );
 }
 
-function Names({ people }: { people: LineupPerson[] }) {
+function Names({ people, first }: { people: LineupPerson[]; first: Set<number> }) {
   return (
     <p className="flex flex-wrap gap-x-3 gap-y-1 text-base">
       {people.map((p) => (
         <span key={p.id}>
           {p.name}
+          {first.has(p.id) && <span className="ml-1 rounded bg-blue-600 px-1 text-[10px] font-bold text-white">1차</span>}
           {p.tag && <span className="ml-0.5 text-xs text-muted">({p.tag})</span>}
         </span>
       ))}

@@ -129,3 +129,8 @@ alter table leaves add column if not exists planned boolean not null default fal
 
 -- ── 0014: 라인업 불참 사유 + 상세 ──
 alter table absences add column if not exists detail text check (detail is null or length(detail) <= 100);
+
+-- ── 0015: 기수·반 ──
+alter table members add column if not exists cohort integer check (cohort is null or cohort between 1 and 9999);
+alter table members add column if not exists squad text check (squad is null or squad in ('미용반', '진료반', '훈련반', '관리반', '분만반'));
+update members set squad = '진료반' where is_clinic and squad is null;

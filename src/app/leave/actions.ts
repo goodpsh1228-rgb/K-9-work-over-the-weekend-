@@ -15,6 +15,8 @@ import { writeAudit } from "@/lib/audit";
 import { addDays, formatShort, isValidDate, todayKST } from "@/lib/kst";
 import { defaultDischarge, rankOn } from "@/lib/promotion";
 import { syncServiceStatusSafely } from "@/lib/service-sync";
+import { dotsRange } from "@/lib/squads";
+import { getSquadmateLeaves, overlapsWith } from "@/lib/squad-overlap";
 import { isFullLeave, isLeaveKind, isValidMonth, isValidSubkind, LEAVE_LABEL } from "@/lib/leave";
 
 const SQL_HINT = "휴가 계산기용 SQL(0009)을 관리자가 먼저 실행해야 합니다.";
@@ -119,7 +121,21 @@ export async function addLeaveAction(formData: FormData) {
 
   formData.set("month", start.slice(0, 7)); // 저장한 기록이 있는 달로 달력 이동
   const period = start === end ? formatShort(start) : `${formatShort(start)} ~ ${formatShort(end)}`;
-  if (planned) back(formData, "msg", `${LEAVE_LABEL[kind]} ${period} 계획을 저장했습니다. (실제 휴가가 아니라 사용 현황·주말출근 추첨에는 반영되지 않습니다)`);
+  if (planned) {
+    // 같은 반에서 나와 휴가가 겹치는 사람 알려 주기 (휴가 종류만)
+    let overlapMsg = "";
+    if (isFullLeave(kind)) {
+      const sq = await getSquadmateLeaves(me.id);
+      if (sq.squad) {
+        const hit = overlapsWith({ start, end }, sq.leaves);
+        const who = [...new Set(hit.map((h) => h.name))];
+        overlapMsg = hit.length
+          ? ` ⚠️ ${sq.squad}에서 ${who.length}명과 겹칩니다: ${hit.map((h) => `${h.rank ?? ""} ${h.name} ${dotsRange(h.start, h.end)}`.trim()).join(", ")}`
+          : ` ${sq.squad}에서 겹치는 사람은 없습니다.`;
+      }
+    }
+    back(formData, "msg", `${LEAVE_LABEL[kind]} ${period} 계획을 저장했습니다.${overlapMsg} (실제 휴가가 아니라 사용 현황·주말출근 추첨에는 반영되지 않습니다)`);
+  }
   let extra = "";
   if (send) {
     const r = await sendToDraw(me.id, leave);
