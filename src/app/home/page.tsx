@@ -58,7 +58,8 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
     db.from("posts").select("id, name"),
   ]);
   const now = new Date();
-  const todayLineup = await getLineup(todayKST()); // 오늘 라인업 요약 (출근·불참 인원 수)
+  const lineupDate = addDays(todayKST(), 1); // 홈에는 내일 라인업을 보여 줌 (전날 미리 확인·수기 입력용)
+  const todayLineup = await getLineup(lineupDate); // 내일 라인업 요약 (출근·불참 인원 수, 1차탑승)
   const todayAbsent = new Set(todayLineup.absent.map((a) => a.id)).size;
   // 입대일을 넣었는지 (넣었으면 계급 자동) — SQL 0009 전이면 칸이 없어 오류 → 입력 안 한 것으로
   const { data: svc } = await db
@@ -181,10 +182,12 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         </div>
       )}
 
-      {/* 핵심 ①: 오늘 라인업 — 출근·불참 인원 + 오늘의 1차탑승 명단 */}
-      <Link href="/lineup" data-press className="mt-4 block rounded-[18px] bg-blue-600 p-4 text-white">
+      {/* 핵심 ①: 내일 라인업 — 출근·불참 인원 + 내일의 1차탑승 명단 */}
+      <Link href={`/lineup?date=${lineupDate}`} data-press className="mt-4 block rounded-[18px] bg-blue-600 p-4 text-white">
         <div className="flex items-center justify-between">
-          <span className="text-xl font-black">오늘 라인업</span>
+          <span className="text-xl font-black">
+            내일 라인업 <span className="text-base font-semibold text-white/80">{formatShort(lineupDate)}</span>
+          </span>
           <span aria-hidden className="text-xl">›</span>
         </div>
         <p className="mt-1 text-base">

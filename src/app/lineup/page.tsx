@@ -21,7 +21,8 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
   const me = await requireMember();
   const sp = await searchParams;
   const today = todayKST();
-  const date = typeof sp.date === "string" && isValidDate(sp.date) ? sp.date : today;
+  const tomorrow = addDays(today, 1); // 날짜를 고르지 않으면 내일 라인업 (전날 미리 확인·수기 입력용)
+  const date = typeof sp.date === "string" && isValidDate(sp.date) ? sp.date : tomorrow;
   const msg = typeof sp.msg === "string" ? sp.msg : null;
   const error = typeof sp.error === "string" ? sp.error : null;
 
@@ -68,8 +69,13 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
           이동
         </button>
         {date !== today && (
-          <Link href="/lineup" className="flex h-10 items-center rounded-full bg-blue-600 px-4 text-sm font-semibold text-white">
+          <Link href={`/lineup?date=${today}`} className="flex h-10 items-center rounded-full border border-blue-600 px-4 text-sm font-semibold text-link">
             오늘
+          </Link>
+        )}
+        {date !== tomorrow && (
+          <Link href="/lineup" className="flex h-10 items-center rounded-full bg-blue-600 px-4 text-sm font-semibold text-white">
+            내일
           </Link>
         )}
       </form>
