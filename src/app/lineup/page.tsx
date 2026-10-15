@@ -171,6 +171,22 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
               </ul>
             </Card>
           )}
+          {l.reserve.length > 0 && (
+            <Card className="mt-2 overflow-hidden">
+              <p className="bg-hairline/40 px-4 py-1.5 text-xs font-bold text-muted">예비 {l.reserve.length}명 (탑승자가 빠질 때 순서대로)</p>
+              <ul className="divide-y divide-hairline">
+                {l.reserve.map((p, i) => (
+                  <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-blue-600 text-[11px] font-bold text-link">예{i + 1}</span>
+                    <span className="flex-1 text-base">
+                      <b>{p.rank ? `${p.rank} ` : ""}{p.name}</b>
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums text-muted">{p.cohort}기</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
           {l.noCohort > 0 && <p className="mt-2 text-xs text-muted">출근자 중 기수 미입력 {l.noCohort}명은 1차탑승 선정에서 빠집니다. 같은 기수가 9명 컷에 걸리면 날짜마다 정해진 무작위로 뽑습니다.</p>}
         </>
       )}

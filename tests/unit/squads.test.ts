@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { mergeConsecutive, dotsRange, effectiveSquad, peakOverlap, pickFirstBoarding, spansOverlap } from "../../src/lib/squads";
+import { pickBoardingWithReserve, mergeConsecutive, dotsRange, effectiveSquad, peakOverlap, pickFirstBoarding, spansOverlap } from "../../src/lib/squads";
 const mk = (id: number, cohort: number | null) => ({ id, cohort });
 // 높은 기수(작은 숫자)부터 9명
 const people = [mk(1, 877), mk(2, 866), mk(3, 870), mk(4, null), ...Array.from({ length: 10 }, (_, i) => mk(10 + i, 880 + i))];
@@ -35,5 +35,11 @@ const m = mergeConsecutive([
 ]);
 assert.deepStrictEqual(m.filter((x) => x.key === 1 && !x.planned).map((x) => `${x.start}~${x.end}`), ["2026-10-26~2026-11-02", "2026-11-09~2026-11-13"]);
 assert.strictEqual(m.filter((x) => x.key === 2).length, 1); assert.strictEqual(m.filter((x) => x.planned).length, 1);
+const br = pickBoardingWithReserve(people, "2026-10-07");
+assert.strictEqual(br.boarding.length, 9); assert.strictEqual(br.reserve.length, 2);
+assert.deepStrictEqual(br.boarding.map((p) => p.id), pickFirstBoarding(people, "2026-10-07").map((p) => p.id)); // 탑승 9명은 예비를 넣어도 그대로
+assert.ok(br.reserve.every((p) => p.cohort !== null && p.cohort >= Math.max(...br.boarding.map((b) => b.cohort!)))); // 예비는 탑승자 다음 순위
+assert.strictEqual(pickBoardingWithReserve([mk(1, 5), mk(2, 6), mk(3, 7)], "x").reserve.length, 0); // 9명 미만이면 예비 없음
+console.log("✔ 1차탑승 9명 + 예비 2명(다음 순위), 탑승 명단은 예비와 무관하게 동일");
 console.log("✔ 이어지는·겹치는 휴가 합치기 (사람별, 희망/확정 구분, 떨어진 날짜는 따로)");
 console.log("✔ 휴가 겹침(경계일 포함), 가장 많이 겹친 날, 8.12~8.16 표기"); console.log("ALL OK");

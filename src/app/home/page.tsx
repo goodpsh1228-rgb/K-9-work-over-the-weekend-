@@ -210,6 +210,16 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
                 {todayLineup.isDutyDay && !todayLineup.drawn ? "추첨이 끝나면 표시됩니다." : "기수를 입력한 출근자가 없습니다."}
               </p>
             )}
+            {todayLineup.reserve.length > 0 && (
+              <p className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">
+                <b>예비</b>
+                {todayLineup.reserve.map((p, i) => (
+                  <span key={p.id} className="rounded-full border border-white/60 px-2.5 py-0.5">
+                    {i + 1}. {p.name}
+                  </span>
+                ))}
+              </p>
+            )}
           </div>
         )}
       </Link>

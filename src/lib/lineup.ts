@@ -10,7 +10,7 @@
 import { getSupabaseAdmin } from "./supabase-server";
 import { getDutyDays } from "./duty-days-server";
 import { isLineupAbsent, LINEUP_ABSENT_KINDS } from "./absence-kinds";
-import { BOARDING_COUNT, pickFirstBoarding } from "./squads";
+import { pickBoardingWithReserve } from "./squads";
 
 export type LineupPerson = { id: number; name: string; rank: string | null; cohort: number | null; tag?: string };
 export type LineupAbsent = LineupPerson & { kind: string; detail: string | null; start: string; end: string };
@@ -24,6 +24,7 @@ export type Lineup = {
   presentCount: number;
   detailSupported: boolean;
   boarding: LineupPerson[]; // 1차탑승: 그날 출근자 중 높은 기수 9명 (기수 순)
+  reserve: LineupPerson[]; // 1차탑승 예비 2명 (다음 순위)
   boardingSupported: boolean; // 기수 칸(SQL 0015)이 있는지
   noCohort: number; // 출근자 중 기수를 아직 입력하지 않은 사람 수
 };
@@ -104,9 +105,12 @@ export async function getLineup(date: string): Promise<Lineup> {
   const presentCount = isDutyDay ? new Set((assigns ?? []).map((a) => a.member_id)).size : present.length;
   // 그날 출근자 전체(주말·공휴일은 여러 자리에 걸친 사람을 한 번만) 중 1차탑승 선정
   const everyone = isDutyDay ? [...new Map(byPost.flatMap((g) => g.people).map((p) => [p.id, p])).values()] : present;
-  const boarding = boardingSupported ? pickFirstBoarding(everyone, date, BOARDING_COUNT).sort((a, b) => (a.cohort ?? 0) - (b.cohort ?? 0) || a.name.localeCompare(b.name, "ko")) : [];
+  const picked = boardingSupported ? pickBoardingWithReserve(everyone, date) : { boarding: [], reserve: [] };
+  const byCohort = (a: LineupPerson, b: LineupPerson) => (a.cohort ?? 0) - (b.cohort ?? 0) || a.name.localeCompare(b.name, "ko");
+  const boarding = [...picked.boarding].sort(byCohort);
+  const reserve = [...picked.reserve].sort(byCohort);
   const noCohort = everyone.filter((p) => p.cohort === null).length;
-  return { isDutyDay, dutyLabel: dutyDays[0]?.label ?? null, drawn, absent, present, byPost, presentCount, detailSupported, boarding, boardingSupported, noCohort };
+  return { isDutyDay, dutyLabel: dutyDays[0]?.label ?? null, drawn, absent, present, byPost, presentCount, detailSupported, boarding, reserve, boardingSupported, noCohort };
 }
 
 // 카카오톡·수기 입력용 글
@@ -124,6 +128,10 @@ export function lineupText(date: string, shortDate: string, l: Lineup): string {
   if (l.boarding.length) {
     lines.push(`■ 1차탑승 (${l.boarding.length}명)`);
     for (const p of l.boarding) lines.push(`- ${p.cohort}기 ${nm(p)}`);
+  }
+  if (l.reserve.length) {
+    lines.push(`■ 1차탑승 예비 (${l.reserve.length}명)`);
+    for (const p of l.reserve) lines.push(`- ${p.cohort}기 ${nm(p)}`);
   }
   lines.push("■ 출근");
   if (l.isDutyDay) {

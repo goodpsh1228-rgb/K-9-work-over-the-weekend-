@@ -16,6 +16,7 @@ export const effectiveSquad = (squad: string | null | undefined, isClinic: boole
   squad && isSquad(squad) ? squad : isClinic ? "진료반" : null;
 
 export const BOARDING_COUNT = 9;
+export const RESERVE_COUNT = 2; // 1차탑승 예비 인원 (다음 순위 2명)
 
 // 같은 날짜·같은 사람이면 항상 같은 값 (새로고침해도 뽑힌 사람이 바뀌지 않게) — 무작위처럼 고르게 퍼진 숫자
 function stableRandom(seed: string, id: number): number {
@@ -28,6 +29,12 @@ export function pickFirstBoarding<T extends { id: number; cohort: number | null 
   const withCohort = people.filter((p): p is T & { cohort: number } => p.cohort !== null);
   const sorted = [...withCohort].sort((a, b) => a.cohort - b.cohort || stableRandom(seed, a.id) - stableRandom(seed, b.id));
   return sorted.slice(0, n);
+}
+
+// 1차탑승 9명 + 예비 2명: 같은 순서(높은 기수 → 같은 기수는 고정 무작위)에서 1~9등이 탑승, 10~11등이 예비
+export function pickBoardingWithReserve<T extends { id: number; cohort: number | null }>(people: T[], seed: string) {
+  const ranked = pickFirstBoarding(people, seed, BOARDING_COUNT + RESERVE_COUNT);
+  return { boarding: ranked.slice(0, BOARDING_COUNT), reserve: ranked.slice(BOARDING_COUNT) };
 }
 
 export type LeaveSpan = { start: string; end: string };
