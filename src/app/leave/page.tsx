@@ -135,47 +135,64 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
           <div className="mt-4">
             <ServiceProgress enlist={enlist} discharge={discharge} dDay={daysBetween(today, discharge)} />
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-y-4 text-center">
-            <Stat n={stats.total} label="전체 복무일" />
-            <Stat n={stats.served} label="현재 복무일" />
-            <Stat n={stats.remaining} label="남은 복무일" />
-            <Stat n={workLeft ?? 0} label="실제 남은 출근일" strong />
-            <Stat n={nextLeave ? `D-${daysBetween(today, nextLeave.start_date)}` : "-"} label="다음 휴가" />
-            <Stat
-              n={leaves.filter((l) => isFullLeave(l.kind) && l.end_date >= today).reduce((s, l) => s + leaveDays(l), 0)}
-              label="예정 휴가일"
-            />
-          </div>
-          <p className="mt-2 text-center text-xs text-zinc-500">실제 남은 출근일 = 오늘~전역 전날 중 주말·공휴일·실제 휴가를 뺀 평일 수</p>
-          {workLeftWithPlans !== null && (
-            <p className="mt-1 text-center text-xs text-link">계획한 휴가까지 모두 쓰면 실제 남은 출근일 {workLeftWithPlans}일</p>
-          )}
-          {/* 진급 일정 (매월 1일 자동 진급) — 평소엔 접어 둠 */}
+          {/* 복무 정보 한 배너: 복무일 숫자 · 진급 일정 · 입대일·전역일 수정을 모두 이 안에 — 평소엔 접어 두고 요약만 */}
           <details className="mt-4 rounded-[18px] border border-hairline bg-card p-4">
-            <summary className="flex cursor-pointer list-none items-baseline justify-between">
-              <span className="font-semibold">진급 일정</span>
-              <span className="text-sm font-semibold text-link">
-                {next ? `${next.rank} 진급 D-${daysBetween(today, next.date)}` : "진급 완료"} ▾
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+              <span className="font-semibold">복무 정보</span>
+              <span className="text-right text-sm leading-5">
+                <span className="block">
+                  <span className="text-muted">실제 남은 출근일</span> <b className="text-link">{workLeft ?? 0}일</b>
+                </span>
+                <span className="block text-xs text-muted">
+                  {next ? `${next.rank} 진급 D-${daysBetween(today, next.date)}` : "진급 완료"} ▾
+                </span>
               </span>
             </summary>
-            <ul className="mt-3 grid grid-cols-4 text-center text-sm">
-              {(["일병", "상병", "병장"] as const).map((r) => (
-                <li key={r} className={promos[r] <= today ? "text-zinc-400" : ""}>
-                  <p className="font-semibold">{r}</p>
-                  <p className="tabular-nums">{formatShort(promos[r])}</p>
-                  {promos[r] <= today && <p className="text-xs">✓</p>}
+
+            {/* 복무일 숫자 */}
+            <div className="mt-4 grid grid-cols-3 gap-y-4 text-center">
+              <Stat n={stats.total} label="전체 복무일" />
+              <Stat n={stats.served} label="현재 복무일" />
+              <Stat n={stats.remaining} label="남은 복무일" />
+              <Stat n={workLeft ?? 0} label="실제 남은 출근일" strong />
+              <Stat n={nextLeave ? `D-${daysBetween(today, nextLeave.start_date)}` : "-"} label="다음 휴가" />
+              <Stat
+                n={leaves.filter((l) => isFullLeave(l.kind) && l.end_date >= today).reduce((s, l) => s + leaveDays(l), 0)}
+                label="예정 휴가일"
+              />
+            </div>
+            <p className="mt-2 text-center text-xs text-zinc-500">실제 남은 출근일 = 오늘~전역 전날 중 주말·공휴일·실제 휴가를 뺀 평일 수</p>
+            {workLeftWithPlans !== null && (
+              <p className="mt-1 text-center text-xs text-link">계획한 휴가까지 모두 쓰면 실제 남은 출근일 {workLeftWithPlans}일</p>
+            )}
+
+            {/* 진급 일정 (매월 1일 자동 진급) */}
+            <div className="mt-4 border-t border-hairline pt-4">
+              <div className="flex items-baseline justify-between">
+                <p className="font-semibold">진급 일정</p>
+                <p className="text-sm font-semibold text-link">{next ? `${next.rank} 진급 D-${daysBetween(today, next.date)}` : "진급 완료"}</p>
+              </div>
+              <ul className="mt-3 grid grid-cols-4 text-center text-sm">
+                {(["일병", "상병", "병장"] as const).map((r) => (
+                  <li key={r} className={promos[r] <= today ? "text-zinc-400" : ""}>
+                    <p className="font-semibold">{r}</p>
+                    <p className="tabular-nums">{formatShort(promos[r])}</p>
+                    {promos[r] <= today && <p className="text-xs">✓</p>}
+                  </li>
+                ))}
+                <li>
+                  <p className="font-semibold">전역</p>
+                  <p className="tabular-nums">{formatShort(discharge)}</p>
                 </li>
-              ))}
-              <li>
-                <p className="font-semibold">전역</p>
-                <p className="tabular-nums">{formatShort(discharge)}</p>
-              </li>
-            </ul>
-            <p className="mt-2 text-xs text-zinc-500">계급은 입대일 기준으로 매월 1일 자동 진급됩니다(홈에서 직접 바꾸면 다음 진급일까지 유지). 전역일이 되면 자동으로 비활성화됩니다.</p>
-          </details>
-          <details className="mt-3 text-sm">
-            <summary className="cursor-pointer text-zinc-500">입대일·전역일 수정</summary>
-            <DatesForm enlist={enlist} discharge={discharge} month={month} />
+              </ul>
+              <p className="mt-2 text-xs text-zinc-500">계급은 입대일 기준으로 매월 1일 자동 진급됩니다(홈에서 직접 바꾸면 다음 진급일까지 유지). 전역일이 되면 자동으로 비활성화됩니다.</p>
+            </div>
+
+            {/* 입대일·전역일 수정 */}
+            <div className="mt-4 border-t border-hairline pt-4">
+              <p className="font-semibold">입대일·전역일 수정</p>
+              <DatesForm enlist={enlist} discharge={discharge} month={month} />
+            </div>
           </details>
         </>
       ) : (
@@ -281,7 +298,12 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
       {!planSupported && <Notice kind="warn">휴가 계획 기능을 쓰려면 관리자가 추가 SQL(supabase/migrations/0013_leave_plan.sql)을 실행해야 합니다.</Notice>}
 
       {/* ④ 이 달 기록 */}
-      <h2 className="mt-6 mb-2 text-lg font-semibold">{m}월 기록</h2>
+      <details open={Boolean(msg || error)} className="mt-6">
+        <summary className="flex cursor-pointer list-none items-center justify-between rounded-[18px] border border-hairline bg-card px-4 py-3">
+          <span className="text-lg font-semibold">{m}월 기록</span>
+          <span className="text-sm text-muted">{monthLeaves.length}건 ▾</span>
+        </summary>
+        <div className="mt-2">
       {monthLeaves.length === 0 ? (
         <p className="text-sm text-zinc-500">이 달에 입력한 기록이 없습니다.</p>
       ) : (
@@ -327,11 +349,18 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
           ))}
         </ul>
       )}
+        </div>
+      </details>
 
       {/* ⑤ 이 달 계획 */}
       {planSupported && (
         <>
-          <h2 className="mt-6 mb-2 text-lg font-semibold">{m}월 계획</h2>
+          <details open={Boolean(msg || error)} className="mt-3">
+            <summary className="flex cursor-pointer list-none items-center justify-between rounded-[18px] border border-hairline bg-card px-4 py-3">
+              <span className="text-lg font-semibold">{m}월 계획</span>
+              <span className="text-sm text-muted">{monthPlans.length}건 ▾</span>
+            </summary>
+            <div className="mt-2">
           {monthPlans.length === 0 ? (
             <p className="text-sm text-zinc-500">이 달에 세운 계획이 없습니다.</p>
           ) : (
@@ -374,6 +403,8 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
               ))}
             </ul>
           )}
+            </div>
+          </details>
         </>
       )}
     </Page>
