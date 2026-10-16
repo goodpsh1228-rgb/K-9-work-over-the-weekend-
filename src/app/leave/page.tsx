@@ -47,7 +47,7 @@ type Leave = {
 };
 
 const subLabel = (kind: string, sub: string | null) => SUBKINDS[kind]?.find((s) => s.value === sub)?.label;
-const inputClass = "h-12 w-full rounded-full border border-hairline bg-input px-4 text-base text-foreground outline-none focus:border-blue-500";
+const inputClass = "h-12 min-w-0 w-full rounded-full border border-hairline bg-input px-4 text-base text-foreground outline-none focus:border-blue-500";
 
 export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
   const me = await requireMember();
@@ -121,21 +121,28 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
       {/* ① 입대일·전역일 → 진행률 */}
       {stats && enlist && discharge && promos ? (
         <>
-          <div className="mt-3 flex items-center gap-3">
-            <div className="text-sm leading-6">
-              <p className="text-lg font-semibold">
-                {me.rank ? `${me.rank} ` : ""}
-                {me.name}
-              </p>
-              <p className="text-zinc-500">
-                입대 {enlist.replaceAll("-", ".")} · 전역 {discharge.replaceAll("-", ".")}
-              </p>
+          {/* 이름 + 입대·전역일. 오른쪽 작은 "수정"을 누르면 그 자리에서 날짜를 고칠 수 있음 (평소엔 거의 쓰지 않아 접어 둠) */}
+          <details className="mt-3">
+            <summary className="flex cursor-pointer list-none items-start justify-between gap-3">
+              <div className="text-sm leading-6">
+                <p className="text-lg font-semibold">
+                  {me.rank ? `${me.rank} ` : ""}
+                  {me.name}
+                </p>
+                <p className="text-zinc-500">
+                  입대 {enlist.replaceAll("-", ".")} · 전역 {discharge.replaceAll("-", ".")}
+                </p>
+              </div>
+              <span className="mt-1 shrink-0 rounded-full border border-hairline px-3 py-1 text-xs text-muted">수정</span>
+            </summary>
+            <div className="mt-2 rounded-[18px] border border-hairline bg-card p-3">
+              <DatesForm enlist={enlist} discharge={discharge} month={month} />
             </div>
-          </div>
+          </details>
           <div className="mt-4">
             <ServiceProgress enlist={enlist} discharge={discharge} dDay={daysBetween(today, discharge)} />
           </div>
-          {/* 복무 정보 한 배너: 복무일 숫자 · 진급 일정 · 입대일·전역일 수정을 모두 이 안에 — 평소엔 접어 두고 요약만 */}
+          {/* 복무 정보 한 배너: 복무일 숫자 · 진급 일정 — 평소엔 접어 두고 요약만 (입대일·전역일 수정은 위 날짜 줄의 "수정") */}
           <details className="mt-4 rounded-[18px] border border-hairline bg-card p-4">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
               <span className="font-semibold">복무 정보</span>
@@ -186,12 +193,6 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                 </li>
               </ul>
               <p className="mt-2 text-xs text-zinc-500">계급은 입대일 기준으로 매월 1일 자동 진급됩니다(홈에서 직접 바꾸면 다음 진급일까지 유지). 전역일이 되면 자동으로 비활성화됩니다.</p>
-            </div>
-
-            {/* 입대일·전역일 수정 */}
-            <div className="mt-4 border-t border-hairline pt-4">
-              <p className="font-semibold">입대일·전역일 수정</p>
-              <DatesForm enlist={enlist} discharge={discharge} month={month} />
             </div>
           </details>
         </>
@@ -455,11 +456,11 @@ function DatesForm({ enlist, discharge, month }: { enlist: string | null; discha
     <form action={saveServiceDatesAction} className="mt-3 space-y-2">
       <input type="hidden" name="month" value={month} />
       <div className="grid grid-cols-2 gap-2">
-        <label className="block text-xs text-zinc-500">
+        <label className="block min-w-0 text-xs text-zinc-500">
           입대일
           <input type="date" name="enlist_date" required defaultValue={enlist ?? ""} className={`${inputClass} px-3! text-sm!`} />
         </label>
-        <label className="block text-xs text-zinc-500">
+        <label className="block min-w-0 text-xs text-zinc-500">
           전역일 (비우면 자동)
           <input type="date" name="discharge_date" defaultValue={discharge ?? ""} className={`${inputClass} px-3! text-sm!`} />
         </label>
