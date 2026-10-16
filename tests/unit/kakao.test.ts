@@ -39,3 +39,18 @@ console.log(t2); console.log("✔ 계급별 (운전병 제외, 선탑 중복 없
 // 선탑 미지정 → "선탑: 미정"
 assert.ok(buildPostText("2026-10-01", posts, roster.filter(r => r.postId !== 9)).endsWith("선탑: 미정"));
 console.log("ALL OK");
+{
+  // 높은 기수(작은 숫자)부터 나열: 동별은 한 줄 안에서, 계급별은 계급으로 묶은 뒤 안에서
+  const ps = [{ id: 5, name: "훈련동", pool: "general", required: 3 }];
+  const rs = [
+    { postId: 5, name: "다나", rank: "병장", cohort: 877 },
+    { postId: 5, name: "가나", rank: "상병", cohort: 866 },
+    { postId: 5, name: "나나", rank: "병장", cohort: null },
+    { postId: 5, name: "라나", rank: "병장", cohort: 870 },
+  ];
+  const post = buildPostText("2026-10-17", ps, rs);
+  assert.match(post, /훈련동: 상병 가나, 병장 라나, 병장 다나, 병장 나나/);
+  const rank = buildRankText("2026-10-17", ps, rs);
+  assert.match(rank, /병장 : 라나, 다나, 나나/);
+  console.log("✔ 동별·계급별 명단: 높은 기수 순 (기수 없는 사람은 맨 뒤)");
+}

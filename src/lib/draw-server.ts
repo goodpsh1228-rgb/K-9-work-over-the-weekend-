@@ -100,15 +100,18 @@ export async function getDraw(date: string) {
     | null;
 }
 
-export type RosterEntry = { memberId: number; name: string; rank: string | null; postId: number; source: "wanted" | "drafted" | "admin" };
+export type RosterEntry = { memberId: number; name: string; rank: string | null; cohort?: number | null; postId: number; source: "wanted" | "drafted" | "admin" };
 
 // 확정 명단 (이름 포함)
 export async function getRoster(date: string): Promise<RosterEntry[]> {
   const db = getSupabaseAdmin();
-  const [{ data: rows }, { data: members }] = await Promise.all([
+  // 기수 칸(SQL 0015)이 아직 없으면 기수 없이 읽음
+  const [{ data: rows }, withCohort] = await Promise.all([
     db.from("assignments").select("member_id, post_id, source").eq("duty_date", date),
-    db.from("members").select("id, name, rank"),
+    db.from("members").select("id, name, rank, cohort"),
   ]);
+  const members = withCohort.error ? (await db.from("members").select("id, name, rank")).data : withCohort.data;
+  const cohortOf = new Map((members ?? []).map((m) => [m.id as number, ((m as { cohort?: number | null }).cohort ?? null) as number | null]));
   const nameOf = new Map((members ?? []).map((m) => [m.id as number, m.name as string]));
   const rankOf = new Map((members ?? []).map((m) => [m.id as number, (m.rank as string | null) ?? null]));
   return (rows ?? [])
@@ -116,10 +119,12 @@ export async function getRoster(date: string): Promise<RosterEntry[]> {
       memberId: r.member_id as number,
       name: nameOf.get(r.member_id) ?? "?",
       rank: rankOf.get(r.member_id) ?? null,
+      cohort: cohortOf.get(r.member_id) ?? null,
       postId: r.post_id as number,
       source: r.source as RosterEntry["source"],
     }))
-    .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    // 높은 기수(작은 숫자)부터, 기수가 같거나 없으면 가나다순
+    .sort((a, b) => (a.cohort ?? 99999) - (b.cohort ?? 99999) || a.name.localeCompare(b.name, "ko"));
 }
 
 // ─────────────────────────────────────────────────────────────

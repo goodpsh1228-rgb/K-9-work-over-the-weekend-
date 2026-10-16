@@ -15,7 +15,7 @@
 //   병장 : 이정우, 장민우, ...
 //   상병 : ...
 //
-// 한 줄 안의 이름은 계급 높은 순 → 가나다순입니다.
+// 한 줄 안의 이름은 높은 기수(작은 숫자) 순 → 계급 높은 순 → 가나다순입니다. (계급별 글은 계급으로 묶은 뒤 안에서 높은 기수 순)
 // ─────────────────────────────────────────────────────────────
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const RANK_ORDER = ["병장", "상병", "일병", "이병"];
@@ -26,14 +26,17 @@ const TEXT_ORDER = ["훈련동", "관리 1동", "관리 2동", "관리 3동", "�
 const TEXT_LABEL: Record<string, string> = { "주말 운전": "운전병" };
 
 export type TextPost = { id: number; name: string; pool: string; required: number };
-export type TextPerson = { postId: number; name: string; rank: string | null };
+export type TextPerson = { postId: number; name: string; rank: string | null; cohort?: number | null };
 
 function weekdayOf(date: string) {
   const [y, m, d] = date.split("-").map(Number);
   return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
 }
 const rankIndex = (r: string | null) => (r && RANK_ORDER.includes(r) ? RANK_ORDER.indexOf(r) : RANK_ORDER.length);
-const byRankThenName = (a: TextPerson, b: TextPerson) => rankIndex(a.rank) - rankIndex(b.rank) || a.name.localeCompare(b.name, "ko");
+const cohortKey = (p: TextPerson) => p.cohort ?? 99999; // 기수 없는 사람은 맨 뒤
+const byCohortRankName = (a: TextPerson, b: TextPerson) =>
+  cohortKey(a) - cohortKey(b) || rankIndex(a.rank) - rankIndex(b.rank) || a.name.localeCompare(b.name, "ko");
+const byCohortName = (a: TextPerson, b: TextPerson) => cohortKey(a) - cohortKey(b) || a.name.localeCompare(b.name, "ko");
 const withRank = (p: TextPerson) => (p.rank ? `${p.rank} ${p.name}` : p.name);
 
 function orderPosts(posts: TextPost[]): TextPost[] {
@@ -47,7 +50,7 @@ export function buildPostText(date: string, posts: TextPost[], roster: TextPerso
   const [, m, d] = date.split("-").map(Number);
   const lines = [`필승! ${m}/${d} (${weekdayOf(date)}) 출근 명단 입니다`];
   for (const p of orderPosts(posts)) {
-    const people = roster.filter((r) => r.postId === p.id).sort(byRankThenName);
+    const people = roster.filter((r) => r.postId === p.id).sort(byCohortRankName);
     if (p.required === 0 && people.length === 0) continue; // 그날 쓰지 않는 자리
     const label = TEXT_LABEL[p.name] ?? p.name;
     lines.push(`${label}: ${people.length ? people.map(withRank).join(", ") : "미정"}`);
@@ -65,8 +68,8 @@ export function buildRankText(date: string, posts: TextPost[], roster: TextPerso
   for (const rank of [...RANK_ORDER, null]) {
     const names = people
       .filter((p) => (rank === null ? rankIndex(p.rank) === RANK_ORDER.length : p.rank === rank))
-      .map((p) => p.name)
-      .sort((a, b) => a.localeCompare(b, "ko"));
+      .sort(byCohortName)
+      .map((p) => p.name);
     if (names.length) lines.push(`${rank ?? "계급 미지정"} : ${names.join(", ")}`);
   }
   return lines.join("\n");

@@ -144,7 +144,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                   <span className="text-muted">실제 남은 출근일</span> <b className="text-link">{workLeft ?? 0}일</b>
                 </span>
                 <span className="block text-xs text-muted">
-                  {next ? `${next.rank} 진급 D-${daysBetween(today, next.date)}` : "진급 완료"} ▾
+                  {next ? `${next.rank} 진급 D-${daysBetween(today, next.date)} ` : ""}▾
                 </span>
               </span>
             </summary>
@@ -170,7 +170,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
             <div className="mt-4 border-t border-hairline pt-4">
               <div className="flex items-baseline justify-between">
                 <p className="font-semibold">진급 일정</p>
-                <p className="text-sm font-semibold text-link">{next ? `${next.rank} 진급 D-${daysBetween(today, next.date)}` : "진급 완료"}</p>
+                {next && <p className="text-sm font-semibold text-link">{`${next.rank} 진급 D-${daysBetween(today, next.date)}`}</p>}
               </div>
               <ul className="mt-3 grid grid-cols-4 text-center text-sm">
                 {(["일병", "상병", "병장"] as const).map((r) => (
