@@ -110,41 +110,37 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
           <p className="p-4 text-sm text-muted">이 날 불참자가 없습니다.</p>
         ) : (
           <ul className="divide-y divide-hairline">
-            {l.absent.map((a) => (
-              <li
-                key={`${a.id}-${a.kind}-${a.start}`}
-                className={`flex items-start justify-between gap-2 border-l-4 px-4 py-3 ${
-                  a.isNew ? "border-rose-600 bg-rose-50 dark:bg-rose-950" : "border-transparent"
-                }`}
-              >
-                <div className="min-w-0">
-                  <p className="text-base">
+            {l.absent.map((a) => {
+              // 사유: "라인업 불참"은 직접 쓴 사유만, 나머지는 종류(+상세)
+              const reason = a.kind === "lineup" ? (a.detail ?? "불참") : `${KIND_LABEL[a.kind]}${a.detail ? `·${a.detail}` : ""}`;
+              const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+              return (
+                <li
+                  key={`${a.id}-${a.kind}-${a.start}`}
+                  className={`flex items-center gap-2 border-l-4 px-3 py-1.5 text-sm ${a.isNew ? "border-rose-600 bg-rose-50 dark:bg-rose-950" : "border-transparent"}`}
+                >
+                  <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted">{a.cohort ?? ""}</span>
+                  <span className="min-w-0 flex-1 truncate">
                     <b>
                       {a.rank ? `${a.rank} ` : ""}
                       {a.name}
                     </b>
-                    {a.cohort !== null && <span className="ml-1.5 text-xs text-muted">{a.cohort}기</span>}
-                    {a.isNew && <span className="ml-1.5 rounded bg-rose-600 px-1.5 py-0.5 text-[11px] font-bold text-white">신규</span>}
-                  </p>
-                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                    <span className="tabular-nums">
-                      {a.start === a.end ? formatShort(a.start) : `${formatShort(a.start)} ~ ${formatShort(a.end)}`}
-                    </span>
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${KIND_BADGE[a.kind]}`}>{KIND_LABEL[a.kind]}</span>
-                    {a.detail && <span className="text-foreground/80">{a.detail}</span>}
-                  </p>
-                </div>
-                {deletable.has(`${a.id}:${a.kind}`) && (
-                  <form action={deleteAbsenceAction}>
-                    <input type="hidden" name="id" value={deletable.get(`${a.id}:${a.kind}`)} />
-                    <input type="hidden" name="back" value={`/lineup?date=${date}`} />
-                    <button type="submit" className="shrink-0 text-xs text-red-600 underline">
-                      삭제
-                    </button>
-                  </form>
-                )}
-              </li>
-            ))}
+                    {a.isNew && <span className="ml-1 rounded bg-rose-600 px-1 py-0.5 text-[10px] font-bold text-white">신규</span>}
+                  </span>
+                  <span className="shrink-0 text-xs tabular-nums text-foreground/80">{a.start === a.end ? md(a.start) : `${md(a.start)}~${md(a.end)}`}</span>
+                  <span className={`max-w-[34%] shrink-0 truncate rounded-full px-2 py-0.5 text-xs font-bold ${KIND_BADGE[a.kind]}`}>{reason}</span>
+                  {deletable.has(`${a.id}:${a.kind}`) && (
+                    <form action={deleteAbsenceAction} className="shrink-0">
+                      <input type="hidden" name="id" value={deletable.get(`${a.id}:${a.kind}`)} />
+                      <input type="hidden" name="back" value={`/lineup?date=${date}`} />
+                      <button type="submit" aria-label={`${a.name} 불참 삭제`} className="px-1 text-xs text-red-600">
+                        ✕
+                      </button>
+                    </form>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </Card>
