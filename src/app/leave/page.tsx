@@ -133,9 +133,9 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                   입대 {enlist.replaceAll("-", ".")} · 전역 {discharge.replaceAll("-", ".")}
                 </p>
               </div>
-              <span className="mt-1 shrink-0 rounded-full border border-hairline px-3 py-1 text-xs text-muted">수정</span>
+              <span className="mt-1 shrink-0 text-[11px] text-muted underline">수정</span>
             </summary>
-            <div className="mt-2 rounded-[18px] border border-hairline bg-card p-3">
+            <div className="mt-2 rounded-[14px] border border-hairline bg-card p-2.5">
               <DatesForm enlist={enlist} discharge={discharge} month={month} />
             </div>
           </details>
@@ -453,20 +453,20 @@ function Stat({ n, label, strong }: { n: number | string; label: string; strong?
 
 function DatesForm({ enlist, discharge, month }: { enlist: string | null; discharge: string | null; month: string }) {
   return (
-    <form action={saveServiceDatesAction} className="mt-3 space-y-2">
+    <form action={saveServiceDatesAction} className="space-y-1.5">
       <input type="hidden" name="month" value={month} />
       <div className="grid grid-cols-2 gap-2">
         <label className="block min-w-0 text-xs text-zinc-500">
           입대일
-          <input type="date" name="enlist_date" required defaultValue={enlist ?? ""} className={`${inputClass} px-3! text-sm!`} />
+          <input type="date" name="enlist_date" required defaultValue={enlist ?? ""} className={`${inputClass} h-9! px-3! text-xs!`} />
         </label>
         <label className="block min-w-0 text-xs text-zinc-500">
           전역일 (비우면 자동)
-          <input type="date" name="discharge_date" defaultValue={discharge ?? ""} className={`${inputClass} px-3! text-sm!`} />
+          <input type="date" name="discharge_date" defaultValue={discharge ?? ""} className={`${inputClass} h-9! px-3! text-xs!`} />
         </label>
       </div>
-      <p className="text-xs text-zinc-500">전역일을 비워 두면 입대일 + 21개월 − 1일로 계산합니다. 계급은 입대일 기준으로 자동 진급됩니다.</p>
-      <button type="submit" className="h-12 w-full rounded-full bg-blue-600 font-normal text-white">
+      <p className="text-[11px] text-zinc-500">전역일을 비우면 입대일 + 21개월 − 1일로 자동 계산됩니다.</p>
+      <button type="submit" className="h-9 w-full rounded-full bg-blue-600 text-sm font-normal text-white">
         저장
       </button>
     </form>
