@@ -40,7 +40,7 @@ export function AbsenceForm({
   const isLineup = kind === "lineup";
 
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} className="flex flex-col gap-4">
       {back && <input type="hidden" name="back" value={back} />}
       {members && (
         <select name="member_id" defaultValue={myId} aria-label="누구" className={inputClass}>
@@ -53,30 +53,32 @@ export function AbsenceForm({
         </select>
       )}
 
-      {/* 종류: 크게 3칸 */}
-      <div className="grid grid-cols-3 gap-2">
-        {BIG.map((k) => (
-          <label
-            key={k.value}
-            className={`flex min-h-14 cursor-pointer items-center justify-center rounded-[18px] bg-card px-1 text-center text-base leading-tight font-bold ${
-              kind === k.value ? "border-2 border-blue-500 text-link" : "m-px border border-hairline"
-            }`}
-          >
-            <input type="radio" name="kind" value={k.value} checked={kind === k.value} onChange={() => setKind(k.value)} className="sr-only" />
-            {k.label}
-          </label>
-        ))}
+      {/* 종류: 크게 3칸 + 바로 아래 부상 (둘 사이 간격은 좁게, 아래 날짜와는 넉넉하게) */}
+      <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-3 gap-2">
+          {BIG.map((k) => (
+            <label
+              key={k.value}
+              className={`flex min-h-14 cursor-pointer items-center justify-center rounded-[18px] border-2 bg-card px-1 text-center text-base leading-tight font-bold ${
+                kind === k.value ? "border-blue-500 text-link" : "border-transparent ring-1 ring-hairline"
+              }`}
+            >
+              <input type="radio" name="kind" value={k.value} checked={kind === k.value} onChange={() => setKind(k.value)} className="sr-only" />
+              {k.label}
+            </label>
+          ))}
+        </div>
+        {/* 부상: 큰 3칸과 따로, 한 줄 전체 버튼 */}
+        <label
+          className={`flex min-h-12 cursor-pointer flex-col items-center justify-center rounded-[18px] border-2 bg-card px-3 text-center ${
+            kind === "injury" ? "border-blue-500 text-link" : "border-transparent ring-1 ring-hairline"
+          }`}
+        >
+          <input type="radio" name="kind" value="injury" checked={kind === "injury"} onChange={() => setKind("injury")} className="sr-only" />
+          <span className="text-base font-bold">부상</span>
+          <span className="text-xs text-muted">라인업엔 출근, 주말출근 추첨에서만 제외</span>
+        </label>
       </div>
-      {/* 부상: 큰 3칸과 따로, 한 줄 전체 버튼 */}
-      <label
-        className={`flex min-h-12 cursor-pointer flex-col items-center justify-center rounded-[18px] bg-card px-3 text-center ${
-          kind === "injury" ? "border-2 border-blue-500 text-link" : "m-px border border-hairline"
-        }`}
-      >
-        <input type="radio" name="kind" value="injury" checked={kind === "injury"} onChange={() => setKind("injury")} className="sr-only" />
-        <span className="text-base font-bold">부상</span>
-        <span className="text-xs text-muted">라인업엔 출근, 주말출근 추첨에서만 제외</span>
-      </label>
 
       {/* 기간: 달력에서 처음 누른 날 = 시작일, 나중에 누른 날 = 종료일 (하루만이면 한 번만) */}
       <DateRangePicker defaultDate={defaultDate} />
