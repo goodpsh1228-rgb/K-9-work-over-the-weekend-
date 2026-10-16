@@ -88,21 +88,21 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
           <p className="mt-1 text-sm text-white/70">출근</p>
         </div>
         <div className="border-l border-white/15 py-5">
-          <p className={`text-4xl font-black tabular-nums ${absentCount ? "text-orange-400" : ""}`}>{absentCount}</p>
+          <p className={`text-4xl font-black tabular-nums ${absentCount ? "text-[#2997ff]" : ""}`}>{absentCount}</p>
           <p className="mt-1 text-sm text-white/70">불참</p>
         </div>
       </div>
 
       {/* ② 불참자 — 가장 눈에 띄게. 높은 기수부터 한 줄씩(이름·기수 / 날짜·사유). 전날은 출근이었다가 이 날부터 새로 불참인 사람은 붉은색 */}
-      <Card className="mt-4 overflow-hidden border-2 border-orange-400">
-        <div className="bg-orange-400 px-4 py-2.5 text-black">
-          <div className="flex items-center justify-between">
+      <Card className="mt-4 overflow-hidden">
+        <div className="border-b border-hairline px-4 py-3">
+          <div className="flex items-baseline justify-between">
             <p className="text-lg font-black">불참 {absentCount}명</p>
-            <p className="text-xs font-semibold">높은 기수 순</p>
+            <p className="text-xs text-muted">높은 기수 순</p>
           </div>
           {newCount > 0 && (
-            <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold">
-              <span className="inline-block size-2.5 rounded-full bg-rose-600" /> 새로 불참 {newCount}명 (전날은 출근)
+            <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-link">
+              <span className="inline-block size-2.5 rounded-full bg-blue-600" /> 새로 불참 {newCount}명 (전날은 출근)
             </p>
           )}
         </div>
@@ -117,7 +117,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
               return (
                 <li
                   key={`${a.id}-${a.kind}-${a.start}`}
-                  className={`flex items-center gap-2 border-l-4 px-3 py-1.5 text-sm ${a.isNew ? "border-rose-600 bg-rose-50 dark:bg-rose-950" : "border-transparent"}`}
+                  className={`flex items-center gap-2 border-l-4 px-3 py-1.5 text-sm ${a.isNew ? "border-blue-600 bg-blue-50 dark:bg-blue-950" : "border-transparent"}`}
                 >
                   <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted">{a.cohort ?? ""}</span>
                   <span className="min-w-0 flex-1 truncate">
@@ -125,7 +125,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
                       {a.rank ? `${a.rank} ` : ""}
                       {a.name}
                     </b>
-                    {a.isNew && <span className="ml-1 rounded bg-rose-600 px-1 py-0.5 text-[10px] font-bold text-white">신규</span>}
+                    {a.isNew && <span className="ml-1 rounded bg-blue-600 px-1 py-0.5 text-[10px] font-bold text-white">신규</span>}
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-foreground/80">{a.start === a.end ? md(a.start) : `${md(a.start)}~${md(a.end)}`}</span>
                   <span className={`max-w-[34%] shrink-0 truncate rounded-full px-2 py-0.5 text-xs font-bold ${KIND_BADGE[a.kind]}`}>{reason}</span>
@@ -133,7 +133,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
                     <form action={deleteAbsenceAction} className="shrink-0">
                       <input type="hidden" name="id" value={deletable.get(`${a.id}:${a.kind}`)} />
                       <input type="hidden" name="back" value={`/lineup?date=${date}`} />
-                      <button type="submit" aria-label={`${a.name} 불참 삭제`} className="px-1 text-xs text-red-600">
+                      <button type="submit" aria-label={`${a.name} 불참 삭제`} className="px-1 text-xs text-muted">
                         ✕
                       </button>
                     </form>

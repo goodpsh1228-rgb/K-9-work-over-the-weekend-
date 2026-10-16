@@ -291,7 +291,7 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         <span className="font-semibold">라인업 파일 확인</span>
         <span className="text-sm text-muted">
           출근 {todayLineup.isDutyDay && !todayLineup.drawn ? "-" : todayLineup.presentCount}명 ·{" "}
-          <b className={todayAbsent ? "text-orange-600" : ""}>불참 {todayAbsent}명</b> ›
+          <b className={todayAbsent ? "text-link" : ""}>불참 {todayAbsent}명</b> ›
         </span>
       </Link>
 

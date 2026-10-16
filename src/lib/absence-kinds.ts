@@ -32,15 +32,10 @@ export const LINEUP_ABSENT_KINDS = ["leave", "training", "duty_off", "work_off",
 export const isLineupAbsent = (kind: string) => (LINEUP_ABSENT_KINDS as readonly string[]).includes(kind);
 // 상세 내용을 입력받는 종류 (전역 면제는 날짜만)
 export const takesDetail = (kind: string) => kind !== "discharge";
-// 라인업에서 불참 종류별 색 (한눈에 구분)
-export const KIND_BADGE: Record<string, string> = {
-  leave: "bg-blue-600 text-white",
-  training: "bg-purple-600 text-white",
-  duty_off: "bg-teal-600 text-white",
-  work_off: "bg-amber-500 text-black",
-  outpatient: "bg-rose-600 text-white",
-  lineup: "bg-zinc-700 text-white",
-};
+// 라인업 불참 사유 배지: 디자인 통일을 위해 모든 종류가 같은 회색 알약 (구분은 글자로)
+export const KIND_BADGE: Record<string, string> = Object.fromEntries(
+  ["leave", "training", "duty_off", "work_off", "outpatient", "lineup"].map((k) => [k, "bg-hairline/60 text-foreground"]),
+);
 
 export function isAbsenceKind(v: string): v is AbsenceKind {
   return ABSENCE_KINDS.some((k) => k.value === v);

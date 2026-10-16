@@ -62,7 +62,7 @@ export default async function LeaveToPage() {
               <div className="flex items-center justify-between bg-tile px-4 py-2.5 text-white">
                 <p className="font-black">{g.sq ?? "반 미지정"} <span className="text-sm font-normal text-white/70">({g.ms.length}명)</span></p>
                 <p className="text-sm">
-                  휴가 <b className={g.rows.length ? "text-orange-400" : ""}>{g.rows.length}건</b>
+                  휴가 <b className={g.rows.length ? "text-[#2997ff]" : ""}>{g.rows.length}건</b>
                   {g.peak && g.peak.count > 1 && <span className="ml-2 text-xs text-white/70">최대 겹침 {dotsRange(g.peak.date, g.peak.date)} {g.peak.count}명</span>}
                 </p>
               </div>
