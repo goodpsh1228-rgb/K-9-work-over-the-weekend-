@@ -8,12 +8,14 @@
 //   - 주말·공휴일에도 불참 기록이 있는 사람은 불참 목록에 보임(수기 입력 때 참고)
 // ─────────────────────────────────────────────────────────────
 import { getSupabaseAdmin } from "./supabase-server";
+import { addDays } from "./kst";
+import { dotsRange } from "./spans";
 import { getDutyDays } from "./duty-days-server";
-import { isLineupAbsent, LINEUP_ABSENT_KINDS } from "./absence-kinds";
+import { isLineupAbsent } from "./absence-kinds";
 import { pickBoardingWithReserve } from "./squads";
 
 export type LineupPerson = { id: number; name: string; rank: string | null; cohort: number | null; tag?: string };
-export type LineupAbsent = LineupPerson & { kind: string; detail: string | null; start: string; end: string };
+export type LineupAbsent = LineupPerson & { kind: string; detail: string | null; start: string; end: string; isNew: boolean }; // isNew: 전날은 출근이었는데 이 날부터 새로 불참
 export type Lineup = {
   isDutyDay: boolean;
   dutyLabel: string | null;
@@ -38,10 +40,11 @@ export async function getLineup(date: string): Promise<Lineup> {
   const db = getSupabaseAdmin();
   // 상세 내용 칸(SQL 0014)이 아직 없으면 상세 없이 읽음
   let detailSupported = true;
-  let abs = await db.from("absences").select("member_id, kind, detail, start_date, end_date").lte("start_date", date).gte("end_date", date);
+  const prevDate = addDays(date, -1); // 전날(새로 불참이 된 사람을 가리기 위해 함께 읽음)
+  let abs = await db.from("absences").select("member_id, kind, detail, start_date, end_date").lte("start_date", date).gte("end_date", prevDate);
   if (abs.error) {
     detailSupported = false;
-    abs = (await db.from("absences").select("member_id, kind, start_date, end_date").lte("start_date", date).gte("end_date", date)) as typeof abs;
+    abs = (await db.from("absences").select("member_id, kind, start_date, end_date").lte("start_date", date).gte("end_date", prevDate)) as typeof abs;
   }
   // 기수 칸(SQL 0015)이 아직 없으면 기수 없이 읽음
   let boardingSupported = true;
@@ -67,17 +70,20 @@ export async function getLineup(date: string): Promise<Lineup> {
   const absent: LineupAbsent[] = [];
   const absentIds = new Set<number>();
   const tagOf = new Map<number, string>();
+  // 전날에도 불참이던 사람 (이 날 "새로 불참"이 아닌 사람)
+  const prevAbsent = new Set(rows.filter((r) => isLineupAbsent(r.kind) && r.start_date <= prevDate && prevDate <= r.end_date).map((r) => r.member_id));
   for (const r of rows) {
+    if (!(r.start_date <= date && date <= r.end_date)) continue; // 이 날을 포함하는 기록만
     const p = person.get(r.member_id);
     if (!p) continue;
     if (isLineupAbsent(r.kind)) {
       absentIds.add(p.id);
-      absent.push({ ...p, kind: r.kind, detail: r.detail ?? null, start: r.start_date, end: r.end_date });
+      absent.push({ ...p, kind: r.kind, detail: r.detail ?? null, start: r.start_date, end: r.end_date, isNew: !prevAbsent.has(p.id) });
     } else if (r.kind === "injury") tagOf.set(p.id, "부상");
     else if (r.kind === "outing") tagOf.set(p.id, "외출·면회");
   }
-  const order = (k: string) => (LINEUP_ABSENT_KINDS as readonly string[]).indexOf(k);
-  absent.sort((a, b) => order(a.kind) - order(b.kind) || byRankName(a, b));
+  // 높은 기수(작은 숫자)부터, 기수가 같거나 없으면 계급·이름 순
+  absent.sort((a, b) => (a.cohort ?? 99999) - (b.cohort ?? 99999) || byRankName(a, b) || a.start.localeCompare(b.start));
 
   const isDutyDay = dutyDays.length > 0;
   const drawn = Boolean(draw);
@@ -117,13 +123,11 @@ export async function getLineup(date: string): Promise<Lineup> {
 export function lineupText(date: string, shortDate: string, l: Lineup): string {
   const nm = (p: LineupPerson) => (p.rank ? `${p.rank} ${p.name}` : p.name);
   const lines = [`[${shortDate} 라인업] 출근 ${l.presentCount}명 / 불참 ${new Set(l.absent.map((a) => a.id)).size}명`];
-  lines.push("■ 불참");
+  lines.push(`■ 불참 (높은 기수 순${l.absent.some((x) => x.isNew) ? ", ★=새로 불참" : ""})`);
   if (l.absent.length === 0) lines.push("- 없음");
-  for (const kind of LINEUP_ABSENT_KINDS) {
-    const list = l.absent.filter((a) => a.kind === kind);
-    if (!list.length) continue;
-    lines.push(`${KIND_TEXT[kind]} (${list.length})`);
-    for (const a of list) lines.push(`- ${nm(a)}${a.detail ? ` (${a.detail})` : ""}`);
+  for (const a of l.absent) {
+    const reason = `${KIND_TEXT[a.kind] ?? a.kind}${a.detail ? `(${a.detail})` : ""}`;
+    lines.push(`- ${a.isNew ? "★" : ""}${a.cohort ? `${a.cohort}기 ` : ""}${nm(a)} ${dotsRange(a.start, a.end)} ${reason}`);
   }
   if (l.boarding.length) {
     lines.push(`■ 1차탑승 (${l.boarding.length}명)`);

@@ -2,7 +2,7 @@
 // 라인업 (/lineup) — 그날 출근 인원표. 모든 인원이 볼 수 있음.
 //   수기로 다시 옮겨 적는 표라서 "불참자"가 가장 크게·먼저 보이도록 만들었습니다.
 //   ① 날짜 이동(어제/내일/오늘/날짜 선택) + 출근·불참 인원 수
-//   ② 불참자: 사유별(휴가·교육·당직오프·근무오프·외진) 색 배지 + 상세 내용
+//   ② 불참자: 높은 기수부터 한 줄씩(이름·기수 / 날짜·사유 배지·상세), 이 날부터 새로 불참인 사람은 붉게 표시
 //   ③ 출근자: 평일은 계급별, 주말·공휴일은 자리(동)별 (부상·외출·면회는 출근, 꼬리표만)
 //   ④ 라인업 글 복사 / 이 날 불참 입력(본인, 관리자는 다른 사람도)
 // ─────────────────────────────────────────────────────────────
@@ -28,6 +28,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
 
   const l = await getLineup(date);
   const absentCount = new Set(l.absent.map((a) => a.id)).size;
+  const newCount = new Set(l.absent.filter((a) => a.isNew).map((a) => a.id)).size; // 이 날부터 새로 불참인 사람
   const first = new Set(l.boarding.map((p) => p.id)); // 1차탑승 표시용
   const text = lineupText(date, formatShort(date), l);
   const { data: members } = me.is_admin
@@ -92,53 +93,59 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
         </div>
       </div>
 
-      {/* ② 불참자 — 가장 눈에 띄게 */}
+      {/* ② 불참자 — 가장 눈에 띄게. 높은 기수부터 한 줄씩(이름·기수 / 날짜·사유). 전날은 출근이었다가 이 날부터 새로 불참인 사람은 붉은색 */}
       <Card className="mt-4 overflow-hidden border-2 border-orange-400">
-        <div className="flex items-center justify-between bg-orange-400 px-4 py-2.5 text-black">
-          <p className="text-lg font-black">불참 {absentCount}명</p>
-          <p className="text-xs font-semibold">휴가·교육·당직오프·근무오프·외진</p>
+        <div className="bg-orange-400 px-4 py-2.5 text-black">
+          <div className="flex items-center justify-between">
+            <p className="text-lg font-black">불참 {absentCount}명</p>
+            <p className="text-xs font-semibold">높은 기수 순</p>
+          </div>
+          {newCount > 0 && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold">
+              <span className="inline-block size-2.5 rounded-full bg-rose-600" /> 새로 불참 {newCount}명 (전날은 출근)
+            </p>
+          )}
         </div>
         {l.absent.length === 0 ? (
           <p className="p-4 text-sm text-muted">이 날 불참자가 없습니다.</p>
         ) : (
-          <div className="divide-y divide-hairline">
-            {LINEUP_ABSENT_KINDS.map((kind) => {
-              const list = l.absent.filter((a) => a.kind === kind);
-              if (!list.length) return null;
-              return (
-                <div key={kind} className="p-4">
-                  <p className="mb-2 flex items-center gap-2">
-                    <span className={`rounded-full px-3 py-1 text-sm font-bold ${KIND_BADGE[kind]}`}>{KIND_LABEL[kind]}</span>
-                    <span className="text-sm font-semibold">{list.length}명</span>
+          <ul className="divide-y divide-hairline">
+            {l.absent.map((a) => (
+              <li
+                key={`${a.id}-${a.kind}-${a.start}`}
+                className={`flex items-start justify-between gap-2 border-l-4 px-4 py-3 ${
+                  a.isNew ? "border-rose-600 bg-rose-50 dark:bg-rose-950" : "border-transparent"
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="text-base">
+                    <b>
+                      {a.rank ? `${a.rank} ` : ""}
+                      {a.name}
+                    </b>
+                    {a.cohort !== null && <span className="ml-1.5 text-xs text-muted">{a.cohort}기</span>}
+                    {a.isNew && <span className="ml-1.5 rounded bg-rose-600 px-1.5 py-0.5 text-[11px] font-bold text-white">신규</span>}
                   </p>
-                  <ul className="space-y-1.5">
-                    {list.map((a) => (
-                      <li key={`${a.id}-${a.start}`} className="flex items-baseline justify-between gap-2">
-                        <span className="min-w-0 text-base">
-                          <b>{a.rank ? `${a.rank} ` : ""}{a.name}</b>
-                          {a.detail && <span className="ml-1.5 text-sm text-foreground/80">· {a.detail}</span>}
-                          {a.start !== a.end && (
-                            <span className="ml-1.5 text-xs text-muted">
-                              ({formatShort(a.start)}~{formatShort(a.end)})
-                            </span>
-                          )}
-                        </span>
-                        {deletable.has(`${a.id}:${a.kind}`) && (
-                          <form action={deleteAbsenceAction}>
-                            <input type="hidden" name="id" value={deletable.get(`${a.id}:${a.kind}`)} />
-                            <input type="hidden" name="back" value={`/lineup?date=${date}`} />
-                            <button type="submit" className="shrink-0 text-xs text-red-600 underline">
-                              삭제
-                            </button>
-                          </form>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <span className="tabular-nums">
+                      {a.start === a.end ? formatShort(a.start) : `${formatShort(a.start)} ~ ${formatShort(a.end)}`}
+                    </span>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${KIND_BADGE[a.kind]}`}>{KIND_LABEL[a.kind]}</span>
+                    {a.detail && <span className="text-foreground/80">{a.detail}</span>}
+                  </p>
                 </div>
-              );
-            })}
-          </div>
+                {deletable.has(`${a.id}:${a.kind}`) && (
+                  <form action={deleteAbsenceAction}>
+                    <input type="hidden" name="id" value={deletable.get(`${a.id}:${a.kind}`)} />
+                    <input type="hidden" name="back" value={`/lineup?date=${date}`} />
+                    <button type="submit" className="shrink-0 text-xs text-red-600 underline">
+                      삭제
+                    </button>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
       </Card>
 
