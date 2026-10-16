@@ -6,36 +6,31 @@
 //   ④ 입력 두 곳: "실제 휴가 입력"(주말출근 제외로 보낼 수 있음) / "휴가 계획"(참고용, 아무것도 바꾸지 않음)
 //   ⑤ 이 달 기록(실제) / 이 달 계획(실제로 확정·삭제)
 // ─────────────────────────────────────────────────────────────
-import Link from "next/link";
 import { requireMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { Card, Notice, Page } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
 import { ServiceProgress } from "@/components/service-progress";
 import { nextPromotion, promotionDates } from "@/lib/promotion";
-import { HOLIDAYS } from "@/lib/holidays";
-import { formatShort, todayKST, weekday } from "@/lib/kst";
+import { formatShort, todayKST } from "@/lib/kst";
 import {
   annualSubkindFor,
   daysBetween,
   isFullLeave,
   isValidMonth,
   LEAVE_COLOR,
-  LEAVE_PLAN_COLOR,
-  LEAVE_KINDS,
   LEAVE_LABEL,
   leaveDays,
   leaveSummary,
-  monthGrid,
   remainingWorkdays,
   serviceStats,
-  shiftMonth,
   SUBKINDS,
 } from "@/lib/leave";
 import { dotsRange } from "@/lib/squads";
 import { getSquadmateLeaves, overlapsWith } from "@/lib/squad-overlap";
 import { addLeaveAction, confirmPlanAction, deleteLeaveAction, saveServiceDatesAction, sendLeaveAction, unsendLeaveAction } from "./actions";
 import { LeaveForm } from "./leave-form";
+import { LeaveCalendar } from "./leave-calendar";
 
 type Leave = {
   id: number;
@@ -103,11 +98,9 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
   const next = enlist ? nextPromotion(enlist, today) : null;
 
   // 이 달 달력과 기록
-  const grid = monthGrid(month);
   const monthEnd = `${month}-31`;
   const inMonth = all.filter((l) => l.start_date <= monthEnd && l.end_date >= `${month}-01`);
-  const onDay = (d: string) => inMonth.filter((l) => l.start_date <= d && d <= l.end_date);
-  const [y, m] = month.split("-").map(Number);
+  const m = Number(month.split("-")[1]);
   const mates = await getSquadmateLeaves(me.id); // 같은 반 사람들의 휴가·계획 (겹침 확인용)
   const monthLeaves = inMonth.filter((l) => !l.planned);
   const monthPlans = inMonth.filter((l) => l.planned);
@@ -313,72 +306,13 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
         </div>
       </details>
 
-      {/* ④ 달력 */}
-      <Card className="mt-4 p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <Link href={`/leave?month=${shiftMonth(month, -1)}`} className="px-3 py-1 text-xl text-link" aria-label="이전 달">
-            ‹
-          </Link>
-          <p className="font-semibold">
-            {y}년 {m}월
-          </p>
-          <Link href={`/leave?month=${shiftMonth(month, 1)}`} className="px-3 py-1 text-xl text-link" aria-label="다음 달">
-            ›
-          </Link>
-        </div>
-        <div className="grid grid-cols-7 text-center text-xs text-zinc-500">
-          {"일월화수목금토".split("").map((w, i) => (
-            <span key={w} className={i === 0 ? "text-red-500" : i === 6 ? "text-link" : ""}>
-              {w}
-            </span>
-          ))}
-        </div>
-        {grid.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7 border-t border-hairline ">
-            {week.map((d, di) =>
-              d === null ? (
-                <span key={di} />
-              ) : (
-                <div key={d} className={`min-h-14 px-0.5 py-1 ${d === today ? "rounded-md bg-blue-50 dark:bg-blue-950" : ""}`}>
-                  <p
-                    className={`text-center text-xs ${
-                      weekday(d) === 0 || HOLIDAYS[d] ? "text-red-500" : weekday(d) === 6 ? "text-link" : ""
-                    } ${d === today ? "font-semibold" : ""}`}
-                  >
-                    {Number(d.slice(8))}
-                  </p>
-                  {onDay(d)
-                    .slice(0, 2)
-                    .map((l) => (
-                      <p
-                        key={l.id}
-                        className={`mt-0.5 truncate rounded px-0.5 text-center text-[10px] leading-4 ${
-                          l.planned ? `border border-dashed ${LEAVE_PLAN_COLOR[l.kind]}` : `text-white ${LEAVE_COLOR[l.kind]}`
-                        }`}
-                      >
-                        {LEAVE_LABEL[l.kind]}
-                      </p>
-                    ))}
-                </div>
-              ),
-            )}
-          </div>
-        ))}
-        <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-zinc-500">
-          {LEAVE_KINDS.map((k) => (
-            <span key={k.value} className="inline-flex items-center gap-1">
-              <span className={`inline-block h-2.5 w-2.5 rounded-sm ${k.color}`} />
-              {k.label}
-            </span>
-          ))}
-          {planSupported && (
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block h-2.5 w-3 rounded-sm border border-dashed border-foreground/60" />
-              계획(점선)
-            </span>
-          )}
-        </div>
-      </Card>
+      {/* ④ 달력 — 달 이동은 새로고침 없이 바로 바뀜 */}
+      <LeaveCalendar
+        leaves={all.map((l) => ({ id: l.id, kind: l.kind, start_date: l.start_date, end_date: l.end_date, planned: l.planned }))}
+        initialMonth={month}
+        today={today}
+        planSupported={planSupported}
+      />
 
       {/* 입력: 하나의 카드에서 "실제 휴가 / 휴가 계획"을 위쪽 스위치로 고름 */}
       <Card className="mt-4 p-4">
