@@ -21,6 +21,8 @@ import {
   isFullLeave,
   isValidMonth,
   LEAVE_COLOR,
+  LEAVE_PLAN_COLOR,
+  LEAVE_KINDS,
   LEAVE_LABEL,
   leaveDays,
   leaveSummary,
@@ -351,7 +353,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                       <p
                         key={l.id}
                         className={`mt-0.5 truncate rounded px-0.5 text-center text-[10px] leading-4 ${
-                          l.planned ? "border border-dashed border-blue-600 text-link" : `text-white ${LEAVE_COLOR[l.kind]}`
+                          l.planned ? `border border-dashed ${LEAVE_PLAN_COLOR[l.kind]}` : `text-white ${LEAVE_COLOR[l.kind]}`
                         }`}
                       >
                         {LEAVE_LABEL[l.kind]}
@@ -362,12 +364,20 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
             )}
           </div>
         ))}
-        {planSupported && (
-          <p className="mt-2 text-center text-[11px] text-zinc-500">
-            <span className="mr-1 inline-block h-2.5 w-4 rounded-sm bg-blue-600 align-middle" /> 실제 휴가
-            <span className="mr-1 ml-3 inline-block h-2.5 w-4 rounded-sm border border-dashed border-blue-600 align-middle" /> 계획
-          </p>
-        )}
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-zinc-500">
+          {LEAVE_KINDS.map((k) => (
+            <span key={k.value} className="inline-flex items-center gap-1">
+              <span className={`inline-block h-2.5 w-2.5 rounded-sm ${k.color}`} />
+              {k.label}
+            </span>
+          ))}
+          {planSupported && (
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-2.5 w-3 rounded-sm border border-dashed border-foreground/60" />
+              계획(점선)
+            </span>
+          )}
+        </div>
       </Card>
 
       {/* 입력: 하나의 카드에서 "실제 휴가 / 휴가 계획"을 위쪽 스위치로 고름 */}
