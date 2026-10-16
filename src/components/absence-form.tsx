@@ -5,7 +5,7 @@
 //     ① 휴가         — 시작일 ~ 종료일 (상세는 선택)
 //     ② 외출·면회    — 시작일 ~ 종료일 (보통 하루)
 //     ③ 라인업 불참  — 시작일 ~ 종료일 + 사유를 직접 입력 (교육·외진·당직오프·근무오프 등 자유롭게)
-//   부상은 작은 선택지로 따로 둡니다 (라인업에는 출근, 주말출근 추첨에서만 제외).
+//   부상은 3칸 아래에 따로 한 줄 버튼으로 둡니다 (라인업에는 출근, 주말출근 추첨에서만 제외).
 //   전역 1개월 전 면제는 휴가 계산기에 입력한 전역일로 자동 적용되므로 여기서는 입력하지 않습니다.
 // "use client": 종류를 바꾸면 입력칸이 바로 바뀌도록 브라우저에서 동작합니다.
 // 실제 저장과 규칙 확인은 서버 액션(addAbsenceAction)이 합니다.
@@ -66,14 +66,15 @@ export function AbsenceForm({
           </label>
         ))}
       </div>
-      {/* 부상: 작은 선택지 */}
+      {/* 부상: 큰 3칸과 따로, 한 줄 전체 버튼 */}
       <label
-        className={`flex min-h-9 cursor-pointer items-center justify-center rounded-full bg-card px-3 text-center text-xs ${
-          kind === "injury" ? "border-2 border-blue-500 font-semibold text-link" : "m-px border border-hairline text-muted"
+        className={`flex min-h-12 cursor-pointer flex-col items-center justify-center rounded-[18px] bg-card px-3 text-center ${
+          kind === "injury" ? "border-2 border-blue-500 text-link" : "m-px border border-hairline"
         }`}
       >
         <input type="radio" name="kind" value="injury" checked={kind === "injury"} onChange={() => setKind("injury")} className="sr-only" />
-        부상 (라인업엔 출근, 주말출근 추첨에서만 제외)
+        <span className="text-base font-bold">부상</span>
+        <span className="text-xs text-muted">라인업엔 출근, 주말출근 추첨에서만 제외</span>
       </label>
 
       {/* 날짜 (iPhone 에서 옆으로 삐져나가지 않게 min-w-0) */}
