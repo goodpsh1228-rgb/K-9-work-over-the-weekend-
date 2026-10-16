@@ -185,7 +185,42 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         <span aria-hidden className="text-2xl leading-none">＋</span>
       </Link>
 
-      {/* ───── 1순위 ② 주말출근 투표 ───── */}
+      {/* ───── 1순위 ② 1차 명단 (내일 출근자 중 높은 기수 9명 + 예비 2명) ───── */}
+      {todayLineup.boardingSupported && (
+        <Card className="mt-4 p-4">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-[22px] font-display font-black tracking-[-0.02em]">1차 명단</h2>
+            <span className="text-sm text-muted">내일 {formatShort(lineupDate)}</span>
+          </div>
+          {todayLineup.boarding.length > 0 ? (
+            <>
+              <p className="mt-3 flex flex-wrap gap-2">
+                {todayLineup.boarding.map((p) => (
+                  <span key={p.id} className="rounded-full bg-blue-100 px-3 py-1.5 text-base font-semibold text-blue-900 dark:bg-blue-950 dark:text-blue-100">
+                    {p.name}
+                  </span>
+                ))}
+              </p>
+              {todayLineup.reserve.length > 0 && (
+                <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                  <b className="text-muted">예비</b>
+                  {todayLineup.reserve.map((p, i) => (
+                    <span key={p.id} className="rounded-full border border-hairline px-3 py-1">
+                      {i + 1}. {p.name}
+                    </span>
+                  ))}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-muted">
+              {todayLineup.isDutyDay && !todayLineup.drawn ? "추첨이 끝나면 표시됩니다." : "기수를 입력한 출근자가 없습니다."}
+            </p>
+          )}
+        </Card>
+      )}
+
+      {/* ───── 1순위 ③ 주말출근 투표 ───── */}
       <h2 className="mt-8 mb-2 text-[26px] leading-[1.14] font-display font-black tracking-[-0.02em]">주말출근 투표</h2>
       <CountdownCard compact title={countdown.title} target={countdown.target.toISOString()} sub={countdown.sub} />
       {days.length === 0 ? (
@@ -248,41 +283,6 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
               </li>
             ))}
           </ul>
-        </Card>
-      )}
-
-      {/* ───── 1순위 ③ 1차 명단 (내일 출근자 중 높은 기수 9명 + 예비 2명) ───── */}
-      {todayLineup.boardingSupported && (
-        <Card className="mt-8 p-4">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-[22px] font-display font-black tracking-[-0.02em]">1차 명단</h2>
-            <span className="text-sm text-muted">내일 {formatShort(lineupDate)}</span>
-          </div>
-          {todayLineup.boarding.length > 0 ? (
-            <>
-              <p className="mt-3 flex flex-wrap gap-2">
-                {todayLineup.boarding.map((p) => (
-                  <span key={p.id} className="rounded-full bg-blue-100 px-3 py-1.5 text-base font-semibold text-blue-900 dark:bg-blue-950 dark:text-blue-100">
-                    {p.name}
-                  </span>
-                ))}
-              </p>
-              {todayLineup.reserve.length > 0 && (
-                <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                  <b className="text-muted">예비</b>
-                  {todayLineup.reserve.map((p, i) => (
-                    <span key={p.id} className="rounded-full border border-hairline px-3 py-1">
-                      {i + 1}. {p.name}
-                    </span>
-                  ))}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="mt-2 text-sm text-muted">
-              {todayLineup.isDutyDay && !todayLineup.drawn ? "추첨이 끝나면 표시됩니다." : "기수를 입력한 출근자가 없습니다."}
-            </p>
-          )}
         </Card>
       )}
 
