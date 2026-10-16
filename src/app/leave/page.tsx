@@ -203,35 +203,114 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
         </Card>
       )}
 
-      {/* ② 휴가 사용 현황 — 평소엔 접어 두고, 눌러서 펼쳐 봄 */}
-      <details className="mt-4 rounded-[18px] border border-hairline bg-card p-4">
-        <summary className="flex cursor-pointer list-none items-baseline justify-between">
-          <span className="font-semibold">휴가 사용 현황</span>
+      {/* ③ 이 달 기록·계획 — 한 패널에 합쳐 접었다 폈다 (저장·삭제 직후에는 자동으로 펼쳐짐) */}
+      <details open={Boolean(msg || error)} className="mt-4 rounded-[18px] border border-hairline bg-card p-4">
+        <summary className="flex cursor-pointer list-none items-center justify-between">
+          <span className="font-semibold">{m}월 기록·계획</span>
           <span className="text-sm text-muted">
-            {summary.quotas.some((q) => q.used > q.quota) && <b className="mr-2 text-red-600">한도 초과</b>}
-            {plans.length > 0 && <span className="mr-2 text-link">계획 {plans.length}건</span>}▾
+            기록 {monthLeaves.length}건{planSupported ? ` · 계획 ${monthPlans.length}건` : ""} ▾
           </span>
         </summary>
-        <p className="mt-1 text-xs text-zinc-500">실제 휴가만 반영됩니다. 계획은 &quot;계획 +n일&quot;로 따로 표시됩니다.</p>
-        <ul className="mt-3 space-y-1.5 text-sm">
-          {summary.quotas.map((q) => (
-            <li key={q.label} className="flex items-center justify-between gap-2">
-              <span>{q.label}</span>
-              <span className={`text-right tabular-nums ${q.used > q.quota ? "font-semibold text-red-600" : ""}`}>
-                {q.used} / {q.quota}일 <span className="text-zinc-500">(남은 {Math.max(0, q.quota - q.used)}일)</span>
-                {q.planned > 0 && (
-                  <span className={`block text-xs ${q.used + q.planned > q.quota ? "font-semibold text-red-600" : "text-link"}`}>
-                    계획 +{q.planned}일 → 다 쓰면 남은 {q.quota - q.used - q.planned}일
-                  </span>
-                )}
-              </span>
+        <div className="mt-3 space-y-5">
+          <section>
+            <p className="mb-2 text-sm font-semibold text-muted">기록</p>
+      {monthLeaves.length === 0 ? (
+        <p className="text-sm text-zinc-500">이 달에 입력한 기록이 없습니다.</p>
+      ) : (
+        <ul className="space-y-2">
+          {monthLeaves.map((l) => (
+            <li key={l.id}>
+              <Card className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm">
+                    <span className={`mr-1.5 inline-block size-2.5 rounded-full ${LEAVE_COLOR[l.kind]}`} />
+                    <b>{subLabel(l.kind, l.subkind) ?? LEAVE_LABEL[l.kind]}</b>{" "}
+                    {period(l)}
+                    {isFullLeave(l.kind) && <span className="text-zinc-500"> · {leaveDays(l)}일</span>}
+                    {l.memo && <span className="block text-xs text-zinc-500">{l.memo}</span>}
+                  </p>
+                  <form action={deleteLeaveAction}>
+                    <input type="hidden" name="id" value={l.id} />
+                    <input type="hidden" name="month" value={month} />
+                    <ConfirmButton message="이 기록을 삭제할까요? (주말출근 제외로 보냈다면 그것도 취소됩니다)" className="text-xs text-red-600 underline">
+                      삭제
+                    </ConfirmButton>
+                  </form>
+                </div>
+                {/* 주말출근 제외 보내기 / 취소 */}
+                <form action={l.absence_id ? unsendLeaveAction : sendLeaveAction} className="mt-2 flex items-center justify-between gap-2">
+                  <input type="hidden" name="id" value={l.id} />
+                  <input type="hidden" name="month" value={month} />
+                  {l.absence_id ? (
+                    <>
+                      <span className="text-xs font-semibold text-green-700 dark:text-green-400">✓ 주말출근 추첨에서 제외됨</span>
+                      <button type="submit" className="text-xs text-zinc-500 underline">
+                        보내기 취소
+                      </button>
+                    </>
+                  ) : (
+                    <button type="submit" className="h-9 w-full rounded-full border border-blue-600 text-sm font-semibold text-link">
+                      주말출근 제외로 보내기
+                    </button>
+                  )}
+                </form>
+              </Card>
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{summary.others.map((o) => `${o.label} ${o.value}`).join(" · ")}</p>
+      )}
+          </section>
+          {planSupported && (
+            <section>
+              <p className="mb-2 text-sm font-semibold text-muted">계획</p>
+          {monthPlans.length === 0 ? (
+            <p className="text-sm text-zinc-500">이 달에 세운 계획이 없습니다.</p>
+          ) : (
+            <ul className="space-y-2">
+              {monthPlans.map((l) => (
+                <li key={l.id}>
+                  <Card className="border-dashed p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm">
+                        <span className="mr-1.5 inline-block size-2.5 rounded-full border border-dashed border-blue-600" />
+                        <b>{subLabel(l.kind, l.subkind) ?? LEAVE_LABEL[l.kind]}</b> {period(l)}
+                        {isFullLeave(l.kind) && <span className="text-zinc-500"> · {leaveDays(l)}일</span>}
+                        <span className="text-xs text-zinc-500"> · 계획</span>
+                        {l.memo && <span className="block text-xs text-zinc-500">{l.memo}</span>}
+                      </p>
+                      <form action={deleteLeaveAction}>
+                        <input type="hidden" name="id" value={l.id} />
+                        <input type="hidden" name="month" value={month} />
+                        <ConfirmButton message="이 계획을 삭제할까요?" className="text-xs text-red-600 underline">
+                          삭제
+                        </ConfirmButton>
+                      </form>
+                    </div>
+                    {/* 같은 반에서 나와 휴가가 겹치는 사람 */}
+                    {isFullLeave(l.kind) && mates.squad && (
+                      <SquadOverlap squad={mates.squad} hits={overlapsWith({ start: l.start_date, end: l.end_date }, mates.leaves)} />
+                    )}
+                    {isFullLeave(l.kind) && !mates.squad && mates.supported && (
+                      <p className="mt-2 text-xs text-muted">반이 지정되면 같은 반 사람과 휴가가 겹치는지 보여 드려요. (관리자가 반을 지정합니다)</p>
+                    )}
+                    <form action={confirmPlanAction} className="mt-2">
+                      <input type="hidden" name="id" value={l.id} />
+                      <input type="hidden" name="month" value={month} />
+                      <button type="submit" className="h-9 w-full rounded-full border border-blue-600 text-sm font-semibold text-link">
+                        실제로 확정
+                      </button>
+                    </form>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          )}
+            </section>
+          )}
+        </div>
       </details>
 
-      {/* ③ 달력 */}
+      {/* ④ 달력 */}
       <Card className="mt-4 p-3">
         <div className="mb-2 flex items-center justify-between">
           <Link href={`/leave?month=${shiftMonth(month, -1)}`} className="px-3 py-1 text-xl text-link" aria-label="이전 달">
@@ -330,116 +409,34 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
       )}
       {!planSupported && <Notice kind="warn">휴가 계획 기능을 쓰려면 관리자가 추가 SQL(supabase/migrations/0013_leave_plan.sql)을 실행해야 합니다.</Notice>}
 
-      {/* ④ 이 달 기록 */}
-      <details open={Boolean(msg || error)} className="mt-6">
-        <summary className="flex cursor-pointer list-none items-center justify-between rounded-[18px] border border-hairline bg-card px-4 py-3">
-          <span className="text-lg font-semibold">{m}월 기록</span>
-          <span className="text-sm text-muted">{monthLeaves.length}건 ▾</span>
+      {/* ⑤ 휴가 사용 현황 — 맨 아래, 평소엔 접어 두고 눌러서 펼쳐 봄 */}
+      <details className="mt-6 rounded-[18px] border border-hairline bg-card p-4">
+        <summary className="flex cursor-pointer list-none items-baseline justify-between">
+          <span className="font-semibold">휴가 사용 현황</span>
+          <span className="text-sm text-muted">
+            {summary.quotas.some((q) => q.used > q.quota) && <b className="mr-2 text-red-600">한도 초과</b>}
+            {plans.length > 0 && <span className="mr-2 text-link">계획 {plans.length}건</span>}▾
+          </span>
         </summary>
-        <div className="mt-2">
-      {monthLeaves.length === 0 ? (
-        <p className="text-sm text-zinc-500">이 달에 입력한 기록이 없습니다.</p>
-      ) : (
-        <ul className="space-y-2">
-          {monthLeaves.map((l) => (
-            <li key={l.id}>
-              <Card className="p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm">
-                    <span className={`mr-1.5 inline-block size-2.5 rounded-full ${LEAVE_COLOR[l.kind]}`} />
-                    <b>{subLabel(l.kind, l.subkind) ?? LEAVE_LABEL[l.kind]}</b>{" "}
-                    {period(l)}
-                    {isFullLeave(l.kind) && <span className="text-zinc-500"> · {leaveDays(l)}일</span>}
-                    {l.memo && <span className="block text-xs text-zinc-500">{l.memo}</span>}
-                  </p>
-                  <form action={deleteLeaveAction}>
-                    <input type="hidden" name="id" value={l.id} />
-                    <input type="hidden" name="month" value={month} />
-                    <ConfirmButton message="이 기록을 삭제할까요? (주말출근 제외로 보냈다면 그것도 취소됩니다)" className="text-xs text-red-600 underline">
-                      삭제
-                    </ConfirmButton>
-                  </form>
-                </div>
-                {/* 주말출근 제외 보내기 / 취소 */}
-                <form action={l.absence_id ? unsendLeaveAction : sendLeaveAction} className="mt-2 flex items-center justify-between gap-2">
-                  <input type="hidden" name="id" value={l.id} />
-                  <input type="hidden" name="month" value={month} />
-                  {l.absence_id ? (
-                    <>
-                      <span className="text-xs font-semibold text-green-700 dark:text-green-400">✓ 주말출근 추첨에서 제외됨</span>
-                      <button type="submit" className="text-xs text-zinc-500 underline">
-                        보내기 취소
-                      </button>
-                    </>
-                  ) : (
-                    <button type="submit" className="h-9 w-full rounded-full border border-blue-600 text-sm font-semibold text-link">
-                      주말출근 제외로 보내기
-                    </button>
-                  )}
-                </form>
-              </Card>
+        <p className="mt-1 text-xs text-zinc-500">실제 휴가만 반영됩니다. 계획은 &quot;계획 +n일&quot;로 따로 표시됩니다.</p>
+        <ul className="mt-3 space-y-1.5 text-sm">
+          {summary.quotas.map((q) => (
+            <li key={q.label} className="flex items-center justify-between gap-2">
+              <span>{q.label}</span>
+              <span className={`text-right tabular-nums ${q.used > q.quota ? "font-semibold text-red-600" : ""}`}>
+                {q.used} / {q.quota}일 <span className="text-zinc-500">(남은 {Math.max(0, q.quota - q.used)}일)</span>
+                {q.planned > 0 && (
+                  <span className={`block text-xs ${q.used + q.planned > q.quota ? "font-semibold text-red-600" : "text-link"}`}>
+                    계획 +{q.planned}일 → 다 쓰면 남은 {q.quota - q.used - q.planned}일
+                  </span>
+                )}
+              </span>
             </li>
           ))}
         </ul>
-      )}
-        </div>
+        <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{summary.others.map((o) => `${o.label} ${o.value}`).join(" · ")}</p>
       </details>
 
-      {/* ⑤ 이 달 계획 */}
-      {planSupported && (
-        <>
-          <details open={Boolean(msg || error)} className="mt-3">
-            <summary className="flex cursor-pointer list-none items-center justify-between rounded-[18px] border border-hairline bg-card px-4 py-3">
-              <span className="text-lg font-semibold">{m}월 계획</span>
-              <span className="text-sm text-muted">{monthPlans.length}건 ▾</span>
-            </summary>
-            <div className="mt-2">
-          {monthPlans.length === 0 ? (
-            <p className="text-sm text-zinc-500">이 달에 세운 계획이 없습니다.</p>
-          ) : (
-            <ul className="space-y-2">
-              {monthPlans.map((l) => (
-                <li key={l.id}>
-                  <Card className="border-dashed p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm">
-                        <span className="mr-1.5 inline-block size-2.5 rounded-full border border-dashed border-blue-600" />
-                        <b>{subLabel(l.kind, l.subkind) ?? LEAVE_LABEL[l.kind]}</b> {period(l)}
-                        {isFullLeave(l.kind) && <span className="text-zinc-500"> · {leaveDays(l)}일</span>}
-                        <span className="text-xs text-zinc-500"> · 계획</span>
-                        {l.memo && <span className="block text-xs text-zinc-500">{l.memo}</span>}
-                      </p>
-                      <form action={deleteLeaveAction}>
-                        <input type="hidden" name="id" value={l.id} />
-                        <input type="hidden" name="month" value={month} />
-                        <ConfirmButton message="이 계획을 삭제할까요?" className="text-xs text-red-600 underline">
-                          삭제
-                        </ConfirmButton>
-                      </form>
-                    </div>
-                    {/* 같은 반에서 나와 휴가가 겹치는 사람 */}
-                    {isFullLeave(l.kind) && mates.squad && (
-                      <SquadOverlap squad={mates.squad} hits={overlapsWith({ start: l.start_date, end: l.end_date }, mates.leaves)} />
-                    )}
-                    {isFullLeave(l.kind) && !mates.squad && mates.supported && (
-                      <p className="mt-2 text-xs text-muted">반이 지정되면 같은 반 사람과 휴가가 겹치는지 보여 드려요. (관리자가 반을 지정합니다)</p>
-                    )}
-                    <form action={confirmPlanAction} className="mt-2">
-                      <input type="hidden" name="id" value={l.id} />
-                      <input type="hidden" name="month" value={month} />
-                      <button type="submit" className="h-9 w-full rounded-full border border-blue-600 text-sm font-semibold text-link">
-                        실제로 확정
-                      </button>
-                    </form>
-                  </Card>
-                </li>
-              ))}
-            </ul>
-          )}
-            </div>
-          </details>
-        </>
-      )}
     </Page>
   );
 }
