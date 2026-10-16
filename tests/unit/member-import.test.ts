@@ -18,3 +18,10 @@ console.log("ALL OK");
   assert.strictEqual(r.errors.length, 1); assert.match(r.errors[0], /계급 "대위"/);
   console.log("RANK OK");
 }
+{
+  // 기수·반 열
+  const r = parseMemberTable("이름,비번,진료반,관리자,계급,기수,반\n가짜A,,X,X,병장,866,훈련\n가짜B,,X,X,상병,877기,진료반\n가짜C,,X,X,,,\n가짜D,,X,X,병장,abc,훈련반\n가짜E,,X,X,병장,870,응급반");
+  assert.deepStrictEqual(r.rows.map(x => [x.cohort, x.squad, x.isClinic]), [[866, "훈련반", false], [877, "진료반", true], [null, null, false]]);
+  assert.strictEqual(r.errors.length, 2); assert.match(r.errors[0], /기수 "abc"/); assert.match(r.errors[1], /반 "응급반"/);
+  console.log("COHORT/SQUAD OK");
+}

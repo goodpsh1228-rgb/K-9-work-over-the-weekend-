@@ -7,7 +7,7 @@
 //   - 폼에는 start_date / end_date (single 이면 start_date 만) 숨은 칸으로 전달됩니다.
 // 아이폰에서 날짜 입력칸이 옆으로 삐져나가던 문제도 이 달력으로 대체하면서 없어집니다.
 // ─────────────────────────────────────────────────────────────
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HOLIDAYS } from "@/lib/holidays";
 import { formatShort, weekday } from "@/lib/kst";
 import { monthGrid, shiftMonth } from "@/lib/leave";
@@ -15,7 +15,15 @@ import { monthGrid, shiftMonth } from "@/lib/leave";
 // 한국 날짜 오늘 (브라우저 시계 기준, UTC+9)
 const todayKSTClient = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 
-export function DateRangePicker({ defaultDate, single = false }: { defaultDate?: string; single?: boolean }) {
+export function DateRangePicker({
+  defaultDate,
+  single = false,
+  onChange,
+}: {
+  defaultDate?: string;
+  single?: boolean;
+  onChange?: (start: string, end: string) => void; // 선택이 바뀔 때마다 알림 (같은 반 겹침 미리보기 등)
+}) {
   const today = todayKSTClient();
   const first = defaultDate ?? today;
   const [start, setStart] = useState(first);
@@ -23,6 +31,9 @@ export function DateRangePicker({ defaultDate, single = false }: { defaultDate?:
   const [picking, setPicking] = useState(false); // 시작일을 눌러서 종료일을 기다리는 중
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(first.slice(0, 7));
+  useEffect(() => {
+    onChange?.(start, end);
+  }, [start, end]); // eslint-disable-line react-hooks/exhaustive-deps
   const grid = monthGrid(month);
   const [y, m] = month.split("-").map(Number);
 

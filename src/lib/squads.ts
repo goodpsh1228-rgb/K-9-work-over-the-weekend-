@@ -37,13 +37,10 @@ export function pickBoardingWithReserve<T extends { id: number; cohort: number |
   return { boarding: ranked.slice(0, BOARDING_COUNT), reserve: ranked.slice(BOARDING_COUNT) };
 }
 
-export type LeaveSpan = { start: string; end: string };
-// 두 기간이 하루라도 겹치는지 (시작일·종료일 포함)
-export const spansOverlap = (a: LeaveSpan, b: LeaveSpan) => a.start <= b.end && b.start <= a.end;
+import { spansOverlap, dots, dotsRange, type LeaveSpan } from "./spans";
+export { spansOverlap, dots, dotsRange };
+export type { LeaveSpan };
 
-// 날짜 표시 "8.12" (월.일)
-export const dots = (date: string) => `${Number(date.slice(5, 7))}.${Number(date.slice(8, 10))}`;
-export const dotsRange = (s: string, e: string) => (s === e ? dots(s) : `${dots(s)}~${dots(e)}`);
 
 // 같은 사람의 이어지는(하루 차이로 붙거나 겹치는) 휴가를 하나로 합침. 예) 10.26~10.28 + 10.29~10.31 → 10.26~10.31
 //   휴가 희망(계획)과 확정 휴가는 서로 합치지 않음. 결과는 시작일 순.

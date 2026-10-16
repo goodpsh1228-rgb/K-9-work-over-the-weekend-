@@ -2,9 +2,10 @@
 // 인원 일괄 등록 — 목록 글(CSV 또는 표 붙여넣기)을 읽어서 검사하는 도구
 //
 // 받는 형식 (첫 줄은 제목 줄이어도 되고 없어도 됩니다)
-//   이름, 초기비밀번호, 진료반 여부, 관리자 여부, 계급
-//   홍길동, 1234, O, X, 상병
-//   김철수, , X, X          ← 비밀번호를 비우면 기본 초기 비밀번호(1111)로 등록
+//   이름, 초기비밀번호, 진료반 여부, 관리자 여부, 계급, 기수, 반
+//   홍길동, 1234, O, X, 상병, 866, 진료반
+//   김철수, , X, X          ← 비밀번호를 비우면 기본 초기 비밀번호(1111)로 등록. 계급·기수·반은 비워도 됨
+//   (반: 미용반·진료반·훈련반·관리반·분만반, "진료"처럼 "반"을 빼고 써도 됨. 반을 진료반으로 하면 진료반 여부도 켜짐)
 //
 // - 쉼표(,)로 구분된 CSV 와, 엑셀/Numbers 에서 표를 복사해 붙여넣은 글(칸 사이가 탭)을 모두 읽습니다.
 // - "여부" 칸은 O/X, 예/아니오, Y/N, 1/0 등을 알아듣습니다. 빈칸은 "아니오"로 봅니다.
@@ -18,6 +19,8 @@ export type ImportRow = {
   isClinic: boolean;
   isAdmin: boolean;
   rank: string | null; // 이병/일병/상병/병장 (비우면 미지정)
+  cohort: number | null; // 기수 (숫자가 작을수록 높은 기수, 비우면 미입력)
+  squad: string | null; // 반 (미용반·진료반·훈련반·관리반·분만반, 비우면 미지정)
 };
 
 export type ParseResult = { rows: ImportRow[]; errors: string[] };
@@ -33,6 +36,14 @@ function parseRank(value: string): string | null | undefined {
   const v = value.replace(/\s/g, "");
   if (v === "") return null;
   return RANK_ALIASES[v];
+}
+
+// 반 읽기: "진료" → "진료반". 빈칸이면 미지정(null), 모르는 값이면 undefined.
+const SQUAD_NAMES = ["미용반", "진료반", "훈련반", "관리반", "분만반"];
+function parseSquad(value: string): string | null | undefined {
+  const v = value.replace(/\s/g, "");
+  if (v === "") return null;
+  return SQUAD_NAMES.find((s) => s === v || s === `${v}반`);
 }
 
 function parseYesNo(value: string): boolean | null {
@@ -87,7 +98,7 @@ export function parseMemberTable(text: string): ParseResult {
       if (cells[0].replace(/\s/g, "") === "이름") return;
     }
 
-    const [name = "", password = "", clinicRaw = "", adminRaw = "", rankRaw = ""] = cells;
+    const [name = "", password = "", clinicRaw = "", adminRaw = "", rankRaw = "", cohortRaw = "", squadRaw = ""] = cells;
 
     if (name === "") {
       errors.push(`${lineNo}번째 줄: 이름이 비어 있습니다.`);
@@ -122,8 +133,20 @@ export function parseMemberTable(text: string): ParseResult {
       return;
     }
 
+    const cohortText = cohortRaw.replace(/기$/, "").trim(); // "866기"도 읽음
+    const cohort = cohortText === "" ? null : /^\d+$/.test(cohortText) ? Number(cohortText) : NaN;
+    if (cohort !== null && (!Number.isInteger(cohort) || cohort < 1 || cohort > 9999)) {
+      errors.push(`${lineNo}번째 줄: 기수 "${cohortRaw}" 를 알 수 없습니다(1~9999 숫자 또는 빈칸).`);
+      return;
+    }
+    const squad = parseSquad(squadRaw);
+    if (squad === undefined) {
+      errors.push(`${lineNo}번째 줄: 반 "${squadRaw}" 를 알 수 없습니다(미용반/진료반/훈련반/관리반/분만반 또는 빈칸).`);
+      return;
+    }
+
     seen.set(name, lineNo);
-    rows.push({ line: lineNo, name, password, isClinic, isAdmin, rank });
+    rows.push({ line: lineNo, name, password, isClinic: isClinic || squad === "진료반", isAdmin, rank, cohort, squad });
   });
 
   if (rows.length === 0 && errors.length === 0) errors.push("등록할 인원이 없습니다.");

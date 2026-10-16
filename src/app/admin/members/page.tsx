@@ -56,38 +56,59 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
         )}
       </div>
 
-      {/* 한 명 추가 */}
-      <form action={addMemberAction} className="mt-3 space-y-2 rounded-[18px] border border-hairline p-3 bg-card">
-        <p className="text-sm font-semibold">인원 한 명 추가 (초기 비밀번호 1111)</p>
-        <div className="flex gap-2">
-          <input
-            name="name"
-            required
-            maxLength={30}
-            placeholder="이름 (동명이인은 홍길동B)"
-            className="min-w-0 flex-1 rounded-[18px] border border-hairline bg-card px-3 py-2 text-foreground"
-          />
-          <select
-            name="rank"
-            defaultValue=""
-            className="rounded-full border border-hairline bg-card px-2 text-foreground"
-          >
-            <option value="">계급</option>
-            <option value="이병">이병</option>
-            <option value="일병">일병</option>
-            <option value="상병">상병</option>
-            <option value="병장">병장</option>
-          </select>
+      {/* 한 명 추가: 이름 → 계급·기수·반 → 운전병 → 추가 (처음 넣을 때 기수·반도 함께 입력) */}
+      <form action={addMemberAction} className="mt-3 flex flex-col gap-3 rounded-[18px] border border-hairline bg-card p-4">
+        <p className="font-bold">인원 한 명 추가</p>
+        <input
+          name="name"
+          required
+          maxLength={30}
+          placeholder="이름 (동명이인은 홍길동B)"
+          aria-label="이름"
+          className="h-12 w-full min-w-0 rounded-full border border-hairline bg-input px-4 text-base text-foreground"
+        />
+        <div className="grid grid-cols-3 gap-2">
+          <label className="min-w-0 text-xs text-muted">
+            계급
+            <select name="rank" defaultValue="" className="mt-1 h-11 w-full min-w-0 rounded-full border border-hairline bg-input px-3 text-base text-foreground">
+              <option value="">선택</option>
+              <option value="이병">이병</option>
+              <option value="일병">일병</option>
+              <option value="상병">상병</option>
+              <option value="병장">병장</option>
+            </select>
+          </label>
+          <label className="min-w-0 text-xs text-muted">
+            기수
+            <input
+              name="cohort"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={9999}
+              placeholder="예: 866"
+              className="mt-1 h-11 w-full min-w-0 rounded-full border border-hairline bg-input px-3 text-center text-base text-foreground"
+            />
+          </label>
+          <label className="min-w-0 text-xs text-muted">
+            반
+            <select name="squad" defaultValue="" className="mt-1 h-11 w-full min-w-0 rounded-full border border-hairline bg-input px-3 text-base text-foreground">
+              <option value="">선택</option>
+              {SQUADS.map((q) => (
+                <option key={q} value={q}>
+                  {q}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="is_clinic" className="h-4 w-4" /> 진료반
+          <input type="checkbox" name="is_driver" className="h-5 w-5" /> 운전병
         </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="is_driver" className="h-4 w-4" /> 운전병
-        </label>
-        <button type="submit" className="w-full min-h-11 rounded-full bg-blue-600 px-4 py-2 font-normal text-white">
+        <button type="submit" className="h-12 w-full rounded-full bg-blue-600 px-4 text-base font-normal text-white">
           추가
         </button>
+        <p className="-mt-1 text-center text-xs text-muted">초기 비밀번호 1111 · 반을 진료반으로 지정하면 진료실 추첨 대상(진료반)도 함께 켜집니다</p>
       </form>
 
       <div className="mt-3 flex gap-2 text-sm">

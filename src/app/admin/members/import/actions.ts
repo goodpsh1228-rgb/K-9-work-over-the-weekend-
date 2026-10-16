@@ -55,11 +55,22 @@ export async function importMembersAction(_prev: ImportState, formData: FormData
       is_admin: r.isAdmin,
       rank: r.rank,
       must_change_password: true,
+      ...(r.cohort !== null ? { cohort: r.cohort } : {}), // 기수·반은 SQL 0015 후에만 저장
+      ...(r.squad ? { squad: r.squad } : {}),
     })),
   );
 
   // 한 번에 저장 (하나라도 실패하면 전체가 저장되지 않음)
-  const { data: inserted, error: insertError } = await db.from("members").insert(records).select("id, name");
+  let { data: inserted, error: insertError } = await db.from("members").insert(records).select("id, name");
+  if (insertError && records.some((r) => "cohort" in r || "squad" in r) && insertError.code !== "23505") {
+    // SQL 0015 전이면 기수·반 없이 등록
+    const plain = records.map((r) => {
+      const { cohort: _c, squad: _s, ...rest } = r as typeof r & { cohort?: number; squad?: string };
+      void _c; void _s;
+      return rest;
+    });
+    ({ data: inserted, error: insertError } = await db.from("members").insert(plain).select("id, name"));
+  }
   if (insertError) return { errors: ["저장 중 오류: " + insertError.message] };
 
   await writeAudit({

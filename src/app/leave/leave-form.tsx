@@ -10,7 +10,8 @@
 // ─────────────────────────────────────────────────────────────
 import { useState } from "react";
 import { DateRangePicker } from "@/components/date-range-picker";
-import { LEAVE_KINDS, SUBKINDS } from "@/lib/leave";
+import { isFullLeave, LEAVE_KINDS, SUBKINDS } from "@/lib/leave";
+import { dotsRange, spansOverlap } from "@/lib/spans";
 
 const inputClass = "h-12 min-w-0 w-full rounded-full border border-hairline bg-input px-4 text-base text-foreground outline-none focus:border-blue-500";
 
@@ -20,18 +21,27 @@ export function LeaveForm({
   defaultAnnual,
   defaultDate,
   planSupported = true,
+  squad = null,
+  mates = [],
 }: {
   action: (formData: FormData) => void | Promise<void>;
   month: string;
   defaultAnnual: string;
   defaultDate: string;
   planSupported?: boolean; // false 면 계획 스위치를 숨김 (SQL 0013 전)
+  squad?: string | null; // 내 반 (없으면 겹침 안내 대신 "반 지정" 안내)
+  mates?: { id: number; name: string; rank: string | null; start: string; end: string; planned: boolean }[]; // 같은 반 사람들의 휴가·계획
 }) {
   const [mode, setMode] = useState<"actual" | "plan">("actual");
   const [kind, setKind] = useState("regular");
   const subs = SUBKINDS[kind];
   const oneDay = kind === "outing" || kind === "visit";
   const planned = planSupported && mode === "plan";
+  // 지금 고른 기간과 같은 반 사람들의 휴가가 겹치는지 (고르는 즉시 미리 보여 줌)
+  const [range, setRange] = useState<{ start: string; end: string }>({ start: defaultDate, end: defaultDate });
+  const showOverlap = isFullLeave(kind);
+  const hits = mates.filter((l) => spansOverlap(range, l));
+  const hitPeople = new Set(hits.map((h) => h.id)).size;
 
   return (
     <form action={action} className="space-y-3">
@@ -91,7 +101,29 @@ export function LeaveForm({
         </select>
       )}
       {/* 날짜: 달력에서 시작일 → 종료일 순서로 누름 (외출·면회는 하루만 한 번 누름) */}
-      <DateRangePicker key={oneDay ? "one" : "range"} defaultDate={defaultDate} single={oneDay} />
+      <DateRangePicker key={oneDay ? "one" : "range"} defaultDate={defaultDate} single={oneDay} onChange={(a, b) => setRange({ start: a, end: b })} />
+      {/* 같은 반 휴가 겹침 미리보기 (휴가 종류일 때) */}
+      {showOverlap &&
+        (squad ? (
+          hits.length === 0 ? (
+            <p className="text-xs font-semibold text-green-700 dark:text-green-400">✓ {squad}에서 이 기간에 겹치는 사람 없음</p>
+          ) : (
+            <div className="rounded-[11px] bg-orange-50 p-2.5 text-sm text-orange-900 dark:bg-orange-950 dark:text-orange-100">
+              <p className="font-bold">
+                ⚠️ {squad} {hitPeople}명과 휴가가 겹칩니다
+              </p>
+              <ul className="mt-1 space-y-0.5 text-xs">
+                {hits.map((h, i) => (
+                  <li key={i}>
+                    {h.rank ?? ""} <b>{h.name}</b> {dotsRange(h.start, h.end)} {h.planned ? "휴가 희망" : "휴가"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        ) : (
+          <p className="text-xs text-muted">반이 지정되면 같은 반 사람과 휴가가 겹치는지 바로 보여 드려요. (관리자가 반을 지정합니다)</p>
+        ))}
       <input name="memo" maxLength={100} placeholder="메모 (선택)" className={inputClass} />
       {!planned && (
         <label className="flex items-center gap-2 text-sm">

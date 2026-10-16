@@ -293,8 +293,41 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
       {/* 입력: 하나의 카드에서 "실제 휴가 / 휴가 계획"을 위쪽 스위치로 고름 */}
       <Card className="mt-4 p-4">
         <p className="mb-3 text-lg font-black">휴가 입력</p>
-        <LeaveForm action={addLeaveAction} month={month} defaultAnnual={annualSubkindFor(me.rank)} defaultDate={today} planSupported={planSupported} />
+        <LeaveForm
+          action={addLeaveAction}
+          month={month}
+          defaultAnnual={annualSubkindFor(me.rank)}
+          defaultDate={today}
+          planSupported={planSupported}
+          squad={mates.squad}
+          mates={mates.leaves}
+        />
       </Card>
+      {/* 같은 반 휴가 일정 — 계획을 세우기 전에 미리 보는 용도 (평소엔 접어 둠) */}
+      {mates.squad && (
+        <details className="mt-3 rounded-[18px] border border-hairline bg-card p-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between">
+            <span className="font-semibold">{mates.squad} 휴가 일정</span>
+            <span className="text-sm text-muted">{mates.leaves.length}건 ▾</span>
+          </summary>
+          {mates.leaves.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">같은 반에 예정된 휴가가 없습니다.</p>
+          ) : (
+            <ul className="mt-2 divide-y divide-hairline text-sm">
+              {mates.leaves.map((l, i) => (
+                <li key={i} className="flex items-center justify-between gap-2 py-2">
+                  <span>
+                    <span className="text-muted">{l.rank ?? ""}</span> <b>{l.name}</b> <span className="tabular-nums">{dotsRange(l.start, l.end)}</span>
+                  </span>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${l.planned ? "border border-dashed border-blue-600 text-link" : "bg-blue-600 text-white"}`}>
+                    {l.planned ? "휴가 희망" : "휴가"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </details>
+      )}
       {!planSupported && <Notice kind="warn">휴가 계획 기능을 쓰려면 관리자가 추가 SQL(supabase/migrations/0013_leave_plan.sql)을 실행해야 합니다.</Notice>}
 
       {/* ④ 이 달 기록 */}

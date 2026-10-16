@@ -16,6 +16,7 @@ import { writeAudit } from "@/lib/audit";
 import { setRankManually } from "@/lib/service-sync";
 import { todayKST } from "@/lib/kst";
 import { RANKS } from "@/lib/voting";
+import { isSquad } from "@/lib/squads";
 import { DEFAULT_INITIAL_PASSWORD, hashPassword } from "@/lib/password";
 
 const PAGE = "/admin/members";
@@ -129,25 +130,33 @@ export async function addMemberAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const raw = String(formData.get("rank") ?? "");
   const rank = raw === "" ? null : raw;
-  const isClinic = formData.get("is_clinic") === "on";
+  const squadRaw = String(formData.get("squad") ?? "");
+  const squad = squadRaw === "" ? null : squadRaw;
+  const cohortRaw = String(formData.get("cohort") ?? "").trim();
+  const cohort = cohortRaw === "" ? null : Number(cohortRaw);
+  const isClinic = squad === "진료반" || formData.get("is_clinic") === "on"; // 진료반으로 지정하면 진료반 여부도 켬
   const isDriver = formData.get("is_driver") === "on";
   if (!name || name.length > 30) back("error", "이름을 1~30자로 입력해 주세요.");
   if (rank !== null && !RANKS.includes(rank as (typeof RANKS)[number])) back("error", "계급을 다시 선택해 주세요.");
+  if (squad !== null && !isSquad(squad)) back("error", "반을 다시 선택해 주세요.");
+  if (cohort !== null && (!Number.isInteger(cohort) || cohort < 1 || cohort > 9999)) back("error", "기수는 1~9999 사이 숫자로 입력해 주세요.");
 
-  const { data, error } = await getSupabaseAdmin()
-    .from("members")
-    .insert({
+  const base = {
       name,
       rank,
       is_clinic: isClinic,
       ...(isDriver ? { is_driver: true } : {}), // 운전병일 때만 (0006 SQL 전에도 일반 추가는 되도록)
       password_hash: await hashPassword(DEFAULT_INITIAL_PASSWORD),
       must_change_password: true,
-    })
-    .select("id")
-    .single();
-  if (error) back("error", error.code === "23505" ? `"${name}" 은(는) 이미 있는 이름입니다. (동명이인은 ${name}B 처럼)` : "저장 중 오류: " + error.message);
-  await writeAudit({ actorId: me.id, action: "member.add", targetMemberId: data.id, details: { name, rank, is_clinic: isClinic, is_driver: isDriver } });
+  };
+  const extra = { ...(squad ? { squad } : {}), ...(cohort !== null ? { cohort } : {}) }; // 기수·반 (SQL 0015 후)
+  const db = getSupabaseAdmin();
+  let { data, error } = await db.from("members").insert({ ...base, ...extra }).select("id").single();
+  if (error && Object.keys(extra).length && error.code !== "23505") {
+    ({ data, error } = await db.from("members").insert(base).select("id").single()); // 0015 전이면 기수·반 없이 추가
+  }
+  if (error || !data) back("error", error?.code === "23505" ? `"${name}" 은(는) 이미 있는 이름입니다. (동명이인은 ${name}B 처럼)` : "저장 중 오류: " + (error?.message ?? ""));
+  await writeAudit({ actorId: me.id, action: "member.add", targetMemberId: data.id, details: { name, rank, is_clinic: isClinic, is_driver: isDriver, squad, cohort } });
   back("msg", `${name} 을(를) 추가했습니다. 초기 비밀번호는 ${DEFAULT_INITIAL_PASSWORD} 입니다.`);
 }
 

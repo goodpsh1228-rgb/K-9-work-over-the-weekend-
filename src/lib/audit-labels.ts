@@ -78,7 +78,7 @@ export function detailText(action: string, d: Record<string, unknown>): string {
     case "member.driver":
       return `${s(d.name)}: ${d.to ? "운전병으로" : "운전병 해제"}`;
     case "member.add":
-      return `${s(d.name)}${d.rank ? ` (${d.rank})` : ""}${d.is_clinic ? " · 진료반" : ""}${d.is_driver ? " · 운전병" : ""}`;
+      return `${s(d.name)}${d.rank ? ` (${d.rank})` : ""}${d.is_clinic ? " · 진료반" : ""}${d.is_driver ? " · 운전병" : ""}${d.squad ? ` · ${s(d.squad)}` : ""}${d.cohort ? ` · ${s(d.cohort)}기` : ""}`;
     case "member.deactivate":
       return `${s(d.name)}${d.reason ? ` (${s(d.reason)})` : ""}`;
     case "member.delete":

@@ -8,8 +8,6 @@ import { requireMember } from "@/lib/session";
 import { logoutAction } from "@/app/auth-actions";
 import { Page } from "@/components/ui";
 import { getDutyDays, homeRange } from "@/lib/duty-days-server";
-import { addAbsenceAction } from "@/app/absences/actions";
-import { AbsenceForm } from "@/components/absence-form";
 import { MyRankSelect } from "@/components/my-rank-select";
 import { updateMyCohortAction, updateMyRankAction } from "./actions";
 import { effectiveSquad } from "@/lib/squads";
@@ -301,20 +299,8 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         </Card>
       )}
 
-      {/* 부가 기능(덜 쓰는 것)은 작게: 빠른 불참 입력 · 통계 · 비밀번호 · 로그아웃 */}
-      <details className="mt-10 text-sm text-muted">
-        <summary className="cursor-pointer py-2">빠른 불참 입력 (홈에서 바로)</summary>
-        <Card className="mt-2 p-4">
-          <AbsenceForm action={addAbsenceAction} back="/home" defaultDate={todayKST()} />
-          <p className="mt-3 text-xs text-muted">
-            <Link href="/leave" className="text-link underline">
-              휴가 계산기
-            </Link>
-            에 입력한 휴가·외출·면회는 기록마다 &quot;주말출근 제외로 보내기&quot;를 누르면 똑같이 추첨에서 제외됩니다.
-          </p>
-        </Card>
-      </details>
-      <nav className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
+      {/* 부가 기능(덜 쓰는 것)은 작게: 통계 · 비밀번호 · 로그아웃 */}
+      <nav className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
         {me.is_admin && (
           <Link href="/admin" className="font-semibold text-foreground">
             관리자 메뉴
