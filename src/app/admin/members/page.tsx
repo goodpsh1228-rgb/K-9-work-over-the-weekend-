@@ -53,6 +53,16 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
         )}
       </div>
 
+      {/* 반·기수 / 일괄 등록 바로가기 */}
+      <div className="mt-3 flex items-center gap-2">
+        <Link href="/admin/squads" className="flex h-11 flex-1 items-center justify-center rounded-full border-2 border-blue-600 text-sm font-bold text-link">
+          반 지정 · 반별 휴가 TO
+        </Link>
+        <Link href="/admin/members/import" className="shrink-0 px-2 text-xs text-muted underline">
+          일괄 등록
+        </Link>
+      </div>
+
       {/* 한 명 추가 */}
       <form action={addMemberAction} className="mt-3 space-y-2 rounded-[18px] border border-hairline p-3 bg-card">
         <p className="text-sm font-semibold">인원 한 명 추가 (초기 비밀번호 1111)</p>

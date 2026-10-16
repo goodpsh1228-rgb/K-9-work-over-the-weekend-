@@ -9,6 +9,7 @@
 //   - 외출·면회: 날짜 하나만
 // ─────────────────────────────────────────────────────────────
 import { useState } from "react";
+import { DateRangePicker } from "@/components/date-range-picker";
 import { LEAVE_KINDS, SUBKINDS } from "@/lib/leave";
 
 const inputClass = "h-12 min-w-0 w-full rounded-full border border-hairline bg-input px-4 text-base text-foreground outline-none focus:border-blue-500";
@@ -89,19 +90,8 @@ export function LeaveForm({
           ))}
         </select>
       )}
-      {/* 날짜 (칸이 옆으로 삐져나가지 않게 min-w-0) */}
-      <div className={oneDay ? "" : "grid grid-cols-2 gap-2"}>
-        <label className="block min-w-0 text-xs text-zinc-500">
-          {oneDay ? "날짜" : "시작일"}
-          <input type="date" name="start_date" required defaultValue={defaultDate} className={`${inputClass} px-3! text-sm!`} />
-        </label>
-        {!oneDay && (
-          <label className="block min-w-0 text-xs text-zinc-500">
-            종료일
-            <input type="date" name="end_date" required defaultValue={defaultDate} className={`${inputClass} px-3! text-sm!`} />
-          </label>
-        )}
-      </div>
+      {/* 날짜: 달력에서 시작일 → 종료일 순서로 누름 (외출·면회는 하루만 한 번 누름) */}
+      <DateRangePicker key={oneDay ? "one" : "range"} defaultDate={defaultDate} single={oneDay} />
       <input name="memo" maxLength={100} placeholder="메모 (선택)" className={inputClass} />
       {!planned && (
         <label className="flex items-center gap-2 text-sm">

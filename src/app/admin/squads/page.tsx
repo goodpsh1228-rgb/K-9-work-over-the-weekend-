@@ -134,8 +134,8 @@ export default async function SquadsPage({ searchParams }: PageProps<"/admin/squ
           </form>
         ))}
       </Card>
-      <Link href="/admin" className="mt-6 block text-center text-sm text-muted underline">
-        관리자 메뉴로
+      <Link href="/admin/members" className="mt-6 block text-center text-sm text-muted underline">
+        인원 관리로
       </Link>
     </Page>
   );

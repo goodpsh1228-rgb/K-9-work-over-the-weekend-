@@ -11,6 +11,7 @@
 // 실제 저장과 규칙 확인은 서버 액션(addAbsenceAction)이 합니다.
 // ─────────────────────────────────────────────────────────────
 import { useState } from "react";
+import { DateRangePicker } from "./date-range-picker";
 
 const inputClass =
   "h-12 min-w-0 w-full rounded-full border border-hairline bg-input px-4 text-base text-foreground outline-none focus:border-blue-500";
@@ -77,17 +78,8 @@ export function AbsenceForm({
         <span className="text-xs text-muted">라인업엔 출근, 주말출근 추첨에서만 제외</span>
       </label>
 
-      {/* 날짜 (iPhone 에서 옆으로 삐져나가지 않게 min-w-0) */}
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block min-w-0 text-xs text-zinc-500">
-          시작일
-          <input type="date" name="start_date" required defaultValue={defaultDate} className={`${inputClass} px-3! text-sm!`} />
-        </label>
-        <label className="block min-w-0 text-xs text-zinc-500">
-          종료일
-          <input type="date" name="end_date" required defaultValue={defaultDate} className={`${inputClass} px-3! text-sm!`} />
-        </label>
-      </div>
+      {/* 기간: 달력에서 처음 누른 날 = 시작일, 나중에 누른 날 = 종료일 (하루만이면 한 번만) */}
+      <DateRangePicker defaultDate={defaultDate} />
 
       {/* 라인업 불참은 사유를 직접 입력(필수), 나머지는 상세 내용(선택) */}
       <input
