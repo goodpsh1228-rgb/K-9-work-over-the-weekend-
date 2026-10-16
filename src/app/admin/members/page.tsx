@@ -11,7 +11,9 @@ import { requireAdmin } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { getDriverIds } from "@/lib/drivers";
 import { Notice, Page } from "@/components/ui";
-import { addMemberAction, deleteMembersAction, updateCohortAction, updateRankAction } from "./actions";
+import { addMemberAction, deleteMembersAction, updateRankAction } from "./actions";
+import { updateSquadCohortAction } from "../squads/actions";
+import { effectiveSquad, SQUADS } from "@/lib/squads";
 import { DeleteButton, RankSelect } from "./member-controls";
 
 export default async function MembersPage({ searchParams }: PageProps<"/admin/members">) {
@@ -31,10 +33,11 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
   const inactiveCount = all.filter((m) => !m.is_active).length;
   const list = showInactive ? all : all.filter((m) => m.is_active);
   const drivers = await getDriverIds();
-  // 기수 (SQL 0015 전이면 칸이 없어 오류 → 기수 입력칸 숨김)
-  const { data: cohortRows, error: cohortErr } = await getSupabaseAdmin().from("members").select("id, cohort");
+  // 기수·반 (SQL 0015 전이면 칸이 없어 오류 → 기수·반 입력칸 숨김)
+  const { data: cohortRows, error: cohortErr } = await getSupabaseAdmin().from("members").select("id, cohort, squad");
   const cohortReady = !cohortErr;
   const cohortOf = new Map((cohortRows ?? []).map((r) => [r.id as number, (r.cohort as number | null) ?? null]));
+  const squadRaw = new Map((cohortRows ?? []).map((r) => [r.id as number, (r.squad as string | null) ?? null]));
   const noRank = all.filter((m) => m.is_active && !m.rank).length;
 
   return (
@@ -51,16 +54,6 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
         {noRank > 0 && (
           <Notice kind="warn">계급이 없는 인원 {noRank}명 — 계급이 없으면 화요일부터만 투표할 수 있습니다.</Notice>
         )}
-      </div>
-
-      {/* 반·기수 / 일괄 등록 바로가기 */}
-      <div className="mt-3 flex items-center gap-2">
-        <Link href="/admin/squads" className="flex h-11 flex-1 items-center justify-center rounded-full border-2 border-blue-600 text-sm font-bold text-link">
-          반 지정 · 기수
-        </Link>
-        <Link href="/admin/members/import" className="shrink-0 px-2 text-xs text-muted underline">
-          일괄 등록
-        </Link>
       </div>
 
       {/* 한 명 추가 */}
@@ -107,7 +100,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
       </div>
 
       <p className="mt-4 mb-2 text-sm text-zinc-500">
-        {showInactive ? `전체 ${list.length}명 (비활성 포함)` : `${list.length}명`} · 이름을 누르면 상세 관리
+        {showInactive ? `전체 ${list.length}명 (비활성 포함)` : `${list.length}명`} · 이름을 누르면 상세 관리 · 줄마다 기수·반을 정하고 저장
       </p>
       {/* 삭제용 폼: 체크박스들이 form="delete-form" 으로 이 폼에 연결됩니다 */}
       <form id="delete-form" action={deleteMembersAction} />
@@ -144,9 +137,9 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
               <input type="hidden" name="member_id" value={m.id} />
               <RankSelect defaultValue={m.rank ?? ""} />
             </form>
-            {/* 기수: 숫자를 바꾸고 "저장" (비우면 삭제) */}
+            {/* 기수 · 반: 바꾸고 "저장" 한 번 (기수를 비우면 삭제, 진료반으로 지정하면 진료반 여부도 켜짐) */}
             {cohortReady && (
-              <form action={updateCohortAction} className="flex items-center gap-1">
+              <form action={updateSquadCohortAction} className="flex w-full items-center gap-1.5 pl-7">
                 <input type="hidden" name="member_id" value={m.id} />
                 <input
                   name="cohort"
@@ -157,9 +150,22 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
                   defaultValue={cohortOf.get(m.id) ?? ""}
                   placeholder="기수"
                   aria-label={`${m.name} 기수`}
-                  className="h-8 w-16 rounded-full border border-hairline bg-input px-2 text-center text-sm"
+                  className="h-8 w-20 rounded-full border border-hairline bg-input px-2 text-center text-sm"
                 />
-                <button type="submit" className="h-8 rounded-full border border-blue-600 px-2.5 text-xs font-semibold text-link">
+                <select
+                  name="squad"
+                  defaultValue={effectiveSquad(squadRaw.get(m.id) ?? null, m.is_clinic) ?? ""}
+                  aria-label={`${m.name} 반`}
+                  className="h-8 min-w-0 flex-1 rounded-full border border-hairline bg-input px-2 text-sm"
+                >
+                  <option value="">반 없음</option>
+                  {SQUADS.map((q) => (
+                    <option key={q} value={q}>
+                      {q}
+                    </option>
+                  ))}
+                </select>
+                <button type="submit" className="h-8 shrink-0 rounded-full border border-blue-600 px-3 text-xs font-semibold text-link">
                   저장
                 </button>
               </form>

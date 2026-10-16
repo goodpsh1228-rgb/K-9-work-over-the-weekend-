@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // 반별 휴가 TO (/admin/leave-to) — 관리자 전용
 //   반마다 휴가 희망(계획)·확정 휴가 건수와 명단(예: 병장 홍길동 8.12~8.16 휴가 희망), 가장 많이 겹치는 날
-//   한 사람의 이어지는 휴가는 하나로 합쳐 보여 줍니다. 반 지정·기수 입력은 "인원 관리 → 반 지정 · 기수"에서 합니다.
+//   한 사람의 이어지는 휴가는 하나로 합쳐 보여 줍니다. 반 지정·기수 입력은 "인원 관리 목록"에서 합니다.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
 import { requireAdmin } from "@/lib/session";
@@ -88,8 +88,8 @@ export default async function LeaveToPage() {
       </div>
 
       <div className="mt-6 flex justify-between text-sm">
-        <Link href="/admin/squads" className="text-link underline">
-          반 지정 · 기수 입력
+        <Link href="/admin/members" className="text-link underline">
+          반 지정 · 기수 입력 (인원 관리)
         </Link>
         <Link href="/admin" className="text-muted underline">
           관리자 메뉴로

@@ -4,6 +4,7 @@
 //   - 한 사람의 반(미용반·진료반·훈련반·관리반·분만반)과 기수를 저장
 //   - 반을 "진료반"으로 하면 진료반 여부(진료실 추첨 대상)도 켜지고, 다른 반으로 바꾸면 꺼집니다.
 //   - 변경 이력에 남김
+//   - 인원 관리(/admin/members) 목록의 기수·반 저장 버튼이 사용합니다.
 // ─────────────────────────────────────────────────────────────
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -12,7 +13,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { isSquad } from "@/lib/squads";
 
-const PAGE = "/admin/squads";
+const PAGE = "/admin/members";
 function back(kind: "msg" | "error", text: string): never {
   revalidatePath(PAGE);
   revalidatePath("/lineup");
