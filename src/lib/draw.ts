@@ -8,6 +8,8 @@
 //   ※ 운전병은 동 희망·차출이 일반 인원과 똑같고, 그와 별도로 "주말 운전 희망"을 할 수 있습니다.
 //     그래서 같은 날 동 출근 + 운전을 함께 할 수도 있습니다.
 //     운전 희망자 ≥ 정원: 희망자 중 랜덤. 희망자 < 정원: 희망자 전원 + 나머지는 운전병 전체에서 랜덤.
+//   ※ 운전 지정(/drive)으로 그날 운전이 정해진 운전병(designated)은 동·진료실 추첨에서 완전히 빠지고(희망·차출 모두),
+//     "주말 운전" 자리를 먼저 채웁니다. 자리가 남으면 위 운전 추첨 규칙대로 나머지를 뽑습니다.
 //   ※ 희망은 진료반이 진료실뿐 아니라 다른 동도 고를 수 있습니다. (일반 인원은 동만)
 //     진료반이 동을 희망하면 그 동의 희망자로 일반 인원과 같은 조건으로 뽑히고,
 //     희망한 사람은 차출 대상이 아니므로 진료실 차출에도 들어가지 않습니다(하루 한 곳만).
@@ -30,6 +32,7 @@ export type DrawInput = {
   posts: { id: number; pool: Pool; required: number }[]; // 그날의 자리와 필요 인원
   members: { id: number; pool: "clinic" | "general"; driver?: boolean }[]; // 추첨 대상: 활성 + 제외 아님 (driver = 운전병)
   driveWants?: Set<number>; // 주말 운전을 희망한 사람 (동 희망과 따로)
+  designated?: number[]; // 그날 운전이 지정된 운전병 (members 에는 없음 = 동·진료실 추첨에서 제외된 상태)
   responses: Map<number, { choice: "want" | "decline"; postId: number | null }>; // 인원번호 → 응답
 };
 
@@ -113,10 +116,16 @@ function drawDriver(input: DrawInput, rng: Rng, out: DrawResult) {
   const drivers = input.members.filter((m) => m.driver).map((m) => m.id);
   const wanters = drivers.filter((id) => input.driveWants?.has(id));
   const others = drivers.filter((id) => !input.driveWants?.has(id));
+  const designatedQueue = shuffle([...new Set(input.designated ?? [])], rng); // 운전 지정자는 가장 먼저 자리를 채움
   const wantQueue = shuffle(wanters, rng);
   const otherQueue = shuffle(others, rng);
   for (const post of input.posts.filter((p) => p.pool === "driver")) {
     for (let i = 0; i < post.required; i++) {
+      const d = designatedQueue.shift();
+      if (d !== undefined) {
+        out.assignments.push({ memberId: d, postId: post.id, source: "wanted" }); // 지정은 확정이므로 "희망 확정" 꼬리표 (화면에서는 "운전 지정"으로 표시)
+        continue;
+      }
       const w = wantQueue.shift();
       if (w !== undefined) out.assignments.push({ memberId: w, postId: post.id, source: "wanted" });
       else {

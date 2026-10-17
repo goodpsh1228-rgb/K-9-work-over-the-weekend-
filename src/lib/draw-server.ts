@@ -13,7 +13,8 @@ import { getFridayChecker, getOverrides, getVoteInfo } from "@/lib/duty-days-ser
 import { votingStatus } from "@/lib/voting";
 import { addDays, isValidDate, todayKST } from "@/lib/kst";
 import { writeAudit } from "@/lib/audit";
-import { getDriverIds, getDriveWants } from "@/lib/drivers";
+import { getDriverIds, getDriveWants, getDriverIdsOn } from "@/lib/drivers";
+import { autoAssignEscort } from "@/lib/escort-server";
 import { syncServiceStatusSafely } from "@/lib/service-sync";
 import { runDraw, type DrawInput, type DrawResult } from "@/lib/draw";
 
@@ -22,11 +23,12 @@ export type Trigger = "cron" | "visit" | "manual";
 // 추첨 입력 모으기 (실제 추첨과 관리자 미리보기가 같이 씀)
 export async function buildDrawInput(date: string): Promise<DrawInput> {
   const db = getSupabaseAdmin();
-  const [allPosts, excluded, drivers, driveWants, { data: members }, { data: responses }] = await Promise.all([
+  const [allPosts, excluded, drivers, driveWants, designatedNow, { data: members }, { data: responses }] = await Promise.all([
     getPostsForDate(date),
-    getExcludedIds(date),
+    getExcludedIds(date), // 휴가·부상 등 + 그날 운전이 지정된 운전병
     getDriverIds(),
     getDriveWants(date),
+    getDriverIdsOn(date), // 운전 지정(/drive)
     db.from("members").select("id, is_clinic").eq("is_active", true),
     db.from("responses").select("member_id, choice, post_id").eq("duty_date", date),
   ]);
@@ -34,11 +36,13 @@ export async function buildDrawInput(date: string): Promise<DrawInput> {
   // 선탑(escort)은 추첨하지 않음 (추첨 후 관리자가 지정)
   const drawable = allPosts.filter((p): p is typeof p & { pool: "clinic" | "general" | "driver" } => p.pool !== "escort");
   const posts = driveWants.ok ? drawable : drawable.filter((p) => p.pool !== "driver");
+  const activeIds = new Set((members ?? []).map((m) => m.id as number));
   return {
     driveWants: driveWants.ids,
+    designated: [...designatedNow.ids].filter((id) => drivers.has(id) && activeIds.has(id)), // 지정된 활성 운전병은 "주말 운전" 자리를 먼저 채움
     posts: posts.map((p) => ({ id: p.id, pool: p.pool, required: p.required })),
     members: (members ?? [])
-      .filter((m) => !excluded.has(m.id)) // 제외자(휴가·부상)는 어떤 풀에도 넣지 않음
+      .filter((m) => !excluded.has(m.id)) // 제외자(휴가·부상, 운전 지정자)는 동·진료실 풀에 넣지 않음
       .map((m) => ({ id: m.id as number, pool: m.is_clinic ? "clinic" : "general", driver: drivers.has(m.id) })),
     responses: new Map(
       (responses ?? []).map((r) => [r.member_id as number, { choice: r.choice, postId: r.post_id as number | null }]),
@@ -78,6 +82,9 @@ export async function executeDraw(date: string, trigger: Trigger, actorId: numbe
   });
   if (error) throw new Error("추첨 저장 실패: " + error.message);
   if (saved !== true) return { status: "already" }; // 동시에 두 곳에서 실행 → 먼저 저장한 쪽만 인정
+
+  // 선탑: 운전병보다 기수가 같거나 높은 출근자 중 랜덤 1명 (못 정해도 추첨 결과는 그대로, 관리자가 나중에 다시 뽑을 수 있음)
+  await autoAssignEscort(date, actorId, "draw").catch((e) => console.error("선탑 자동 지정 실패:", e));
 
   await writeAudit({
     actorId,

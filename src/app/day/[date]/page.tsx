@@ -25,7 +25,9 @@ import { excuseUnansweredAction, manualDrawAction, undoExcuseAction } from "./ac
 import { VotePanel } from "./vote-panel";
 import { DrivePanel } from "./drive-panel";
 import { EscortDrawForm, escortWorkers } from "@/components/escort-draw-form";
-import { drawEscortAction } from "@/app/admin/roster/[date]/actions";
+import { autoEscortAction, drawEscortAction } from "@/app/admin/roster/[date]/actions";
+import { EscortAutoForm } from "@/components/escort-auto-form";
+import { getEscortPlan } from "@/lib/escort-server";
 
 export default async function DayPage({ params, searchParams }: PageProps<"/day/[date]">) {
   const me = await requireMember();
@@ -101,6 +103,9 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
     new Set(board.posts.filter((p) => p.pool === "clinic" || p.pool === "general").map((p) => p.id)),
   );
 
+  // 선탑 규칙 요약 (관리자 화면용): 기준 운전병·대상자·못 뽑는 이유
+  const escortPlan = me.is_admin && roster && escortPost ? await getEscortPlan(date) : null;
+
   // 카카오톡용 출근 명단 글 (추첨이 끝나면 모두에게): ① 동별 ② 계급별
   const postText = roster ? buildPostText(date, board.posts, roster) : null;
   const rankText = roster ? buildRankText(date, board.posts, roster) : null;
@@ -148,8 +153,12 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
               hint={`현재 선탑: ${currentEscort.length ? currentEscort.map((r) => `${r.rank ? `${r.rank} ` : ""}${r.name}`).join(", ") : "미정"}`}
               className="border border-hairline bg-card"
             >
-              <p className="mb-2 text-xs text-zinc-600 dark:text-zinc-400">이 날 출근자 중 대상자를 체크한 뒤 버튼을 누르세요.</p>
-              <EscortDrawForm date={date} workers={escortCandidates} action={drawEscortAction} returnTo="day" />
+              {escortPlan && <EscortAutoForm date={date} action={autoEscortAction} returnTo="day" plan={escortPlan} />}
+              <details className="mt-3 border-t border-hairline pt-2">
+                <summary className="cursor-pointer text-sm font-semibold">직접 대상자를 골라 뽑기</summary>
+                <p className="my-2 text-xs text-zinc-600 dark:text-zinc-400">이 날 출근자 중 대상자를 체크한 뒤 버튼을 누르세요.</p>
+                <EscortDrawForm date={date} workers={escortCandidates} action={drawEscortAction} returnTo="day" />
+              </details>
             </Fold>
           )}
 
@@ -161,7 +170,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
               {kakaoWeek && <CopyButton text={kakaoWeek} label="이번 투표 주 동별 명단 전체 복사" />}
             </div>
           )}
-          <RosterView title="확정 명단" posts={board.posts} roster={roster} />
+          <RosterView title="확정 명단" posts={board.posts} roster={roster} driving={board.driving} />
           {me.is_admin && (
             <Link
               href={`/admin/roster/${date}`}
@@ -232,7 +241,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         </p>
 
         {mine.kind === "excluded" && (
-          <p className="mt-1 text-sm text-zinc-500">이 날은 추첨에서 제외됩니다. (휴가·부상 등 제외 기간 또는 관리자 지정 제외)</p>
+          <p className="mt-1 text-sm text-zinc-500">이 날은 추첨에서 제외됩니다. (휴가·부상 등 제외 기간, 관리자 지정 제외, 또는 운전 지정)</p>
         )}
         {status === "before" && (
           <p className="mt-1 text-sm text-zinc-500">
@@ -306,8 +315,8 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           <span className="text-zinc-600 dark:text-zinc-400">{board.declines.map((m) => m.name).join(", ") || "-"}</span>
         </p>
         <p>
-          <b>제외 · 휴가/부상 등 ({board.excluded.length}명)</b>{" "}
-          <span className="text-zinc-600 dark:text-zinc-400">{board.excluded.map((m) => m.name).join(", ") || "-"}</span>
+          <b>제외 · 휴가/부상{board.driving.length > 0 ? "/운전" : ""} 등 ({board.excluded.length}명)</b>{" "}
+          <span className="text-zinc-600 dark:text-zinc-400">{board.excluded.map((m) => (board.driving.includes(m.id) ? `${m.name}(운전)` : m.name)).join(", ") || "-"}</span>
         </p>
         {/* 관리자가 이 날만 뺀 사람: 관리자에게 되돌리기 버튼 (추첨 전) */}
         {excused.length > 0 && (
@@ -380,7 +389,7 @@ const SOURCE_COLOR = {
   drafted: "bg-hairline/60 text-foreground/80",
   admin: "bg-foreground text-background",
 } as const;
-function RosterView({ title, posts, roster }: { title: string; posts: PostSlot[]; roster: RosterEntry[] }) {
+function RosterView({ title, posts, roster, driving = [] }: { title: string; posts: PostSlot[]; roster: RosterEntry[]; driving?: number[] }) {
   return (
     <div className="rounded-[18px] border border-hairline bg-card">
       <p className="border-b border-hairline px-3 py-2 text-sm font-semibold ">{title}</p>
@@ -399,7 +408,7 @@ function RosterView({ title, posts, roster }: { title: string; posts: PostSlot[]
                   {people.map((r) => (
                     <span key={r.memberId} className="inline-flex items-center gap-1">
                       {r.name}
-                      <span className={`rounded px-1 text-[11px] ${SOURCE_COLOR[r.source]}`}>{SOURCE_LABEL[r.source]}</span>
+                      <span className={`rounded px-1 text-[11px] ${SOURCE_COLOR[r.source]}`}>{p.pool === "driver" && driving.includes(r.memberId) ? "운전 지정" : SOURCE_LABEL[r.source]}</span>
                     </span>
                   ))}
                   {empty > 0 &&

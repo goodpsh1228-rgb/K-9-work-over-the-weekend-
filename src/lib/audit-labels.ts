@@ -112,7 +112,7 @@ export function detailText(action: string, d: Record<string, unknown>): string {
     }
     case "roster.escort_draw": {
       const c = Array.isArray(d.candidates) ? (d.candidates as string[]) : [];
-      return `${s(d.picked)} (대상 ${c.length}명: ${c.join(", ")})`;
+      return `${s(d.picked)} (대상 ${c.length}명: ${c.join(", ")})${Array.isArray(d.drivers) && d.drivers.length ? ` · 기준 운전병 ${(d.drivers as string[]).join(", ")}` : ""}`;
     }
     case "roster.add":
       return `${s(d.name)} → ${s(d.post)}${d.excluded ? " (휴가·부상 중)" : ""}`;

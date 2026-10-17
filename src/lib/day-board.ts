@@ -9,7 +9,7 @@
 import "server-only";
 import { cache } from "react";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
-import { getDriveWants } from "@/lib/drivers";
+import { getDriveWants, getDriverIdsOn } from "@/lib/drivers";
 
 export type PostSlot = {
   id: number;
@@ -25,7 +25,8 @@ export type DayBoard = {
   date: string;
   posts: PostSlot[];
   declines: MemberLite[]; // 미희망
-  excluded: MemberLite[]; // 제외 (휴가·부상 등, 관리자가 그날만 뺀 사람 포함)
+  excluded: MemberLite[]; // 제외 (휴가·부상 등, 관리자가 그날만 뺀 사람, 그날 운전이 지정된 운전병 포함)
+  driving: number[]; // 제외 중 "운전 지정"으로 빠진 사람 번호
   unanswered: MemberLite[]; // 미응답
 };
 
@@ -52,21 +53,22 @@ export const getPostsForDate = cache(async (date: string) => {
 });
 
 // 그날 제외인 인원 번호 목록 = 휴가·부상 등 제외 기간에 걸친 사람 (관리자가 그날만 뺀 미응답자 포함)
+//   + 그날 운전이 지정된 운전병(/drive): 운전하는 날은 동·진료실 추첨(희망·차출)에서 빠짐
 export const getExcludedIds = cache(async (date: string): Promise<Set<number>> => {
-  const { data } = await getSupabaseAdmin()
-    .from("absences")
-    .select("member_id")
-    .lte("start_date", date)
-    .gte("end_date", date);
-  return new Set((data ?? []).map((a) => a.member_id as number));
+  const [{ data }, drive] = await Promise.all([
+    getSupabaseAdmin().from("absences").select("member_id").lte("start_date", date).gte("end_date", date),
+    getDriverIdsOn(date),
+  ]);
+  return new Set([...(data ?? []).map((a) => a.member_id as number), ...drive.ids]);
 });
 
 export async function getDayBoard(date: string): Promise<DayBoard> {
   const db = getSupabaseAdmin();
-  const [posts, excludedIds, driveWants, { data: members }, { data: responses }] = await Promise.all([
+  const [posts, excludedIds, driveWants, drivingNow, { data: members }, { data: responses }] = await Promise.all([
     getPostsForDate(date),
     getExcludedIds(date),
     getDriveWants(date),
+    getDriverIdsOn(date),
     db.from("members").select("id, name, is_clinic").eq("is_active", true).order("name"),
     db.from("responses").select("member_id, choice, post_id").eq("duty_date", date),
   ]);
@@ -98,6 +100,7 @@ export async function getDayBoard(date: string): Promise<DayBoard> {
     posts: slots,
     declines,
     excluded: active.filter((m) => excludedIds.has(m.id)),
+    driving: active.filter((m) => drivingNow.ids.has(m.id)).map((m) => m.id),
     unanswered: active.filter((m) => !excludedIds.has(m.id) && !responded.has(m.id)),
   };
 }
@@ -116,15 +119,16 @@ export function myStateFrom(board: DayBoard, memberId: number): MyState {
 // 홈 화면용: 여러 날짜에 대한 "내 상태"를 한 번에
 export async function getMyStates(memberId: number, from: string, to: string) {
   const db = getSupabaseAdmin();
-  const [{ data: responses }, { data: absences }, { data: posts }] = await Promise.all([
+  const [{ data: responses }, { data: absences }, { data: posts }, { data: duties }] = await Promise.all([
     db.from("responses").select("duty_date, choice, post_id").eq("member_id", memberId).gte("duty_date", from).lte("duty_date", to),
     db.from("absences").select("start_date, end_date").eq("member_id", memberId).lte("start_date", to).gte("end_date", from),
     db.from("posts").select("id, name"),
+    db.from("drive_duties").select("start_date, end_date").eq("member_id", memberId).lte("start_date", to).gte("end_date", from), // 운전 지정(0017 전이면 오류 → 없음)
   ]);
   const postName = new Map((posts ?? []).map((p) => [p.id as number, p.name as string]));
   const resp = new Map((responses ?? []).map((r) => [r.duty_date as string, r]));
   return (date: string): MyState => {
-    if ((absences ?? []).some((a) => a.start_date <= date && date <= a.end_date)) return { kind: "excluded" };
+    if ([...(absences ?? []), ...(duties ?? [])].some((a) => a.start_date <= date && date <= a.end_date)) return { kind: "excluded" };
     const r = resp.get(date);
     if (!r) return { kind: "none" };
     if (r.choice === "want") return { kind: "want", postId: r.post_id, postName: postName.get(r.post_id) ?? "" };

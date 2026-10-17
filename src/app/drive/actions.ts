@@ -4,6 +4,7 @@
 //   - 운전병과 관리자만 쓸 수 있고, 그 사람들끼리 서로의 지정을 추가·삭제(수정)할 수 있습니다.
 //   - 휴가처럼 "시작일 ~ 종료일(양 끝 포함)"로 지정합니다. 지정 대상은 활성 운전병.
 //   - 같은 사람의 기간이 겹치게 지정할 수는 없습니다(이어서 지정하려면 겹치지 않게).
+//   - 운전이 지정된 주말·공휴일은 그날 동·진료실 추첨(희망·차출)에서 자동 제외되고 "주말 운전" 자리에 배정됩니다.
 //   - 변경 이력(drive.add / drive.delete)에 남깁니다.
 // ─────────────────────────────────────────────────────────────
 import { redirect } from "next/navigation";
@@ -12,6 +13,8 @@ import { requireMember, type Member } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { addDays, formatShort, isValidDate } from "@/lib/kst";
+import { getDutyDays } from "@/lib/duty-days-server";
+import { isFullLeave } from "@/lib/leave";
 
 const PAGE = "/drive";
 const MAX_DAYS = 366;
@@ -57,7 +60,21 @@ export async function addDriveDutyAction(formData: FormData) {
   const { error } = await db.from("drive_duties").insert({ member_id: memberId, start_date: start, end_date: end, created_by: me.id });
   if (error) back("error", "저장 중 오류: " + error.message);
   await writeAudit({ actorId: me.id, action: "drive.add", targetMemberId: memberId, details: { name: target.name, start_date: start, end_date: end } });
-  back("msg", `${target.name} — 운전 ${formatShort(start)} ~ ${formatShort(end)} 지정했습니다. 운전하는 날은 1차 명단에서 빠집니다.`);
+  // 안내: 겹치는 휴가, 이미 추첨이 끝난 주말, 앞으로 추첨에서 빠지는 주말·공휴일 수
+  const notes: string[] = [];
+  const { data: myLeaves } = await db.from("leaves").select("kind, start_date, end_date").eq("member_id", memberId).lte("start_date", end).gte("end_date", start);
+  const { data: myAbs } = await db.from("absences").select("start_date, end_date").eq("member_id", memberId).eq("kind", "leave").lte("start_date", end).gte("end_date", start);
+  const clash = [...(myLeaves ?? []).filter((l) => isFullLeave(l.kind as string)), ...(myAbs ?? [])] as { start_date: string; end_date: string }[];
+  if (clash.length) notes.push(`⚠️ ${target.name}님은 그 기간에 휴가(${clash.map((c) => `${formatShort(c.start_date)}~${formatShort(c.end_date)}`).join(", ")})가 있습니다. 확인해 주세요.`);
+  const duty = (await getDutyDays(start, end)).map((d) => d.date);
+  if (duty.length) {
+    const { data: drawn } = await db.from("draws").select("duty_date").in("duty_date", duty);
+    const drawnDates = new Set((drawn ?? []).map((d) => d.duty_date as string));
+    const open = duty.filter((d) => !drawnDates.has(d));
+    if (open.length) notes.push(`주말·공휴일 ${open.map(formatShort).join(", ")}은(는) 동·진료실 추첨(희망·차출)에서 빠지고 "주말 운전" 자리에 들어갑니다.`);
+    if (drawnDates.size) notes.push(`⚠️ 이미 추첨이 끝난 ${[...drawnDates].sort().map(formatShort).join(", ")}은(는) 확정 명단이 자동으로 바뀌지 않습니다. 관리자 명단 수정에서 맞춰 주세요.`);
+  }
+  back("msg", `${target.name} — 운전 ${formatShort(start)} ~ ${formatShort(end)} 지정했습니다. 운전하는 날은 1차 명단에서 빠집니다. ${notes.join(" ")}`.trim());
 }
 
 export async function deleteDriveDutyAction(formData: FormData) {

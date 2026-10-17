@@ -14,7 +14,8 @@ import { DateRangePicker } from "@/components/date-range-picker";
 import { getDriveDuties } from "@/lib/drivers";
 import { addDays, todayKST } from "@/lib/kst";
 import { shiftMonth } from "@/lib/leave";
-import { DriveCalendar } from "./drive-calendar";
+import { DriveCalendar, type CalLeave } from "./drive-calendar";
+import { isFullLeave } from "@/lib/leave";
 import { dotsRange } from "@/lib/spans";
 import { addDriveDutyAction, deleteDriveDutyAction } from "./actions";
 
@@ -39,6 +40,22 @@ export default async function DrivePage({ searchParams }: PageProps<"/drive">) {
     getDriveDuties(`${MIN_MONTH(today)}-01`, addDays(`${shiftMonth(MAX_MONTH(today), 1)}-01`, -1)), // 달력에서 넘겨 볼 수 있는 범위 전체를 한 번에 읽음
   ]);
   const { data: all } = await db.from("members").select("id, name, rank");
+  // 운전병들의 휴가 (휴가 계산기의 실제 휴가·계획 + 불참 입력의 휴가) — 운전을 겹치지 않게 지정하려고 달력에 같이 보여 줌
+  const driverIds = (drivers ?? []).map((d) => d.id as number);
+  const rangeFrom = `${MIN_MONTH(today)}-01`;
+  const rangeTo = addDays(`${shiftMonth(MAX_MONTH(today), 1)}-01`, -1);
+  const leaveCols = "id, member_id, kind, start_date, end_date, absence_id";
+  let lv = driverIds.length ? await db.from("leaves").select(`${leaveCols}, planned`).in("member_id", driverIds).lte("start_date", rangeTo).gte("end_date", rangeFrom) : { data: [], error: null };
+  if (lv.error) lv = (await db.from("leaves").select(leaveCols).in("member_id", driverIds).lte("start_date", rangeTo).gte("end_date", rangeFrom)) as typeof lv; // 0013 전이면 계획 칸 없음
+  const leaveRows = ((lv.data ?? []) as { id: number; member_id: number; kind: string; start_date: string; end_date: string; absence_id: number | null; planned?: boolean | null }[]).filter((r) => isFullLeave(r.kind));
+  const linked = new Set(leaveRows.map((r) => r.absence_id).filter((x): x is number => x !== null)); // 휴가 계산기에서 이미 보낸 불참 기록은 중복 표시하지 않음
+  const { data: absLeaves } = driverIds.length
+    ? await db.from("absences").select("id, member_id, start_date, end_date").eq("kind", "leave").in("member_id", driverIds).lte("start_date", rangeTo).gte("end_date", rangeFrom)
+    : { data: [] };
+  const driverLeaves: CalLeave[] = [
+    ...leaveRows.map((r) => ({ id: r.id, member_id: r.member_id, start_date: r.start_date, end_date: r.end_date, planned: r.planned === true })),
+    ...(absLeaves ?? []).filter((a) => !linked.has(a.id as number)).map((a) => ({ id: 1_000_000 + (a.id as number), member_id: a.member_id as number, start_date: a.start_date as string, end_date: a.end_date as string, planned: false })),
+  ];
   const info = new Map((all ?? []).map((m) => [m.id as number, m as { id: number; name: string; rank: string | null }]));
   const nm = (id: number) => {
     const m = info.get(id);
@@ -94,8 +111,8 @@ export default async function DrivePage({ searchParams }: PageProps<"/drive">) {
       </Card>
 
       {/* ② 달력: 이번 달 · 다음 달 */}
-      <h2 className="mt-8 mb-2 text-lg font-black">운전 달력</h2>
-      <DriveCalendar duties={duties.rows} names={names} toneOrder={toneOrder} today={today} minMonth={MIN_MONTH(today)} maxMonth={MAX_MONTH(today)} />
+      <h2 className="mt-8 mb-2 text-lg font-black">운전 달력 · 운전병 휴가</h2>
+      <DriveCalendar duties={duties.rows} leaves={driverLeaves} names={names} toneOrder={toneOrder} today={today} minMonth={MIN_MONTH(today)} maxMonth={MAX_MONTH(today)} />
 
       {/* ③ 지정 목록 */}
       <h2 className="mt-8 mb-2 text-lg font-black">지정 목록</h2>

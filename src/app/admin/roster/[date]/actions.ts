@@ -18,6 +18,7 @@ import { writeAudit } from "@/lib/audit";
 import { isValidDate } from "@/lib/kst";
 import { getExcludedIds, getPostsForDate } from "@/lib/day-board";
 import { getDraw } from "@/lib/draw-server";
+import { autoAssignEscort } from "@/lib/escort-server";
 
 // to = 돌아갈 화면 (기본: 명단 수정, "day" = 근무일 화면)
 function back(date: string, kind: "msg" | "error", text: string, to: "roster" | "day" = "roster"): never {
@@ -185,4 +186,14 @@ export async function drawEscortAction(formData: FormData) {
     details: { picked: pickedName, candidates: pool.map((id) => nameOf.get(id) ?? "?") },
   });
   back(date, "msg", `선탑 추첨: 대상자 ${pool.length}명 중 ${pickedName} 이(가) 뽑혔습니다.`, to);
+}
+
+// 선탑을 규칙대로 다시 뽑기: 그날 운전병보다 기수가 같거나 높은 출근자 중 랜덤 1명 (이미 선탑이 있으면 바뀜)
+export async function autoEscortAction(formData: FormData) {
+  const { me, date } = await common(formData);
+  const to = formData.get("return_to") === "day" ? "day" : "roster";
+  const r = await autoAssignEscort(date, me.id, "manual");
+  if (!r.ok) back(date, "error", r.message, to);
+  const who = r.drivers.map((d) => `${d.name}(${d.cohort}기)`).join(", ");
+  back(date, "msg", `선탑: 운전병 ${who}보다 기수가 같거나 높은 ${r.poolSize}명 중 ${r.picked.name} 이(가) 뽑혔습니다.`, to);
 }
