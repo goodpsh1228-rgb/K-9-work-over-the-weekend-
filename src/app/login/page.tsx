@@ -11,9 +11,9 @@ export default async function LoginPage() {
   if (await getCurrentMember()) redirect("/home");
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-20 pb-10">
-      {/* 홈 화면 아이콘과 같은 그림(public/icon-512.png)을 둥근 사각형으로 */}
+      {/* 홈 화면 아이콘과 같은 그림(public/icon-192.png). 이미지 최적화 캐시에 옛 그림이 남지 않도록 파일을 그대로 사용(unoptimized) */}
       <div className="mb-6 flex justify-center">
-        <Image src="/icon-512.png" alt="" width={96} height={96} priority className="rounded-[22px]" />
+        <Image src="/icon-192.png" alt="" width={96} height={96} priority unoptimized className="rounded-[22px]" />
       </div>
       {/* 제목: "군견훈육중대"는 크게, "주말출근 관리체계"는 약간 작게 소제목처럼 */}
       <h1 className="mb-10 text-center font-display font-black tracking-[-0.02em]">
