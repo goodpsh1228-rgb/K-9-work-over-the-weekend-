@@ -4,15 +4,13 @@
 //   - 휴가 종류별 색 칩 (실제 휴가=채움, 계획=같은 색 점선), 외출·면회 포함
 //   - 모든 기록을 한 번에 받아 두고 달만 바꿔 그립니다 → ‹ › 를 눌러도 스크롤·펼침 상태가 그대로
 // ─────────────────────────────────────────────────────────────
-import { useState } from "react";
 import { HOLIDAYS } from "@/lib/holidays";
 import { weekday } from "@/lib/kst";
 import { LEAVE_COLOR, LEAVE_KINDS, LEAVE_LABEL, LEAVE_PLAN_COLOR, monthGrid, shiftMonth } from "@/lib/leave";
 
 export type CalLeave = { id: number; kind: string; start_date: string; end_date: string; planned: boolean };
 
-export function LeaveCalendar({ leaves, initialMonth, today, planSupported }: { leaves: CalLeave[]; initialMonth: string; today: string; planSupported: boolean }) {
-  const [month, setMonth] = useState(initialMonth);
+export function LeaveCalendar({ leaves, month, setMonth, today, planSupported }: { leaves: CalLeave[]; month: string; setMonth: (m: string) => void; today: string; planSupported: boolean }) {
   const grid = monthGrid(month);
   const [y, m] = month.split("-").map(Number);
   const onDay = (d: string) => leaves.filter((l) => l.start_date <= d && d <= l.end_date);
