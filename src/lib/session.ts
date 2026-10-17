@@ -19,7 +19,8 @@ import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { getDriverIds } from "@/lib/drivers";
 
 const COOKIE_NAME = "k9_session";
-const SESSION_DAYS = 30; // 로그인 유지 기간
+const REMEMBER_DAYS = 90; // 자동 로그인(로그인 유지)을 켰을 때 유지 기간
+const SHORT_HOURS = 12; // 자동 로그인을 껐을 때: 브라우저를 닫으면 끝나고, 열어 둬도 최대 12시간
 
 // 로그인한 사람 정보 (비밀번호 해시는 포함하지 않음)
 export type Member = {
@@ -49,8 +50,10 @@ function sign(payload: string): string {
 type Payload = { m: number; v: number; e: number }; // m=인원 번호, v=세션 번호, e=만료(ms)
 
 // 쿠키 만들기 (서버 액션 안에서만 호출 가능)
-export async function createSession(memberId: number, sessionVersion: number) {
-  const payload: Payload = { m: memberId, v: sessionVersion, e: Date.now() + SESSION_DAYS * 86400_000 };
+//   remember = 자동 로그인: true 면 90일 동안 유지되는 쿠키, false 면 브라우저를 닫으면 사라지는 쿠키(최대 12시간)
+export async function createSession(memberId: number, sessionVersion: number, remember = true) {
+  const ms = remember ? REMEMBER_DAYS * 86400_000 : SHORT_HOURS * 3600_000;
+  const payload: Payload = { m: memberId, v: sessionVersion, e: Date.now() + ms };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const store = await cookies();
   store.set(COOKIE_NAME, `${body}.${sign(body)}`, {
@@ -58,7 +61,7 @@ export async function createSession(memberId: number, sessionVersion: number) {
     secure: process.env.NODE_ENV === "production", // 배포 사이트(https)에서만 전송
     sameSite: "lax",
     path: "/",
-    maxAge: SESSION_DAYS * 86400,
+    ...(remember ? { maxAge: REMEMBER_DAYS * 86400 } : {}), // maxAge 가 없으면 "브라우저 세션 쿠키"
   });
 }
 

@@ -24,6 +24,8 @@ export type LeaveKind = (typeof LEAVE_KINDS)[number]["value"];
 export const LEAVE_LABEL: Record<string, string> = Object.fromEntries(LEAVE_KINDS.map((k) => [k.value, k.label]));
 export const LEAVE_COLOR: Record<string, string> = Object.fromEntries(LEAVE_KINDS.map((k) => [k.value, k.color]));
 export const LEAVE_PLAN_COLOR: Record<string, string> = Object.fromEntries(LEAVE_KINDS.map((k) => [k.value, `${k.text} ${k.border}`])); // 계획(점선) 칩
+// 종류별 색(16진수) — 연간 달력 이미지처럼 클래스 이름이 아닌 실제 색 값이 필요한 곳에서 씀
+export const LEAVE_HEX: Record<string, string> = { comfort: "#2563eb", regular: "#6366f1", reward: "#16a34a", official: "#f97316", annual: "#0d9488", outing: "#71717a", visit: "#ec4899" };
 export const isLeaveKind = (v: string): v is LeaveKind => LEAVE_KINDS.some((k) => k.value === v);
 // 휴가(하루 종일 빠짐) 종류인지 — 외출·면회는 아님
 export const isFullLeave = (kind: string) => LEAVE_KINDS.some((k) => k.value === kind && k.isLeave);

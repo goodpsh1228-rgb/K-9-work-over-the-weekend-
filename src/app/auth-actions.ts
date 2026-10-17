@@ -71,7 +71,8 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   if (member.failed_login_count !== 0 || member.locked_until) {
     await db.from("members").update({ failed_login_count: 0, locked_until: null }).eq("id", member.id);
   }
-  await createSession(member.id, member.session_version);
+  // 자동 로그인 체크박스(켜 두면 90일 유지, 끄면 브라우저를 닫을 때까지)
+  await createSession(member.id, member.session_version, formData.get("remember") === "on");
   redirect(member.must_change_password ? "/change-password" : "/home");
 }
 

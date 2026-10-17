@@ -6,6 +6,7 @@
 //   ④ 입력 두 곳: "실제 휴가 입력"(주말출근 제외로 보낼 수 있음) / "휴가 계획"(참고용, 아무것도 바꾸지 않음)
 //   ⑤ 이 달 기록(실제) / 이 달 계획(실제로 확정·삭제)
 // ─────────────────────────────────────────────────────────────
+import Link from "next/link";
 import { requireMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { Card, Notice, Page } from "@/components/ui";
@@ -116,6 +117,12 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
       {/* ① 입대일·전역일 → 진행률 */}
       {stats && enlist && discharge && promos ? (
         <>
+          {/* 작은 글씨 메뉴 하나: 1년 12달을 한 장에 펼친 연간 휴가 달력 (이미지로 저장 가능) */}
+          <div className="mt-1 flex justify-end">
+            <Link href="/leave/year" className="text-[11px] text-muted underline">
+              연간 휴가 달력 ›
+            </Link>
+          </div>
           {/* 이름 + 입대·전역일. 오른쪽 작은 "수정"을 누르면 그 자리에서 날짜를 고칠 수 있음 (평소엔 거의 쓰지 않아 접어 둠) */}
           <details className="mt-3">
             <summary className="flex cursor-pointer list-none items-start justify-between gap-3">

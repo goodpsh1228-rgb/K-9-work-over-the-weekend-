@@ -111,6 +111,7 @@ export function InstallButton() {
                 </li>
               ))}
             </ol>
+            {!env.inApp && <p className="mt-3 text-xs text-muted">홈 화면 앱은 처음 한 번 다시 로그인해야 해요. 로그인 창의 &quot;자동 로그인&quot;을 켜 두면 이후로는 유지됩니다.</p>}
             {env.inApp && (
               <button type="button" onClick={copyUrl} className="mt-4 min-h-11 w-full rounded-full border border-hairline text-base font-semibold text-link">
                 {copied ? "주소를 복사했어요 — 브라우저에 붙여넣으세요" : "사이트 주소 복사"}
