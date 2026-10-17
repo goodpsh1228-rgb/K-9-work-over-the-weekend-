@@ -3,6 +3,8 @@
 //   - 추첨 입력 모으기: 그날 자리·정원, 대상 인원(활성 + 제외 아님), 응답
 //   - 서버의 암호학적 난수(crypto.randomInt)로 추첨
 //   - record_draw 함수로 "한 번에, 딱 한 번만" 저장 (여러 번 불러도 결과는 하나 = 멱등성)
+//   - 추첨은 자동으로 하지 않습니다: 마감 뒤 관리자가 [주말출근 차출하기] 버튼을 눌러야 실행됩니다
+//     (투표를 안 해서 차출될 사람 중 실제로 출근 못 하는 사람을 관리자가 먼저 걸러내기 위해). 추첨과 함께 선탑도 자동으로 정해집니다.
 // ─────────────────────────────────────────────────────────────
 import "server-only";
 import { randomInt } from "node:crypto";
@@ -14,7 +16,7 @@ import { votingStatus } from "@/lib/voting";
 import { addDays, isValidDate, todayKST } from "@/lib/kst";
 import { writeAudit } from "@/lib/audit";
 import { getDriverIds, getDriveWants, getDriverIdsOn } from "@/lib/drivers";
-import { autoAssignEscort } from "@/lib/escort-server";
+import { autoAssignEscort, type EscortResult } from "@/lib/escort-server";
 import { syncServiceStatusSafely } from "@/lib/service-sync";
 import { runDraw, type DrawInput, type DrawResult } from "@/lib/draw";
 
@@ -58,7 +60,7 @@ export function simulateDraw(input: DrawInput): DrawResult {
 }
 
 export type ExecuteResult =
-  | { status: "done"; result: DrawResult }
+  | { status: "done"; result: DrawResult; escort: EscortResult } // escort = 추첨과 함께 자동으로 정해진 선탑 결과
   | { status: "already" } // 이미 추첨됨 (다른 곳에서 먼저 실행)
   | { status: "not-ready"; reason: string }; // 근무일이 아니거나 아직 마감 전
 
@@ -84,7 +86,10 @@ export async function executeDraw(date: string, trigger: Trigger, actorId: numbe
   if (saved !== true) return { status: "already" }; // 동시에 두 곳에서 실행 → 먼저 저장한 쪽만 인정
 
   // 선탑: 운전병보다 기수가 같거나 높은 출근자 중 랜덤 1명 (못 정해도 추첨 결과는 그대로, 관리자가 나중에 다시 뽑을 수 있음)
-  await autoAssignEscort(date, actorId, "draw").catch((e) => console.error("선탑 자동 지정 실패:", e));
+  const escort: EscortResult = await autoAssignEscort(date, actorId, "draw").catch((e) => {
+    console.error("선탑 자동 지정 실패:", e);
+    return { ok: false as const, message: "선탑 자동 지정 중 오류가 났습니다. 관리자 화면에서 다시 뽑아 주세요." };
+  });
 
   await writeAudit({
     actorId,
@@ -92,7 +97,7 @@ export async function executeDraw(date: string, trigger: Trigger, actorId: numbe
     dutyDate: date,
     details: { trigger, shortage: result.shortage, assigned: result.assignments.length, rested: result.rested },
   });
-  return { status: "done", result };
+  return { status: "done", result, escort };
 }
 
 // 추첨 기록 (없으면 null)
@@ -135,39 +140,27 @@ export async function getRoster(date: string): Promise<RosterEntry[]> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 자동 추첨: 투표가 마감됐는데 아직 추첨하지 않은 근무일을 모두 찾아 추첨합니다.
-//   - 정기 실행(크론), 접속 시 안전장치가 이 함수를 부릅니다.
-//   - 오늘(한국 날짜) 이후의 근무일만 대상 (이미 지나간 날은 추첨하지 않음)
-//   - 여러 곳에서 동시에 불려도 executeDraw 가 날짜마다 한 번만 저장하므로 안전합니다.
+// 차출 대기 날짜 찾기: 투표가 마감됐는데 아직 추첨하지 않은 근무일 목록 (추첨은 하지 않음!)
+//   - 예전에는 정기 실행(크론)·접속 시 안전장치가 자동으로 추첨했지만, 지금은 관리자가 버튼을 눌러야 추첨합니다.
+//   - 오늘(한국 날짜) 이후의 근무일만 대상 (이미 지나간 날은 제외)
+//   - 관리자 화면 안내와 크론 응답("pending")에 쓰입니다.
 // ─────────────────────────────────────────────────────────────
 const LOOKAHEAD_DAYS = 14; // 투표 주의 대상은 최대 월요일+10일이므로 넉넉히 2주
 
-export async function runPendingDraws(trigger: Trigger) {
+export async function getPendingDrawDates(): Promise<string[]> {
   const from = todayKST();
   const to = addDays(from, LOOKAHEAD_DAYS);
   const days = computeDutyDays(from, to, await getOverrides(from, to));
   const fridayIsDuty = await getFridayChecker(from, to);
   const now = new Date();
   const closed = days.map((d) => d.date).filter((d) => votingStatus(d, fridayIsDuty(d), now) === "closed");
-  if (closed.length === 0) return { checked: 0, drawn: [] as string[] };
-
-  // 이미 추첨된 날은 한 번에 조회해서 건너뜀
+  if (closed.length === 0) return [];
   const { data: done } = await getSupabaseAdmin().from("draws").select("duty_date").in("duty_date", closed);
   const doneSet = new Set((done ?? []).map((r) => r.duty_date as string));
-  const drawn: string[] = [];
-  for (const date of closed.filter((d) => !doneSet.has(d))) {
-    const r = await executeDraw(date, trigger, null);
-    if (r.status === "done") drawn.push(date);
-  }
-  return { checked: closed.length, drawn };
+  return closed.filter((d) => !doneSet.has(d));
 }
 
-// 화면을 열 때 쓰는 안전장치: 실패해도 화면은 정상적으로 보이도록 오류를 삼킵니다.
-export async function runPendingDrawsSafely() {
-  await syncServiceStatusSafely(); // 계급 자동 진급·전역 자동 비활성화 (추첨 전에 먼저)
-  try {
-    await runPendingDraws("visit");
-  } catch (e) {
-    console.error("접속 시 자동 추첨 실패:", e);
-  }
+// 화면을 열 때 하는 일: 계급 자동 진급·전역 자동 비활성화만 합니다 (추첨은 하지 않음). 실패해도 화면은 정상으로 보이도록 오류를 삼킵니다.
+export async function runVisitTasksSafely() {
+  await syncServiceStatusSafely();
 }

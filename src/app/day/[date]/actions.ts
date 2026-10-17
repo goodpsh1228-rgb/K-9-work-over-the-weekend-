@@ -100,15 +100,19 @@ export async function driveVoteAction(date: string, want: boolean): Promise<Vote
   return { ok: true, message: want ? "주말 운전 희망으로 저장했습니다." : "주말 운전 희망을 취소했습니다." };
 }
 
-// ── 관리자: 지금 추첨 (마감이 지난 날, 아직 추첨 안 된 날만) ──
-// 8단계에서 자동 추첨(정기 실행·접속 시 안전장치)이 붙고, 이 버튼은 예비용이 됩니다.
+// ── 관리자: 주말출근 차출하기 (마감이 지난 날, 아직 추첨 안 된 날만) ──
+//   추첨은 자동으로 하지 않습니다. 관리자가 후보(투표 안 한 사람)를 확인한 뒤 이 버튼을 눌러야 실행되고,
+//   추첨과 함께 선탑(운전병보다 기수가 같거나 높은 출근자 중 랜덤)도 자동으로 정해집니다.
 export async function manualDrawAction(formData: FormData) {
   const me = await requireAdmin();
   const date = String(formData.get("date") ?? "");
   const r = await executeDraw(date, "manual", me.id);
   if (r.status === "not-ready") back(date, "error", r.reason);
   if (r.status === "already") back(date, "msg", "이미 추첨이 끝난 날입니다. (결과는 한 번만 만들어집니다)");
-  back(date, "msg", "추첨을 완료했습니다.");
+  const e = r.escort;
+  const escortText = e.ok ? ` 선탑: ${e.picked.name}(${e.picked.cohort}기) — 운전병 ${e.drivers.map((d) => `${d.name}(${d.cohort}기)`).join(", ")}보다 기수가 같거나 높은 ${e.poolSize}명 중 랜덤.` : ` ⚠️ ${e.message}`;
+  const short = r.result.shortage.clinic + r.result.shortage.general + r.result.shortage.driver;
+  back(date, "msg", `주말출근 차출을 완료했습니다.${short > 0 ? ` ⚠️ 인원 부족 ${short}명.` : ""}${escortText} 출근이 어려운 사람이 있으면 [명단 수정]에서 바꿀 수 있습니다.`);
 }
 
 // ── 관리자: 투표를 깜빡한 미응답자 중 골라 이 날 추첨에서만 빼기 ──
@@ -122,11 +126,11 @@ export async function excuseUnansweredAction(formData: FormData) {
   if (computeDutyDays(date, date, await getOverrides(date, date)).length === 0) back(date, "error", "근무일이 아닙니다.");
   if (await getDraw(date)) back(date, "error", "이미 추첨이 끝난 날입니다. 명단 수정을 이용하세요.");
 
-  // 지금 미응답인 사람만 (활성, 제외 아님, 응답 없음) — 화면을 거치지 않은 조작 방지
+  // 지금 미응답이거나 미희망인 사람만 (활성, 제외 아님) = 투표를 안 해서 차출될 수 있는 사람 — 화면을 거치지 않은 조작 방지
   const board = await getDayBoard(date);
-  const unanswered = new Map(board.unanswered.map((m) => [m.id, m.name]));
+  const unanswered = new Map([...board.unanswered, ...board.declines].map((m) => [m.id, m.name]));
   const targets = ids.filter((id) => unanswered.has(id));
-  if (targets.length === 0) back(date, "error", "미응답자 중에서 골라 주세요.");
+  if (targets.length === 0) back(date, "error", "미응답자·미희망자 중에서 골라 주세요.");
 
   const db = getSupabaseAdmin();
   const { error } = await db

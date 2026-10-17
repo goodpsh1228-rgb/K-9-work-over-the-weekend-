@@ -17,7 +17,7 @@ import { getOverrides, getVoteInfo } from "@/lib/duty-days-server";
 import { getDayBoard, getPostsForDate, myStateFrom, type PostSlot } from "@/lib/day-board";
 import { STATUS_LABEL } from "@/lib/voting";
 import { Notice, Page } from "@/components/ui";
-import { buildDrawInput, getDraw, getRoster, runPendingDrawsSafely, simulateDraw, type RosterEntry } from "@/lib/draw-server";
+import { buildDrawInput, getDraw, getRoster, runVisitTasksSafely, simulateDraw, type RosterEntry } from "@/lib/draw-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { buildPostText, buildRankText } from "@/lib/roster-text";
 import { CopyButton } from "@/components/copy-button";
@@ -27,6 +27,7 @@ import { DrivePanel } from "./drive-panel";
 import { EscortDrawForm, escortWorkers } from "@/components/escort-draw-form";
 import { autoEscortAction, drawEscortAction } from "@/app/admin/roster/[date]/actions";
 import { EscortAutoForm } from "@/components/escort-auto-form";
+import { ConfirmButton } from "@/components/confirm-button";
 import { getEscortPlan } from "@/lib/escort-server";
 
 export default async function DayPage({ params, searchParams }: PageProps<"/day/[date]">) {
@@ -39,8 +40,8 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   const msg = typeof sp.msg === "string" ? sp.msg : null;
   const error = typeof sp.error === "string" ? sp.error : null;
 
-  // 안전장치: 마감됐는데 아직 추첨 안 된 날이 있으면 지금 추첨
-  await runPendingDrawsSafely();
+  // 접속 시 하는 일: 계급 자동 진급·전역 자동 비활성화 (추첨은 자동으로 하지 않음 — 관리자가 [주말출근 차출하기]로 실행)
+  await runVisitTasksSafely();
   // 필요한 정보를 동시에(병렬로) 읽어 기다리는 시간을 줄임
   const [board, voteInfo, draw] = await Promise.all([getDayBoard(date), getVoteInfo(date, me.rank), getDraw(date)]);
   const mine = myStateFrom(board, me.id);
@@ -52,6 +53,12 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   const clinicPosts = board.posts.filter((p) => p.pool === "clinic");
   const driverPosts = board.posts.filter((p) => p.pool === "driver" && p.required > 0);
   const generalPosts = board.posts.filter((p) => p.pool === "general");
+
+  // 관리자 [차출하기] 카드용: 희망 확정 인원, 차출 예정 인원(동·진료실 정원 − 희망 확정), 차출 후보(미응답 + 미희망)
+  const workPosts = board.posts.filter((p) => p.pool === "general" || p.pool === "clinic");
+  const drawWanted = workPosts.reduce((s, p) => s + Math.min(p.required, p.wanters.length), 0);
+  const drawNeed = workPosts.reduce((s, p) => s + p.required, 0) - drawWanted;
+  const screenPool = [...board.unanswered.map((m) => ({ ...m, declined: false })), ...board.declines.map((m) => ({ ...m, declined: true }))];
 
   // 추첨 결과 (있으면) / 관리자 미리보기
   const roster = draw ? await getRoster(date) : null;
@@ -271,22 +278,62 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         )}
       </section>
 
-      {/* 관리자: 수동 추첨 / 미리보기 */}
-      {me.is_admin && !draw && (
+      {/* 일반 인원: 마감 뒤 아직 추첨 전 안내 */}
+      {!me.is_admin && !draw && overall === "closed" && (
+        <p className="mt-3 rounded-[18px] border border-hairline bg-card p-3 text-sm text-muted">투표가 마감되었습니다. 관리자가 확인한 뒤 차출하면 결과가 여기에 표시됩니다.</p>
+      )}
+
+      {/* 관리자: 마감 뒤 [주말출근 차출하기] — 자동으로 뽑지 않고, 후보를 스크리닝한 뒤 관리자가 직접 실행 */}
+      {me.is_admin && !draw && overall === "closed" && (
+        <section className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-4">
+          <p className="text-lg font-black">주말출근 차출하기 (관리자)</p>
+          <p className="mt-1 text-sm text-muted">투표가 마감되었습니다. 자동으로 뽑지 않으니 아래 순서로 진행해 주세요.</p>
+          <p className="mt-3 text-sm">
+            <b>① 후보 확인</b> · 희망 {drawWanted}명 확정 → 투표 안 한 사람 중 약 <b>{drawNeed}명</b> 차출 예정
+          </p>
+          {screenPool.length === 0 ? (
+            <p className="mt-1 text-sm text-muted">차출 후보(미응답·미희망)가 없습니다.</p>
+          ) : (
+            <details open className="mt-2 rounded-[18px] bg-hairline/30">
+              <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">차출 후보 {screenPool.length}명 (미응답 {board.unanswered.length} · 미희망 {board.declines.length}) — 출근이 어려운 사람을 체크하세요</summary>
+              <form action={excuseUnansweredAction} className="space-y-2 px-3 pb-3">
+                <input type="hidden" name="date" value={date} />
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                  {screenPool.map((m) => (
+                    <label key={m.id} className="flex items-center gap-1.5 text-sm">
+                      <input type="checkbox" name="ids" value={m.id} className="h-4 w-4" />
+                      {m.name}
+                      {m.declined && <span className="text-xs text-muted">(미희망)</span>}
+                    </label>
+                  ))}
+                </div>
+                <button type="submit" className="h-11 w-full rounded-full bg-orange-600 text-sm font-semibold text-white">
+                  체크한 사람 이 날 추첨에서 빼기
+                </button>
+                <p className="text-xs text-muted">이 날 하루만 빠집니다. 아래 &quot;제외&quot; 목록에서 되돌릴 수 있습니다.</p>
+              </form>
+            </details>
+          )}
+          <p className="mt-3 text-sm">
+            <b>② 차출 실행</b> · 한 번만 실행됩니다. 뽑는 즉시 <b>선탑</b>(운전병보다 기수 같거나 높은 출근자 중 랜덤)도 함께 정해집니다.
+          </p>
+          <form action={manualDrawAction} className="mt-2">
+            <input type="hidden" name="date" value={date} />
+            <ConfirmButton message="지금 주말출근을 차출합니다. 결과는 바로 모두에게 보이고 한 번만 실행됩니다. 후보 확인(출근이 어려운 사람 빼기)은 끝나셨나요?" className="min-h-12 w-full rounded-full bg-red-600 px-[22px] text-base font-semibold text-white">
+              주말출근 차출하기
+            </ConfirmButton>
+          </form>
+          <p className="mt-2 text-xs text-muted">뽑은 뒤에도 출근이 어려운 사람은 [명단 수정]에서 다른 사람으로 교체할 수 있습니다.</p>
+        </section>
+      )}
+
+      {/* 관리자: 투표 중에는 미리보기 (저장 안 됨) */}
+      {me.is_admin && !draw && overall !== "closed" && (
         <section className="mt-3 rounded-[18px] border border-dashed border-hairline p-3 ">
           <p className="text-sm font-semibold">관리자</p>
-          {overall === "closed" ? (
-            <form action={manualDrawAction} className="mt-2">
-              <input type="hidden" name="date" value={date} />
-              <button type="submit" className="min-h-12 w-full rounded-full bg-red-600 px-[22px] text-base font-normal text-white">
-                지금 추첨 (한 번만 실행됩니다)
-              </button>
-            </form>
-          ) : (
-            <Link href={`/day/${date}?preview=1`} className="mt-2 block text-sm text-link underline">
-              추첨 미리보기 (현재 응답 기준 · 저장 안 됨 · 누를 때마다 결과가 달라짐)
-            </Link>
-          )}
+          <Link href={`/day/${date}?preview=1`} className="mt-2 block text-sm text-link underline">
+            추첨 미리보기 (현재 응답 기준 · 저장 안 됨 · 누를 때마다 결과가 달라짐)
+          </Link>
           {preview && (
             <div className="mt-3 space-y-2">
               {previewShortage > 0 && <Notice kind="warn">미리보기상 인원 부족 {previewShortage}명</Notice>}

@@ -17,7 +17,7 @@ import { addDays, formatShort, kstMoment, mondayOf, todayKST } from "@/lib/kst";
 import { getMyStates, type MyState } from "@/lib/day-board";
 import { STATUS_LABEL, votingStatus, votingWindow } from "@/lib/voting";
 import { getFridayChecker } from "@/lib/duty-days-server";
-import { runPendingDrawsSafely } from "@/lib/draw-server";
+import { runVisitTasksSafely } from "@/lib/draw-server";
 import { getLineup } from "@/lib/lineup";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 
@@ -26,8 +26,8 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
   const msg = typeof sp.msg === "string" ? sp.msg : null;
   const error = typeof sp.error === "string" ? sp.error : null;
   const me = await requireMember();
-  // 안전장치: 마감됐는데 아직 추첨 안 된 날이 있으면 지금 추첨 (정기 실행이 늦거나 실패했을 때 대비)
-  await runPendingDrawsSafely();
+  // 접속 시 하는 일: 계급 자동 진급·전역 자동 비활성화 (추첨은 자동으로 하지 않음 — 관리자가 [주말출근 차출하기]로 실행)
+  await runVisitTasksSafely();
   const { from, to } = homeRange(); // 오늘 ~ 다음 주 일요일 (한국 날짜)
   // 필요한 정보를 동시에(병렬로) 읽어 기다리는 시간을 줄임
   const db = getSupabaseAdmin();
@@ -56,9 +56,12 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
     db.from("posts").select("id, name"),
   ]);
   const now = new Date();
+  const drawn0 = new Set((drawRows ?? []).map((d) => d.duty_date as string));
   const lineupDate = addDays(todayKST(), 1); // 홈에는 내일 라인업을 보여 줌 (전날 미리 확인·수기 입력용)
   const todayLineup = await getLineup(lineupDate); // 내일 라인업 요약 (출근·불참 인원 수, 1차탑승)
   const todayAbsent = new Set(todayLineup.absent.map((a) => a.id)).size;
+  // 투표가 마감됐는데 아직 차출하지 않은 근무일 (관리자에게 안내)
+  const pendingDraw = days.filter((d) => !drawn0.has(d.date) && votingStatus(d.date, fridayIsDuty(d.date), now) === "closed").map((d) => d.date);
   // 입대일을 넣었는지 (넣었으면 계급 자동) — SQL 0009 전이면 칸이 없어 오류 → 입력 안 한 것으로
   const { data: svc } = await db
     .from("members")
@@ -179,6 +182,21 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         </div>
       )}
 
+      {/* 관리자: 투표가 마감됐는데 아직 차출하지 않은 날 → 차출하기 안내 (추첨은 자동으로 하지 않음) */}
+      {me.is_admin && pendingDraw.length > 0 && (
+        <div className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-3">
+          <p className="text-sm font-black text-red-600">주말출근 차출 대기 {pendingDraw.length}일</p>
+          <p className="mt-0.5 text-xs text-muted">투표가 마감됐습니다. 날짜를 눌러 [주말출근 차출하기]를 실행해 주세요.</p>
+          <p className="mt-2 flex flex-wrap gap-2">
+            {pendingDraw.map((d) => (
+              <Link key={d} href={`/day/${d}`} className="rounded-full bg-red-600 px-3 py-1 text-sm font-semibold text-white">
+                {formatShort(d)} 차출하기 ›
+              </Link>
+            ))}
+          </p>
+        </div>
+      )}
+
       {/* ───── 1순위 ① 휴가·불참 입력 (가장 크게) ───── */}
       <Link href="/absences" data-press className="mt-4 flex h-16 items-center justify-between rounded-[18px] bg-blue-600 px-5 text-white">
         <span className="text-xl font-black">휴가·불참 입력</span>
@@ -294,7 +312,11 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
                           {overall(d.date) === "open" &&
                           myStatus(d.date) === "before"
                             ? "화요일부터"
-                            : STATUS_LABEL[overall(d.date)]}
+                            : overall(d.date) === "closed"
+                              ? me.is_admin
+                                ? "마감 · 차출 대기"
+                                : "마감 · 추첨 대기"
+                              : STATUS_LABEL[overall(d.date)]}
                         </span>
                       </>
                     )}
