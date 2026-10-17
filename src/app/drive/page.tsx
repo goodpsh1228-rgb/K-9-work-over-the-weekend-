@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // 운전 지정 (/drive) — 운전병과 관리자만 보임 (그 사람들끼리 추가·삭제)
 //   ① 지정하기: 운전병 선택 + 기간(휴가 입력처럼 달력에서 시작일·종료일) → 저장
-//   ② 앞으로 7일: 날마다 누가 운전하는지 한눈에 (비어 있는 날은 "미지정")
+//   ② 달력: 이번 달·다음 달 날짜 칸마다 그날 운전하는 사람 이름 (사람별 색)
 //   ③ 지정 목록: 오늘 이후까지 걸친 지정 (삭제 가능)
 //   운전하는 날은 라인업의 1차탑승·예비 명단에서 빠지고, 홈에 "내일 운전병"으로 보입니다.
 // ─────────────────────────────────────────────────────────────
@@ -12,7 +12,9 @@ import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { Card, Notice, Page } from "@/components/ui";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { getDriveDuties } from "@/lib/drivers";
-import { addDays, dateRange, formatShort, todayKST } from "@/lib/kst";
+import { addDays, todayKST } from "@/lib/kst";
+import { shiftMonth } from "@/lib/leave";
+import { DriveCalendar } from "./drive-calendar";
 import { dotsRange } from "@/lib/spans";
 import { addDriveDutyAction, deleteDriveDutyAction } from "./actions";
 
@@ -30,7 +32,7 @@ export default async function DrivePage({ searchParams }: PageProps<"/drive">) {
   const db = getSupabaseAdmin();
   const [{ data: drivers }, duties] = await Promise.all([
     db.from("members").select("id, name, rank").eq("is_active", true).eq("is_driver", true).order("name"),
-    getDriveDuties(today, addDays(today, 400)),
+    getDriveDuties(`${today.slice(0, 7)}-01`, addDays(`${shiftMonth(today.slice(0, 7), 2)}-01`, -1)), // 이번 달 1일 ~ 다음 달 말일 (달력용)
   ]);
   const { data: all } = await db.from("members").select("id, name, rank");
   const info = new Map((all ?? []).map((m) => [m.id as number, m as { id: number; name: string; rank: string | null }]));
@@ -50,8 +52,10 @@ export default async function DrivePage({ searchParams }: PageProps<"/drive">) {
     );
   }
 
-  const week = dateRange(today, addDays(today, 6));
-  const onDay = (d: string) => duties.rows.filter((r) => r.start_date <= d && d <= r.end_date);
+  const months = [today.slice(0, 7), shiftMonth(today.slice(0, 7), 1)];
+  const nameOnly = (id: number) => info.get(id)?.name ?? "?"; // 달력 칸에는 이름만 (계급 생략)
+  const toneOrder = (drivers ?? []).map((d) => d.id as number); // 사람별 색 배정 순서
+  const upcoming = duties.rows.filter((r) => r.end_date >= today); // 지정 목록은 오늘 이후까지 걸친 것만
 
   return (
     <Page title="운전 지정">
@@ -86,36 +90,18 @@ export default async function DrivePage({ searchParams }: PageProps<"/drive">) {
         <p className="mt-3 text-xs text-muted">운전하는 날은 그날 1차 명단(1차탑승·예비)에서 빠지고, 홈에 &quot;내일 운전병&quot;으로 표시됩니다. 운전병과 관리자가 서로 수정할 수 있습니다.</p>
       </Card>
 
-      {/* ② 앞으로 7일 */}
-      <h2 className="mt-8 mb-2 text-lg font-black">앞으로 7일</h2>
-      <Card className="overflow-hidden">
-        <ul className="divide-y divide-hairline">
-          {week.map((d) => {
-            const who = onDay(d);
-            return (
-              <li key={d} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
-                <span className="w-20 shrink-0 font-semibold tabular-nums">
-                  {formatShort(d)}
-                  {d === today && <span className="ml-1 text-xs font-normal text-muted">오늘</span>}
-                  {d === tomorrow && <span className="ml-1 text-xs font-normal text-muted">내일</span>}
-                </span>
-                <span className="min-w-0 flex-1 text-right">
-                  {who.length ? <b>{who.map((r) => nm(r.member_id)).join(", ")}</b> : <span className="text-muted">미지정</span>}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      </Card>
+      {/* ② 달력: 이번 달 · 다음 달 */}
+      <h2 className="mt-8 mb-2 text-lg font-black">운전 달력</h2>
+      <DriveCalendar months={months} duties={duties.rows} nameOf={nameOnly} toneOrder={toneOrder} today={today} />
 
       {/* ③ 지정 목록 */}
       <h2 className="mt-8 mb-2 text-lg font-black">지정 목록</h2>
-      {duties.rows.length === 0 ? (
+      {upcoming.length === 0 ? (
         <p className="text-sm text-muted">지정된 운전이 없습니다.</p>
       ) : (
         <Card className="overflow-hidden">
           <ul className="divide-y divide-hairline">
-            {duties.rows.map((r) => (
+            {upcoming.map((r) => (
               <li key={r.id} className="flex items-center gap-2 px-4 py-2.5">
                 <div className="min-w-0 flex-1 text-sm">
                   <b>{nm(r.member_id)}</b>

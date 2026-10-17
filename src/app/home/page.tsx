@@ -185,54 +185,57 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         <span aria-hidden className="text-2xl leading-none">＋</span>
       </Link>
 
-      {/* ───── 1순위 ② 1차 명단 (내일 출근자 중 높은 기수 9명 + 예비 2명) ───── */}
-      {todayLineup.boardingSupported && (
+      {/* ───── 1순위 ② 1차 명단 (내일 출근자 중 높은 기수 9명 + 예비 2명) + 아래에 작게 "내일 운전병" ───── */}
+      {(todayLineup.boardingSupported || todayLineup.driveSupported) && (
         <Card className="mt-4 p-4">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-[22px] font-display font-black tracking-[-0.02em]">1차 명단</h2>
-            <span className="text-sm text-muted">내일 {formatShort(lineupDate)}</span>
-          </div>
-          {todayLineup.boarding.length > 0 ? (
+          {todayLineup.boardingSupported && (
             <>
-              <p className="mt-3 flex flex-wrap gap-2">
-                {todayLineup.boarding.map((p) => (
-                  <span key={p.id} className="rounded-full bg-blue-100 px-3 py-1.5 text-base font-semibold text-blue-900 dark:bg-blue-950 dark:text-blue-100">
-                    {p.name}
-                  </span>
-                ))}
-              </p>
-              {todayLineup.reserve.length > 0 && (
-                <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                  <b className="text-muted">예비</b>
-                  {todayLineup.reserve.map((p, i) => (
-                    <span key={p.id} className="rounded-full border border-hairline px-3 py-1">
-                      {i + 1}. {p.name}
-                    </span>
-                  ))}
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-[22px] font-display font-black tracking-[-0.02em]">1차 명단</h2>
+                <span className="text-sm text-muted">내일 {formatShort(lineupDate)}</span>
+              </div>
+              {todayLineup.boarding.length > 0 ? (
+                <>
+                  <p className="mt-3 flex flex-wrap gap-2">
+                    {todayLineup.boarding.map((p) => (
+                      <span key={p.id} className="rounded-full bg-blue-100 px-3 py-1.5 text-base font-semibold text-blue-900 dark:bg-blue-950 dark:text-blue-100">
+                        {p.name}
+                      </span>
+                    ))}
+                  </p>
+                  {todayLineup.reserve.length > 0 && (
+                    <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                      <b className="text-muted">예비</b>
+                      {todayLineup.reserve.map((p, i) => (
+                        <span key={p.id} className="rounded-full border border-hairline px-3 py-1">
+                          {i + 1}. {p.name}
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-muted">
+                  {todayLineup.isDutyDay && !todayLineup.drawn ? "추첨이 끝나면 표시됩니다." : "기수를 입력한 출근자가 없습니다."}
                 </p>
               )}
             </>
-          ) : (
-            <p className="mt-2 text-sm text-muted">
-              {todayLineup.isDutyDay && !todayLineup.drawn ? "추첨이 끝나면 표시됩니다." : "기수를 입력한 출근자가 없습니다."}
-            </p>
           )}
-        </Card>
-      )}
-
-      {/* 내일 운전병 (운전 지정). 운전하는 사람은 위 1차 명단에서 빠져 있음. 운전병·관리자는 여기서 지정·수정 */}
-      {todayLineup.driveSupported && (
-        <Card className="mt-3 flex items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-xs text-muted">내일 운전병 · 1차 명단에서 제외</p>
-            <p className="mt-0.5 text-base font-semibold">
-              {todayLineup.drivers.length ? todayLineup.drivers.map((p) => (p.rank ? `${p.rank} ${p.name}` : p.name)).join(", ") : <span className="font-normal text-muted">지정 없음</span>}
-            </p>
-          </div>
-          {(me.is_driver || me.is_admin) && (
-            <Link href="/drive" className="shrink-0 rounded-full border border-blue-600 px-3 py-1.5 text-sm font-semibold text-link">
-              지정·수정 ›
-            </Link>
+          {/* 내일 운전병 (운전 지정): 운전하는 사람은 위 1차 명단에서 빠져 있음. 운전병·관리자만 지정·수정 링크가 보임. 다른 사람에게는 작게만 */}
+          {todayLineup.driveSupported && (
+            <div className={`flex items-center justify-between gap-3 text-xs ${todayLineup.boardingSupported ? "mt-3 border-t border-hairline pt-2.5" : ""}`}>
+              <p className="min-w-0 text-muted">
+                내일 운전병(1차 명단 제외){" "}
+                <b className="font-semibold text-foreground">
+                  {todayLineup.drivers.length ? todayLineup.drivers.map((p) => (p.rank ? `${p.rank} ${p.name}` : p.name)).join(", ") : <span className="font-normal text-muted">지정 없음</span>}
+                </b>
+              </p>
+              {(me.is_driver || me.is_admin) && (
+                <Link href="/drive" className="shrink-0 font-semibold text-link">
+                  지정·수정 ›
+                </Link>
+              )}
+            </div>
           )}
         </Card>
       )}
