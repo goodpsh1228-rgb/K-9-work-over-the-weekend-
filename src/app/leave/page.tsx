@@ -7,7 +7,7 @@
 //   ⑤ 이 달 기록(실제) / 이 달 계획(실제로 확정·삭제)
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
-import { regularSchedule, nextRegular } from "@/lib/regular-leave";
+import { regularSchedule, nextRegular, comfortDate } from "@/lib/regular-leave";
 import { requireMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { Card, Notice, Page } from "@/components/ui";
@@ -210,6 +210,11 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                           </li>
                         );
                       })}
+                      {/* 14번째 정기가 끝난 2주 뒤 위로 하루 */}
+                      <li className={`flex items-baseline justify-between py-1.5 ${comfortDate(transfer!) < today ? "text-zinc-300 dark:text-zinc-600" : ""}`}>
+                        <span>2주 위로</span>
+                        <span>{formatShort(comfortDate(transfer!))}</span>
+                      </li>
                     </ul>
                   </details>
                   <p className="mt-2 text-xs text-zinc-500">전입일 + 6주마다 정기가 들어오는 날(2박3일, 14번)만 표시합니다. 참고용이며 휴가 기록은 아래 달력에 직접 입력하세요.</p>
