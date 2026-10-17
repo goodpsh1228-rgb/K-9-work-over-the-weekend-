@@ -29,13 +29,14 @@ export const metadata: Metadata = {
   title: "군견훈육중대 주말출근 관리체계",
   description: "주말·공휴일 출근 희망 투표 및 추첨",
   // 아이폰 홈 화면에 추가할 때 아이콘 이름 (아이콘 그림은 src/app/apple-icon.png)
-  appleWebApp: { title: "주말출근" },
+  appleWebApp: { title: "주말출근", capable: true, statusBarStyle: "black" },
 };
 
 // 휴대폰 화면 폭에 맞춰 보이도록 하는 설정
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#000000", // 안드로이드 주소창·앱 상단 색 (검정 바와 맞춤)
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
