@@ -2,7 +2,8 @@
 // ─────────────────────────────────────────────────────────────
 // 운전 달력 (/drive) — 한 달씩 보여 주고, 옆으로 밀거나 ‹ › 를 눌러 달을 넘깁니다.
 //   - 날짜 칸마다 그날 운전하는 사람 이름. 사람별로 다른 연한 색(같은 사람은 항상 같은 색)
-//   - 운전병들의 휴가도 같이 보여 줍니다: 회색 칸 "휴 이름" = 실제 휴가, 점선 = 휴가 계획 (운전을 서로 겹치지 않게 지정하려는 용도)
+//   - 운전병들의 휴가도 같이 보여 줍니다: 주황색 "휴 이름" 칸 = 실제 휴가, 주황 점선 = 휴가 계획 (운전을 서로 겹치지 않게 지정하려는 용도)
+//     운전은 진한 색 칸, 휴가는 연한 주황 칸이라 색 계열이 다르고 "휴" 글자도 붙어 섞여 보이지 않습니다.
 //   - 하루에 여러 명이면 두 명까지 쌓아서 보이고, 더 있으면 "+n"
 //   - 필요한 달의 기록을 미리 모두 받아 두므로 넘겨도 페이지가 새로고침되지 않습니다.
 //   - 스와이프: 왼쪽으로 밀면 다음 달, 오른쪽으로 밀면 이전 달 (세로 스크롤은 그대로)
@@ -16,14 +17,14 @@ import { monthGrid, shiftMonth } from "@/lib/leave";
 export type CalDuty = { id: number; member_id: number; start_date: string; end_date: string };
 export type CalLeave = CalDuty & { planned: boolean };
 
-// 사람별 색 (번호를 돌려 가며 배정)
+// 운전: 사람별로 다른 "진한 색 + 흰 글씨" 칸 (같은 사람은 항상 같은 색). 휴가(주황색 "휴")와 한눈에 구분되도록 휴가에 쓰는 주황 계열은 쓰지 않음
 const TONES = [
-  "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-100",
-  "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100",
-  "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-100",
-  "bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-100",
-  "bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-100",
-  "bg-cyan-100 text-cyan-900 dark:bg-cyan-950 dark:text-cyan-100",
+  "bg-blue-600 text-white",
+  "bg-emerald-600 text-white",
+  "bg-violet-600 text-white",
+  "bg-cyan-700 text-white",
+  "bg-fuchsia-600 text-white",
+  "bg-slate-700 text-white",
 ];
 
 export function DriveCalendar({
@@ -105,7 +106,7 @@ export function DriveCalendar({
                 {off.slice(0, 2).map((r) => (
                   <p
                     key={`l${r.id}`}
-                    className={`mt-0.5 truncate rounded px-0.5 text-center text-[10px] leading-4 ${r.planned ? "border border-dashed border-zinc-400 text-zinc-500" : "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"}`}
+                    className={`mt-0.5 truncate rounded px-0.5 text-center text-[10px] leading-4 ${r.planned ? "border border-dashed border-orange-400 text-orange-700 dark:text-orange-300" : "border border-orange-200 bg-orange-100 text-orange-800 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-200"}`}
                   >
                     휴 {names[r.member_id] ?? "?"}
                   </p>
@@ -117,7 +118,18 @@ export function DriveCalendar({
         </div>
       ))}
       <p className="mt-2 text-center text-[11px] text-muted">옆으로 밀거나 ‹ › 를 눌러 달을 넘겨 보세요</p>
-      <p className="mt-1 text-center text-[11px] text-muted">색 칸 = 운전 지정 · 회색 &quot;휴&quot; = 운전병 휴가 (점선은 휴가 계획)</p>
+      {/* 범례: 실제 칸 모양 그대로 */}
+      <p className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-muted">
+        <span className="inline-flex items-center gap-1">
+          <span className="rounded bg-blue-600 px-1.5 text-[10px] leading-4 font-semibold text-white">이름</span> 운전 지정
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="rounded border border-orange-200 bg-orange-100 px-1.5 text-[10px] leading-4 font-semibold text-orange-800 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-200">휴 이름</span> 휴가
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="rounded border border-dashed border-orange-400 px-1.5 text-[10px] leading-4 font-semibold text-orange-700 dark:text-orange-300">휴 이름</span> 휴가 계획
+        </span>
+      </p>
     </section>
   );
 }

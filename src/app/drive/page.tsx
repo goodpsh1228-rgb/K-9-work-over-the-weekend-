@@ -2,7 +2,8 @@
 // 운전 지정 (/drive) — 운전병과 관리자만 보임 (그 사람들끼리 추가·삭제)
 //   ① 지정하기: 운전병 선택 + 기간(휴가 입력처럼 달력에서 시작일·종료일) → 저장
 //   ② 달력: 한 달씩, 옆으로 밀거나 ‹ › 로 넘김. 날짜 칸마다 그날 운전하는 사람 이름 (사람별 색)
-//   ③ 지정 목록: 오늘 이후까지 걸친 지정 (삭제 가능)
+//   ③ 운전병 휴가 일정: 운전병들의 앞으로 휴가(실제·계획 구분)
+//   ④ 운전 지정 목록: 오늘 이후까지 걸친 지정 (삭제 가능)
 //   운전하는 날은 라인업의 1차탑승·예비 명단에서 빠지고, 홈에 "내일 운전병"으로 보입니다.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
@@ -17,6 +18,7 @@ import { shiftMonth } from "@/lib/leave";
 import { DriveCalendar, type CalLeave } from "./drive-calendar";
 import { isFullLeave } from "@/lib/leave";
 import { dotsRange } from "@/lib/spans";
+import { mergeConsecutive } from "@/lib/squads";
 import { addDriveDutyAction, deleteDriveDutyAction } from "./actions";
 
 // 달력에서 넘겨 볼 수 있는 범위: 3달 전 ~ 12달 뒤
@@ -75,6 +77,8 @@ export default async function DrivePage({ searchParams }: PageProps<"/drive">) {
 
   const names = Object.fromEntries((all ?? []).map((m) => [m.id as number, m.name as string])); // 달력 칸에는 이름만 (계급 생략)
   const toneOrder = (drivers ?? []).map((d) => d.id as number); // 사람별 색 배정 순서
+  // 운전병 휴가 목록 (오늘 이후까지 걸친 것, 한 사람의 이어지는 휴가는 하나로 합침 / 실제와 계획은 따로)
+  const leaveList = mergeConsecutive(driverLeaves.filter((l) => l.end_date >= today).map((l) => ({ key: l.member_id, start: l.start_date, end: l.end_date, planned: l.planned }))).sort((a, b) => a.start.localeCompare(b.start));
   const upcoming = duties.rows.filter((r) => r.end_date >= today); // 지정 목록은 오늘 이후까지 걸친 것만
 
   return (
@@ -114,8 +118,26 @@ export default async function DrivePage({ searchParams }: PageProps<"/drive">) {
       <h2 className="mt-8 mb-2 text-lg font-black">운전 달력 · 운전병 휴가</h2>
       <DriveCalendar duties={duties.rows} leaves={driverLeaves} names={names} toneOrder={toneOrder} today={today} minMonth={MIN_MONTH(today)} maxMonth={MAX_MONTH(today)} />
 
-      {/* ③ 지정 목록 */}
-      <h2 className="mt-8 mb-2 text-lg font-black">지정 목록</h2>
+      {/* ③ 운전병 휴가 목록 — 운전 지정과 따로 */}
+      <h2 className="mt-8 mb-2 text-lg font-black">운전병 휴가 일정</h2>
+      {leaveList.length === 0 ? (
+        <p className="text-sm text-muted">앞으로 예정된 운전병 휴가가 없습니다.</p>
+      ) : (
+        <Card className="overflow-hidden">
+          <ul className="divide-y divide-hairline">
+            {leaveList.map((l, i) => (
+              <li key={`${l.key}-${l.start}-${i}`} className="flex items-center gap-2 px-4 py-2.5 text-sm">
+                <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${l.planned ? "border border-dashed border-orange-400 text-orange-700" : "border border-orange-200 bg-orange-100 text-orange-800"}`}>{l.planned ? "휴가 계획" : "휴가"}</span>
+                <b>{nm(l.key as number)}</b>
+                <span className="ml-auto tabular-nums text-foreground/80">{dotsRange(l.start, l.end)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {/* ④ 운전 지정 목록 */}
+      <h2 className="mt-8 mb-2 text-lg font-black">운전 지정 목록</h2>
       {upcoming.length === 0 ? (
         <p className="text-sm text-muted">지정된 운전이 없습니다.</p>
       ) : (
