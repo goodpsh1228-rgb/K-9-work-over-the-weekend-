@@ -153,3 +153,7 @@ create table if not exists drive_duties (
 );
 create index if not exists drive_duties_by_date on drive_duties (start_date, end_date);
 alter table drive_duties enable row level security;
+
+-- 0018 전입일
+alter table members add column if not exists transfer_date date;
+comment on column members.transfer_date is '전입일 (정기휴가 6주 간격 계산 기준)';

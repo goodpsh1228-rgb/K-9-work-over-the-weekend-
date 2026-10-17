@@ -7,6 +7,7 @@
 //   ⑤ 이 달 기록(실제) / 이 달 계획(실제로 확정·삭제)
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
+import { regularSchedule, nextRegular } from "@/lib/regular-leave";
 import { requireMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { Card, Notice, Page } from "@/components/ui";
@@ -59,6 +60,9 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
   const db = getSupabaseAdmin();
   // planned 칸(SQL 0013)이 아직 없으면 계획 기능만 빼고 예전처럼 동작
   const { data: dates, error: e1 } = await db.from("members").select("enlist_date, discharge_date").eq("id", me.id).maybeSingle();
+  // 전입일 칸(SQL 0018)이 아직 없으면 전입일 기능만 빼고 동작
+  const { data: tr } = await db.from("members").select("transfer_date").eq("id", me.id).maybeSingle();
+  const transfer = (tr?.transfer_date as string | null | undefined) ?? null;
   const withPlan = await db
     .from("leaves")
     .select("id, kind, subkind, start_date, end_date, memo, absence_id, planned")
@@ -95,6 +99,8 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
   const workLeftWithPlans = discharge && plans.length ? remainingWorkdays(today, discharge, [...leaves, ...plans], extraHolidays) : null;
   const nextLeave = leaves.find((l) => isFullLeave(l.kind) && l.start_date > today);
   const summary = leaveSummary(leaves, plans);
+  const regulars = transfer ? regularSchedule(transfer) : null;
+  const nextReg = transfer ? nextRegular(transfer, today) : null;
   const promos = enlist ? promotionDates(enlist) : null;
   const next = enlist ? nextPromotion(enlist, today) : null;
 
@@ -134,11 +140,12 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                 <p className="text-zinc-500">
                   입대 {enlist.replaceAll("-", ".")} · 전역 {discharge.replaceAll("-", ".")}
                 </p>
+                <p className="text-zinc-500">전입 {transfer ? transfer.replaceAll("-", ".") : "미입력"}</p>
               </div>
               <span className="mt-1 shrink-0 text-[11px] text-muted underline">수정</span>
             </summary>
             <div className="mt-2 rounded-[14px] border border-hairline bg-card p-2.5">
-              <DatesForm enlist={enlist} discharge={discharge} month={month} />
+              <DatesForm enlist={enlist} discharge={discharge} transfer={transfer} month={month} />
             </div>
           </details>
           <div className="mt-4">
@@ -153,6 +160,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                   <span className="text-muted">실제 남은 출근일</span> <b className="text-link">{workLeft ?? 0}일</b>
                 </span>
                 <span className="block text-xs text-muted">
+                  {nextReg ? `다음 정기 ${nextReg.start <= today ? "휴가 중" : `D-${daysBetween(today, nextReg.start)}`} · ` : ""}
                   {next ? `${next.rank} 진급 D-${daysBetween(today, next.date)} ` : ""}▾
                 </span>
               </span>
@@ -174,6 +182,42 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
             {workLeftWithPlans !== null && (
               <p className="mt-1 text-center text-xs text-link">계획한 휴가까지 모두 쓰면 실제 남은 출근일 {workLeftWithPlans}일</p>
             )}
+
+            {/* 정기휴가: 다음 정기 + 접었다 펼치는 전체 일정 (전입일 기준 6주마다 2박3일, 14번) */}
+            <div className="mt-4 border-t border-hairline pt-4">
+              <div className="flex items-baseline justify-between">
+                <p className="font-semibold">정기휴가</p>
+                {nextReg && (
+                  <p className="text-sm font-semibold text-link">
+                    {nextReg.start <= today ? "정기휴가 중" : `다음 정기 D-${daysBetween(today, nextReg.start)}`}
+                  </p>
+                )}
+              </div>
+              {regulars ? (
+                <>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    {nextReg ? `${nextReg.n}번째 · ${formatShort(nextReg.start)}~${formatShort(nextReg.end)} (2박3일)` : "정기휴가를 모두 사용했습니다"}
+                  </p>
+                  <details className="mt-2 rounded-[12px] border border-hairline">
+                    <summary className="cursor-pointer list-none px-3 py-2 text-sm text-muted">전체 정기휴가 일정 (14번) ▾</summary>
+                    <ul className="divide-y divide-hairline px-3 pb-1 text-sm tabular-nums">
+                      {regulars.map((r) => {
+                        const past = r.end < today;
+                        return (
+                          <li key={r.n} className={`flex items-baseline justify-between py-1.5 ${past ? "text-zinc-300 dark:text-zinc-600" : r.n === nextReg?.n ? "font-semibold text-link" : ""}`}>
+                            <span>{r.n}차 정기 {formatShort(r.start)}~{formatShort(r.end)}</span>
+                            <span className="text-[11px] font-normal">위로 {formatShort(r.comfort)}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </details>
+                  <p className="mt-2 text-xs text-zinc-500">전입일 + 6주마다 정기 2박3일(14번), 정기 시작 2주 뒤 위로 하루. 참고용이며 휴가 기록은 아래 달력에 직접 입력하세요.</p>
+                </>
+              ) : (
+                <p className="mt-1 text-sm text-zinc-500">입대·전역일 옆 &ldquo;수정&rdquo;에서 전입일을 입력하면 정기휴가 일정이 계산됩니다.</p>
+              )}
+            </div>
 
             {/* 진급 일정 (매월 1일 자동 진급) */}
             <div className="mt-4 border-t border-hairline pt-4">
@@ -202,7 +246,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
         <Card className="mt-3 p-4">
           <p className="font-semibold">입대일과 전역일을 입력하세요</p>
           <p className="mt-1 text-sm text-zinc-500">전역까지 진행률과 실제 남은 출근일을 계산해 드립니다.</p>
-          <DatesForm enlist={enlist} discharge={discharge} month={month} />
+          <DatesForm enlist={enlist} discharge={discharge} transfer={transfer} month={month} />
         </Card>
       )}
 
@@ -402,7 +446,7 @@ function Stat({ n, label, strong }: { n: number | string; label: string; strong?
   );
 }
 
-function DatesForm({ enlist, discharge, month }: { enlist: string | null; discharge: string | null; month: string }) {
+function DatesForm({ enlist, discharge, transfer, month }: { enlist: string | null; discharge: string | null; transfer: string | null; month: string }) {
   return (
     <form action={saveServiceDatesAction} className="space-y-1.5">
       <input type="hidden" name="month" value={month} />
@@ -416,6 +460,10 @@ function DatesForm({ enlist, discharge, month }: { enlist: string | null; discha
           <input type="date" name="discharge_date" defaultValue={discharge ?? ""} className={`${inputClass} h-9! px-3! text-xs!`} />
         </label>
       </div>
+      <label className="block min-w-0 text-xs text-zinc-500">
+        전입일 (정기휴가 계산용, 선택)
+        <input type="date" name="transfer_date" defaultValue={transfer ?? ""} className={`${inputClass} h-9! px-3! text-xs!`} />
+      </label>
       <p className="text-[11px] text-zinc-500">전역일을 비우면 입대일 + 21개월 − 1일로 자동 계산됩니다.</p>
       <button type="submit" className="h-9 w-full rounded-full bg-blue-600 text-sm font-normal text-white">
         저장

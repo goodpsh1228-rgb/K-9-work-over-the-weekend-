@@ -44,8 +44,16 @@ export async function saveServiceDatesAction(formData: FormData) {
   if (!isValidDate(discharge)) back(formData, "error", "전역일을 올바르게 입력해 주세요.");
   if (discharge <= enlist) back(formData, "error", "전역일은 입대일보다 뒤여야 합니다.");
   if (discharge > addDays(enlist, 365 * 3)) back(formData, "error", "복무 기간이 너무 깁니다. 날짜를 확인해 주세요.");
+  // 전입일(선택): 비우면 지움. 칸이 없으면(SQL 0018 전) 안내만
+  const transfer = String(formData.get("transfer_date") ?? "");
+  if (transfer !== "" && !isValidDate(transfer)) back(formData, "error", "전입일을 올바르게 입력해 주세요.");
+  if (transfer !== "" && transfer < enlist) back(formData, "error", "전입일은 입대일보다 뒤여야 합니다.");
   const { error } = await getSupabaseAdmin().from("members").update({ enlist_date: enlist, discharge_date: discharge }).eq("id", me.id);
   if (error) back(formData, "error", SQL_HINT);
+  if (formData.has("transfer_date")) {
+    const { error: te } = await getSupabaseAdmin().from("members").update({ transfer_date: transfer === "" ? null : transfer }).eq("id", me.id);
+    if (te && transfer !== "") back(formData, "error", "전입일을 저장하려면 관리자가 추가 SQL(supabase/migrations/0018_transfer_date.sql)을 실행해야 합니다.");
+  }
   // 입대일을 저장하면 자동 진급을 새로 시작: 예전에 직접 바꾼 기록은 지움 (SQL 0012 전이면 조용히 넘어감)
   await getSupabaseAdmin().from("members").update({ rank_manual_on: null }).eq("id", me.id);
   await syncServiceStatusSafely({ force: true }); // 계급을 입대일 기준으로 바로 맞춤
