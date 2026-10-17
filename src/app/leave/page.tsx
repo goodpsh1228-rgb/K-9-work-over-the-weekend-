@@ -7,6 +7,7 @@
 //   ⑤ 이 달 기록(실제) / 이 달 계획(실제로 확정·삭제)
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
+import { SquadCalendar, type SquadLeave } from "./squad-calendar";
 import { regularSchedule, nextRegular, comfortDate } from "@/lib/regular-leave";
 import { requireMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
@@ -109,6 +110,11 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
   const inMonth = all.filter((l) => l.start_date <= monthEnd && l.end_date >= `${month}-01`);
   const m = Number(month.split("-")[1]);
   const mates = await getSquadmateLeaves(me.id); // 같은 반 사람들의 휴가·계획 (겹침 확인용)
+  // 같은 반 달력용: 반 사람들 + 나(실제 휴가·계획) — 겹침을 한눈에
+  const squadLeaves: SquadLeave[] = [
+    ...mates.leaves,
+    ...all.filter((l) => isFullLeave(l.kind)).map((l) => ({ id: me.id, name: me.name, rank: me.rank ?? null, start: l.start_date, end: l.end_date, planned: l.planned, mine: true })),
+  ];
   const monthLeaves = inMonth.filter((l) => !l.planned);
   const monthPlans = inMonth.filter((l) => l.planned);
   const period = (l: Leave) => (l.start_date === l.end_date ? formatShort(l.start_date) : `${formatShort(l.start_date)} ~ ${formatShort(l.end_date)}`);
@@ -123,12 +129,6 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
       {/* ① 입대일·전역일 → 진행률 */}
       {stats && enlist && discharge && promos ? (
         <>
-          {/* 작은 글씨 메뉴 하나: 1년 12달을 한 장에 펼친 연간 휴가 달력 (이미지로 저장 가능) */}
-          <div className="mt-1 flex justify-end">
-            <Link href="/leave/year" className="text-[11px] text-muted underline">
-              연간 휴가 달력 ›
-            </Link>
-          </div>
           {/* 이름 + 입대·전역일. 오른쪽 작은 "수정"을 누르면 그 자리에서 날짜를 고칠 수 있음 (평소엔 거의 쓰지 않아 접어 둠) */}
           <details className="mt-3">
             <summary className="flex cursor-pointer list-none items-start justify-between gap-3">
@@ -388,24 +388,9 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
         <details className="mt-3 rounded-[18px] border border-hairline bg-card p-4">
           <summary className="flex cursor-pointer list-none items-center justify-between">
             <span className="font-semibold">{mates.squad} 휴가 일정</span>
-            <span className="text-sm text-muted">{mates.leaves.length}건 ▾</span>
+            <span className="text-sm text-muted">{mates.leaves.length}건 · 달력 ▾</span>
           </summary>
-          {mates.leaves.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">같은 반에 예정된 휴가가 없습니다.</p>
-          ) : (
-            <ul className="mt-2 divide-y divide-hairline text-sm">
-              {mates.leaves.map((l, i) => (
-                <li key={i} className="flex items-center justify-between gap-2 py-2">
-                  <span>
-                    <span className="text-muted">{l.rank ?? ""}</span> <b>{l.name}</b> <span className="tabular-nums">{dotsRange(l.start, l.end)}</span>
-                  </span>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${l.planned ? "border border-dashed border-blue-600 text-link" : "bg-blue-600 text-white"}`}>
-                    {l.planned ? "휴가 희망" : "휴가"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <SquadCalendar leaves={squadLeaves} today={today} />
         </details>
       )}
       {!planSupported && <Notice kind="warn">휴가 계획 기능을 쓰려면 관리자가 추가 SQL(supabase/migrations/0013_leave_plan.sql)을 실행해야 합니다.</Notice>}
@@ -438,6 +423,12 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
         <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{summary.others.map((o) => `${o.label} ${o.value}`).join(" · ")}</p>
       </details>
 
+      {/* 작은 글씨 메뉴 하나: 1년 12달을 한 장에 펼친 연간 휴가 달력 (이미지로 저장 가능) */}
+      <div className="mt-5 text-center">
+        <Link href="/leave/year" className="text-xs text-muted underline">
+          연간 휴가 달력 ›
+        </Link>
+      </div>
     </Page>
   );
 }
