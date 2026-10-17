@@ -16,6 +16,7 @@ import { addAbsenceAction, deleteAbsenceAction } from "@/app/absences/actions";
 import { addDays, formatLong, formatShort, isValidDate, todayKST } from "@/lib/kst";
 import { getLineup, lineupText, RANK_ORDER, rankIndex, type LineupPerson } from "@/lib/lineup";
 import { KIND_BADGE, KIND_LABEL, LINEUP_ABSENT_KINDS } from "@/lib/absence-kinds";
+import { deadlineNotice, lineupLocked } from "@/lib/lineup-deadline";
 
 export default async function LineupPage({ searchParams }: PageProps<"/lineup">) {
   const me = await requireMember();
@@ -37,12 +38,13 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
   // 내 불참 기록 중 이 날에 걸린 것 (본인은 여기서 바로 삭제 가능, 관리자는 전부)
   const { data: delRows } = await getSupabaseAdmin()
     .from("absences")
-    .select("id, member_id, kind")
+    .select("id, member_id, kind, start_date, end_date")
     .lte("start_date", date)
     .gte("end_date", date)
     .in("kind", [...LINEUP_ABSENT_KINDS]);
   const deletable = new Map<string, number>(); // "인원번호:종류" → 기록 번호
-  for (const r of delRows ?? []) if (me.is_admin || r.member_id === me.id) deletable.set(`${r.member_id}:${r.kind}`, r.id as number);
+  // 라인업 마감(전날 21:15)이 지난 기록은 일반 인원이 지울 수 없음 (관리자는 가능)
+  for (const r of delRows ?? []) if ((me.is_admin || r.member_id === me.id) && !lineupLocked(r.kind, r.start_date, r.end_date, me.is_admin)) deletable.set(`${r.member_id}:${r.kind}`, r.id as number);
 
   return (
     <Page title="라인업">
@@ -190,6 +192,11 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
               </ul>
             </Card>
           )}
+          {l.drivers.length > 0 && (
+            <p className="mt-2 text-sm">
+              <b className="text-muted">운전</b> {l.drivers.map((p) => (p.rank ? `${p.rank} ${p.name}` : p.name)).join(", ")} <span className="text-xs text-muted">(운전하는 사람은 1차탑승·예비에서 제외)</span>
+            </p>
+          )}
           {l.noCohort > 0 && <p className="mt-2 text-xs text-muted">출근자 중 기수 미입력 {l.noCohort}명은 1차탑승 선정에서 빠집니다. 같은 기수가 9명 컷에 걸리면 날짜마다 정해진 무작위로 뽑습니다.</p>}
         </>
       )}
@@ -236,6 +243,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
       <details className="mt-8 rounded-[18px] border border-hairline bg-card p-4">
         <summary className="cursor-pointer text-base font-semibold">＋ {formatShort(date)} 불참 입력</summary>
         <div className="mt-3">
+          <p className="mb-3 text-xs font-semibold text-link">{deadlineNotice()}{me.is_admin && " (관리자는 마감 뒤에도 입력할 수 있습니다)"}</p>
           <AbsenceForm
             action={addAbsenceAction}
             back={`/lineup?date=${date}`}

@@ -220,6 +220,23 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         </Card>
       )}
 
+      {/* 내일 운전병 (운전 지정). 운전하는 사람은 위 1차 명단에서 빠져 있음. 운전병·관리자는 여기서 지정·수정 */}
+      {todayLineup.driveSupported && (
+        <Card className="mt-3 flex items-center justify-between gap-3 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-xs text-muted">내일 운전병 · 1차 명단에서 제외</p>
+            <p className="mt-0.5 text-base font-semibold">
+              {todayLineup.drivers.length ? todayLineup.drivers.map((p) => (p.rank ? `${p.rank} ${p.name}` : p.name)).join(", ") : <span className="font-normal text-muted">지정 없음</span>}
+            </p>
+          </div>
+          {(me.is_driver || me.is_admin) && (
+            <Link href="/drive" className="shrink-0 rounded-full border border-blue-600 px-3 py-1.5 text-sm font-semibold text-link">
+              지정·수정 ›
+            </Link>
+          )}
+        </Card>
+      )}
+
       {/* ───── 1순위 ③ 주말출근 투표 ───── */}
       <h2 className="mt-8 mb-2 text-[26px] leading-[1.14] font-display font-black tracking-[-0.02em]">주말출근 투표</h2>
       <CountdownCard compact title={countdown.title} target={countdown.target.toISOString()} sub={countdown.sub} />

@@ -6,6 +6,7 @@
 //   - 승인 절차 없이 입력 즉시 제외됩니다.
 //   - 입력한 기간에 걸친 근무일의 "희망" 응답은 자동으로 취소됩니다.
 //   - 입력자(created_by)를 기록하고, 변경 이력에도 남깁니다.
+//   - 라인업 불참 종류는 전날 21:15에 마감 (src/lib/lineup-deadline.ts). 일반 인원은 마감 뒤 입력·삭제 불가, 관리자는 가능.
 // ─────────────────────────────────────────────────────────────
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -14,6 +15,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { addDays, formatShort, isValidDate } from "@/lib/kst";
 import { dischargeRange, isAbsenceKind, KIND_LABEL, takesDetail } from "@/lib/absence-kinds";
+import { lineupLocked, lockText } from "@/lib/lineup-deadline";
 
 const PAGE = "/absences";
 const MAX_DAYS = 366; // 한 번에 입력할 수 있는 최대 기간
@@ -45,6 +47,10 @@ export async function addAbsenceAction(formData: FormData) {
   if (!isValidDate(start) || !isValidDate(end)) done("error", "시작일과 종료일을 선택해 주세요.");
   if (end < start) done("error", "종료일이 시작일보다 앞설 수 없습니다.");
   if (end > addDays(start, MAX_DAYS)) done("error", "한 번에 1년까지만 입력할 수 있습니다.");
+  // 라인업 마감(전날 21:15): 마감된 날짜가 걸린 라인업 불참은 일반 인원이 입력할 수 없음 (관리자는 정정용으로 가능)
+  const now = new Date();
+  if (lineupLocked(kind, start, end, me.is_admin, now)) done("error", lockText("입력", now));
+  const afterDeadline = me.is_admin && lineupLocked(kind, start, end, false, now);
 
   const db = getSupabaseAdmin();
   const { data: target } = await db.from("members").select("id, name, is_active").eq("id", targetId).maybeSingle();
@@ -82,7 +88,8 @@ export async function addAbsenceAction(formData: FormData) {
   const extra = cancelledDates.length
     ? ` 겹치는 희망 ${cancelledDates.length}건(${cancelledDates.map(formatShort).join(", ")})은 자동 취소되었습니다.`
     : "";
-  done("msg", `${who}${KIND_LABEL[kind]}${detail ? `(${detail})` : ""} ${formatShort(start)} ~ ${formatShort(end)} 저장했습니다.${extra}`);
+  const late = afterDeadline ? " ⚠️ 라인업 마감(전날 21:15) 뒤에 입력했습니다. 종이 라인업과 다를 수 있으니 확인하세요." : "";
+  done("msg", `${who}${KIND_LABEL[kind]}${detail ? `(${detail})` : ""} ${formatShort(start)} ~ ${formatShort(end)} 저장했습니다.${extra}${late}`);
 }
 
 export async function deleteAbsenceAction(formData: FormData) {
@@ -94,6 +101,7 @@ export async function deleteAbsenceAction(formData: FormData) {
   const { data: row } = await db.from("absences").select("id, member_id, kind, start_date, end_date").eq("id", id).maybeSingle();
   if (!row) back("error", "기록을 찾을 수 없습니다.", to);
   if (row.member_id !== me.id && !me.is_admin) back("error", "본인 기록만 삭제할 수 있습니다.", to);
+  if (lineupLocked(row.kind, row.start_date, row.end_date, me.is_admin)) back("error", lockText("삭제"), to);
 
   await db.from("absences").delete().eq("id", id);
   await writeAudit({ actorId: me.id, action: "absence.delete", targetMemberId: row.member_id, details: row });

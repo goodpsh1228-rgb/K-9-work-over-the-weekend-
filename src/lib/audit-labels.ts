@@ -34,6 +34,8 @@ const LABELS: Record<string, string> = {
   "dutyday.post_counts": "날짜별 인원 변경",
   "absence.add": "제외 기간 입력",
   "absence.delete": "제외 기간 삭제",
+  "drive.add": "운전 지정",
+  "drive.delete": "운전 지정 삭제",
   "draw.run": "추첨 실행",
   "roster.add": "명단에 추가",
   "roster.escort_draw": "선탑 추첨",
@@ -100,6 +102,9 @@ export function detailText(action: string, d: Record<string, unknown>): string {
     }
     case "absence.delete":
       return `${KIND[s(d.kind)] ?? s(d.kind)} ${s(d.start_date)} ~ ${s(d.end_date)}`;
+    case "drive.add":
+    case "drive.delete":
+      return `${s(d.name)} ${s(d.start_date)} ~ ${s(d.end_date)}`;
     case "draw.run": {
       const short = (d.shortage ?? {}) as { clinic?: number; general?: number; driver?: number };
       const total = (short.clinic ?? 0) + (short.general ?? 0) + (short.driver ?? 0);

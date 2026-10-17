@@ -13,6 +13,7 @@ import { Notice, Page } from "@/components/ui";
 import { addAbsenceAction, deleteAbsenceAction } from "./actions";
 import { AbsenceForm } from "@/components/absence-form";
 import { KIND_LABEL } from "@/lib/absence-kinds";
+import { deadlineNotice, lineupLocked } from "@/lib/lineup-deadline";
 
 
 export default async function AbsencesPage({ searchParams }: PageProps<"/absences">) {
@@ -49,6 +50,7 @@ export default async function AbsencesPage({ searchParams }: PageProps<"/absence
           myId={me.id}
           members={me.is_admin ? (members ?? []).filter((m) => m.is_active).map((m) => ({ id: m.id, name: m.name })) : undefined}
         />
+        <p className="mt-2 text-xs font-semibold text-link">{deadlineNotice()}{me.is_admin && " (관리자는 마감 뒤에도 입력할 수 있습니다)"}</p>
         <p className="mt-2 text-xs text-zinc-500">
           시작일과 종료일 모두 포함합니다. 입력 즉시 제외되며, 이 기간 근무일의 &quot;희망&quot;은 자동 취소됩니다.
         </p>
@@ -72,12 +74,16 @@ export default async function AbsencesPage({ searchParams }: PageProps<"/absence
                   <span className="ml-1 text-xs text-zinc-500">(입력: {nameOf.get(r.created_by)})</span>
                 )}
               </div>
-              <form action={deleteAbsenceAction}>
-                <input type="hidden" name="id" value={r.id} />
-                <button type="submit" className="rounded border border-hairline px-2 py-1 text-xs ">
-                  삭제
-                </button>
-              </form>
+              {lineupLocked(r.kind, r.start_date, r.end_date, me.is_admin) ? (
+                <span className="rounded border border-hairline px-2 py-1 text-xs text-muted">마감</span>
+              ) : (
+                <form action={deleteAbsenceAction}>
+                  <input type="hidden" name="id" value={r.id} />
+                  <button type="submit" className="rounded border border-hairline px-2 py-1 text-xs ">
+                    삭제
+                  </button>
+                </form>
+              )}
             </li>
           ))}
         </ul>

@@ -17,6 +17,7 @@ import { defaultDischarge, rankOn } from "@/lib/promotion";
 import { syncServiceStatusSafely } from "@/lib/service-sync";
 import { dotsRange } from "@/lib/squads";
 import { getSquadmateLeaves, overlapsWith } from "@/lib/squad-overlap";
+import { lineupLocked, lockText } from "@/lib/lineup-deadline";
 import { isFullLeave, isLeaveKind, isValidMonth, isValidSubkind, LEAVE_LABEL } from "@/lib/leave";
 
 const SQL_HINT = "휴가 계산기용 SQL(0009)을 관리자가 먼저 실행해야 합니다.";
@@ -52,8 +53,10 @@ export async function saveServiceDatesAction(formData: FormData) {
 }
 
 // 기록 하나를 제외 기간(absences)으로 보내기 — 추가할 때와 "보내기" 버튼이 같이 씀
-async function sendToDraw(meId: number, leave: { id: number; kind: string; start_date: string; end_date: string }) {
+async function sendToDraw(meId: number, leave: { id: number; kind: string; start_date: string; end_date: string }, isAdmin: boolean) {
   const db = getSupabaseAdmin();
+  // 휴가는 라인업 불참이기도 해서 라인업 마감(전날 21:15)이 지난 날짜가 걸리면 일반 인원은 보낼 수 없음 (기록 자체는 저장됨)
+  if (lineupLocked(isFullLeave(leave.kind) ? "leave" : "outing", leave.start_date, leave.end_date, isAdmin)) return { error: lockText("보내기"), cancelled: 0, locked: true };
   const { data: absence, error } = await db
     .from("absences")
     .insert({
@@ -65,7 +68,7 @@ async function sendToDraw(meId: number, leave: { id: number; kind: string; start
     })
     .select("id")
     .single();
-  if (error) return { error: error.message, cancelled: 0 };
+  if (error) return { error: error.message, cancelled: 0, locked: false };
   await db.from("leaves").update({ absence_id: absence.id }).eq("id", leave.id);
   // 겹치는 출근 희망·운전 희망 자동 취소 (제외 입력과 같은 규칙)
   const { data: cancelled } = await db
@@ -89,7 +92,7 @@ async function sendToDraw(meId: number, leave: { id: number; kind: string; start
       from: "휴가 계산기",
     },
   });
-  return { error: null, cancelled: (cancelled ?? []).length };
+  return { error: null, cancelled: (cancelled ?? []).length, locked: false };
 }
 
 // 기록 추가 (휴가·외출·면회)
@@ -138,9 +141,9 @@ export async function addLeaveAction(formData: FormData) {
   }
   let extra = "";
   if (send) {
-    const r = await sendToDraw(me.id, leave);
+    const r = await sendToDraw(me.id, leave, me.is_admin);
     extra = r.error
-      ? " (주말출근 제외 보내기는 실패했습니다)"
+      ? ` (${r.locked ? r.error : "주말출근 제외 보내기는 실패했습니다"})`
       : ` 주말출근 추첨에서 제외됩니다.${r.cancelled ? ` 겹친 출근 희망 ${r.cancelled}건은 취소되었습니다.` : ""}`;
   }
   back(formData, "msg", `${LEAVE_LABEL[kind]} ${period} 기록을 저장했습니다.${extra}`);
@@ -164,8 +167,8 @@ export async function sendLeaveAction(formData: FormData) {
   const leave = await myLeave(formData, me.id);
   if (leave.planned) back(formData, "error", "계획은 먼저 '실제로 확정'한 뒤에 주말출근 제외로 보낼 수 있습니다.");
   if (leave.absence_id) back(formData, "msg", "이미 주말출근 제외로 보낸 기록입니다.");
-  const r = await sendToDraw(me.id, leave);
-  if (r.error) back(formData, "error", "보내기 실패: " + r.error);
+  const r = await sendToDraw(me.id, leave, me.is_admin);
+  if (r.error) back(formData, "error", r.locked ? r.error : "보내기 실패: " + r.error);
   back(formData, "msg", `주말출근 추첨에서 제외되도록 보냈습니다.${r.cancelled ? ` 겹친 출근 희망 ${r.cancelled}건은 취소되었습니다.` : ""}`);
 }
 
@@ -183,7 +186,10 @@ export async function confirmPlanAction(formData: FormData) {
 export async function unsendLeaveAction(formData: FormData) {
   const me = await requireMember();
   const leave = await myLeave(formData, me.id);
-  if (leave.absence_id) await removeAbsence(me.id, leave.absence_id);
+  if (leave.absence_id) {
+    const blocked = await removeAbsence(me.id, leave.absence_id, me.is_admin);
+    if (blocked) back(formData, "error", blocked);
+  }
   await getSupabaseAdmin().from("leaves").update({ absence_id: null }).eq("id", leave.id);
   back(formData, "msg", "주말출근 제외를 취소했습니다. 다시 추첨 대상입니다.");
 }
@@ -192,15 +198,21 @@ export async function unsendLeaveAction(formData: FormData) {
 export async function deleteLeaveAction(formData: FormData) {
   const me = await requireMember();
   const leave = await myLeave(formData, me.id);
-  if (leave.absence_id) await removeAbsence(me.id, leave.absence_id);
+  if (leave.absence_id) {
+    const blocked = await removeAbsence(me.id, leave.absence_id, me.is_admin);
+    if (blocked) back(formData, "error", blocked);
+  }
   await getSupabaseAdmin().from("leaves").delete().eq("id", leave.id);
   back(formData, "msg", "기록을 삭제했습니다.");
 }
 
-async function removeAbsence(meId: number, absenceId: number) {
+// 제외 기간 삭제. 라인업 마감이 지나 못 지우면 안내 문구를 돌려줌 (지웠거나 할 게 없으면 null)
+async function removeAbsence(meId: number, absenceId: number, isAdmin: boolean): Promise<string | null> {
   const db = getSupabaseAdmin();
   const { data: row } = await db.from("absences").select("id, member_id, kind, start_date, end_date").eq("id", absenceId).maybeSingle();
-  if (!row || row.member_id !== meId) return;
+  if (!row || row.member_id !== meId) return null;
+  if (lineupLocked(row.kind, row.start_date, row.end_date, isAdmin)) return lockText("삭제");
   await db.from("absences").delete().eq("id", absenceId);
   await writeAudit({ actorId: meId, action: "absence.delete", targetMemberId: meId, details: { ...row, from: "휴가 계산기" } });
+  return null;
 }

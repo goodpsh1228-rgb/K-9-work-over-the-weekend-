@@ -13,6 +13,7 @@ import { dotsRange } from "./spans";
 import { getDutyDays } from "./duty-days-server";
 import { isLineupAbsent } from "./absence-kinds";
 import { pickBoardingWithReserve } from "./squads";
+import { getDriverIdsOn } from "./drivers";
 
 export type LineupPerson = { id: number; name: string; rank: string | null; cohort: number | null; tag?: string };
 export type LineupAbsent = LineupPerson & { kind: string; detail: string | null; start: string; end: string; isNew: boolean }; // isNew: 전날은 출근이었는데 이 날부터 새로 불참
@@ -28,7 +29,9 @@ export type Lineup = {
   boarding: LineupPerson[]; // 1차탑승: 그날 출근자 중 높은 기수 9명 (기수 순)
   reserve: LineupPerson[]; // 1차탑승 예비 2명 (다음 순위)
   boardingSupported: boolean; // 기수 칸(SQL 0015)이 있는지
-  noCohort: number; // 출근자 중 기수를 아직 입력하지 않은 사람 수
+  noCohort: number; // 출근자 중 기수를 아직 입력하지 않은 사람 수 (운전하는 사람은 제외하고 셈)
+  drivers: LineupPerson[]; // 그날 운전하는 사람 (운전 지정, 1차탑승·예비에서 제외됨)
+  driveSupported: boolean; // 운전 지정 표(SQL 0017)가 있는지
 };
 
 export const RANK_ORDER = ["병장", "상병", "일병", "이병"];
@@ -53,11 +56,12 @@ export async function getLineup(date: string): Promise<Lineup> {
     boardingSupported = false;
     mem = (await db.from("members").select("id, name, rank").eq("is_active", true)) as typeof mem;
   }
-  const [dutyDays, { data: draw }, { data: assigns }, { data: posts }] = await Promise.all([
+  const [dutyDays, { data: draw }, { data: assigns }, { data: posts }, drive] = await Promise.all([
     getDutyDays(date, date),
     db.from("draws").select("duty_date").eq("duty_date", date).maybeSingle(),
     db.from("assignments").select("member_id, post_id").eq("duty_date", date),
     db.from("posts").select("id, name, sort_order").order("sort_order"),
+    getDriverIdsOn(date), // 그날 운전하는 사람 (운전 지정)
   ]);
   const person = new Map(
     (mem.data ?? []).map((m) => [
@@ -111,12 +115,15 @@ export async function getLineup(date: string): Promise<Lineup> {
   const presentCount = isDutyDay ? new Set((assigns ?? []).map((a) => a.member_id)).size : present.length;
   // 그날 출근자 전체(주말·공휴일은 여러 자리에 걸친 사람을 한 번만) 중 1차탑승 선정
   const everyone = isDutyDay ? [...new Map(byPost.flatMap((g) => g.people).map((p) => [p.id, p])).values()] : present;
-  const picked = boardingSupported ? pickBoardingWithReserve(everyone, date) : { boarding: [], reserve: [] };
+  // 그날 운전하는 사람은 출근자이긴 하지만 1차탑승·예비 후보에서는 뺌 (그 자리를 다음 기수가 채움)
+  const drivers = [...drive.ids].map((id) => person.get(id)).filter((p): p is NonNullable<typeof p> => Boolean(p)).map(withTag).sort(byRankName);
+  const candidates = everyone.filter((p) => !drive.ids.has(p.id));
+  const picked = boardingSupported ? pickBoardingWithReserve(candidates, date) : { boarding: [], reserve: [] };
   const byCohort = (a: LineupPerson, b: LineupPerson) => (a.cohort ?? 0) - (b.cohort ?? 0) || a.name.localeCompare(b.name, "ko");
   const boarding = [...picked.boarding].sort(byCohort);
   const reserve = [...picked.reserve].sort(byCohort);
-  const noCohort = everyone.filter((p) => p.cohort === null).length;
-  return { isDutyDay, dutyLabel: dutyDays[0]?.label ?? null, drawn, absent, present, byPost, presentCount, detailSupported, boarding, reserve, boardingSupported, noCohort };
+  const noCohort = candidates.filter((p) => p.cohort === null).length;
+  return { isDutyDay, dutyLabel: dutyDays[0]?.label ?? null, drawn, absent, present, byPost, presentCount, detailSupported, boarding, reserve, boardingSupported, noCohort, drivers, driveSupported: drive.ok };
 }
 
 // 카카오톡·수기 입력용 글
@@ -136,6 +143,10 @@ export function lineupText(date: string, shortDate: string, l: Lineup): string {
   if (l.reserve.length) {
     lines.push(`■ 1차탑승 예비 (${l.reserve.length}명)`);
     for (const p of l.reserve) lines.push(`- ${p.cohort}기 ${nm(p)}`);
+  }
+  if (l.drivers.length) {
+    lines.push(`■ 운전 (1차탑승 제외)`);
+    for (const p of l.drivers) lines.push(`- ${nm(p)}`);
   }
   lines.push("■ 출근");
   if (l.isDutyDay) {

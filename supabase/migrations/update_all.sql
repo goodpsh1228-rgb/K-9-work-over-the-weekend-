@@ -139,3 +139,17 @@ update members set squad = '진료반' where is_clinic and squad is null;
 alter table absences drop constraint if exists absences_kind_check;
 alter table absences add constraint absences_kind_check
   check (kind in ('leave', 'injury', 'outing', 'discharge', 'excused', 'training', 'duty_off', 'work_off', 'outpatient', 'lineup'));
+
+
+-- ── 0017: 운전 지정 ──
+create table if not exists drive_duties (
+  id          bigint generated always as identity primary key,
+  member_id   bigint not null references members(id) on delete cascade,
+  start_date  date not null,
+  end_date    date not null,
+  created_by  bigint references members(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  check (end_date >= start_date)
+);
+create index if not exists drive_duties_by_date on drive_duties (start_date, end_date);
+alter table drive_duties enable row level security;
