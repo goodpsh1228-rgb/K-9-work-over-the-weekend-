@@ -210,7 +210,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                           </li>
                         );
                       })}
-                      {/* 14번째 정기가 끝난 2주 뒤 위로 하루 */}
+                      {/* 14번째 정기 시작 2주 뒤 위로 하루 */}
                       <li className={`flex items-baseline justify-between py-1.5 ${comfortDate(transfer!) < today ? "text-zinc-300 dark:text-zinc-600" : ""}`}>
                         <span>2주 위로</span>
                         <span>{formatShort(comfortDate(transfer!))}</span>
