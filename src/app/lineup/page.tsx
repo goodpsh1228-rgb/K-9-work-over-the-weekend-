@@ -32,6 +32,8 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
   const newCount = new Set(l.absent.filter((a) => a.isNew).map((a) => a.id)).size; // 이 날부터 새로 불참인 사람
   const first = new Set(l.boarding.map((p) => p.id)); // 1차탑승 표시용
   const text = lineupText(date, formatShort(date), l);
+  // 신규·복귀 비교 기준: 전날이면 "전날", 주말·공휴일을 건너뛰면 "직전 평일 10/16(금)"
+  const baseLabel = l.baseDate === addDays(date, -1) ? "전날" : `직전 평일 ${formatShort(l.baseDate)}`;
   const { data: members } = me.is_admin
     ? await getSupabaseAdmin().from("members").select("id, name").eq("is_active", true).order("name")
     : { data: null };
@@ -95,7 +97,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
         </div>
       </div>
 
-      {/* ② 불참자 — 가장 눈에 띄게. 높은 기수부터 한 줄씩(이름·기수 / 날짜·사유). 전날은 출근이었다가 이 날부터 새로 불참인 사람은 붉은색 */}
+      {/* ② 불참자 — 가장 눈에 띄게. 높은 기수부터 한 줄씩(이름·기수 / 날짜·사유). 직전 평일(주말·공휴일 건너뜀)은 출근이었다가 이 날 새로 불참인 사람은 파란색, 맨 아래에 다시 출근하는 사람 이름 */}
       <Card className="mt-4 overflow-hidden">
         <div className="border-b border-hairline px-4 py-3">
           <div className="flex items-baseline justify-between">
@@ -104,7 +106,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
           </div>
           {newCount > 0 && (
             <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-link">
-              <span className="inline-block size-2.5 rounded-full bg-blue-600" /> 새로 불참 {newCount}명 (전날은 출근)
+              <span className="inline-block size-2.5 rounded-full bg-blue-600" /> 새로 불참 {newCount}명 ({baseLabel}은 출근)
             </p>
           )}
         </div>
@@ -144,6 +146,13 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
               );
             })}
           </ul>
+        )}
+        {/* 다시 출근: 직전 평일엔 불참이었다가 이 날은 출근하는 사람 (이름만 작게) */}
+        {l.returning.length > 0 && (
+          <p className="border-t border-hairline px-4 py-2 text-xs leading-5 text-muted">
+            <b className="font-semibold">다시 출근 {l.returning.length}명</b>
+            {l.baseDate !== addDays(date, -1) && <span> ({baseLabel} 불참)</span>} · {l.returning.map((p) => p.name).join(", ")}
+          </p>
         )}
       </Card>
 
