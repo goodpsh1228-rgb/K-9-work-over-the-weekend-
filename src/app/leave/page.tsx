@@ -160,7 +160,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                   <span className="text-muted">실제 남은 출근일</span> <b className="text-link">{workLeft ?? 0}일</b>
                 </span>
                 <span className="block text-xs text-muted">
-                  {nextReg ? `다음 정기 ${nextReg.start <= today ? "휴가 중" : `D-${daysBetween(today, nextReg.start)}`} · ` : ""}
+                  {nextReg ? `다음 정기 ${nextReg.start <= today ? "휴가 중" : `D-${daysBetween(today, nextReg.start)}`}${next ? " · " : " "}` : ""}
                   {next ? `${next.rank} 진급 D-${daysBetween(today, next.date)} ` : ""}▾
                 </span>
               </span>
@@ -196,7 +196,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
               {regulars ? (
                 <>
                   <p className="mt-1 text-sm text-zinc-500">
-                    {nextReg ? `${nextReg.n}번째 · ${formatShort(nextReg.start)}~${formatShort(nextReg.end)} (2박3일)` : "정기휴가를 모두 사용했습니다"}
+                    {nextReg ? `${nextReg.n}번째 · ${formatShort(nextReg.start)}` : "정기휴가를 모두 사용했습니다"}
                   </p>
                   <details className="mt-2 rounded-[12px] border border-hairline">
                     <summary className="cursor-pointer list-none px-3 py-2 text-sm text-muted">전체 정기휴가 일정 (14번) ▾</summary>
@@ -205,14 +205,14 @@ export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
                         const past = r.end < today;
                         return (
                           <li key={r.n} className={`flex items-baseline justify-between py-1.5 ${past ? "text-zinc-300 dark:text-zinc-600" : r.n === nextReg?.n ? "font-semibold text-link" : ""}`}>
-                            <span>{r.n}차 정기 {formatShort(r.start)}~{formatShort(r.end)}</span>
-                            <span className="text-[11px] font-normal">위로 {formatShort(r.comfort)}</span>
+                            <span>{r.n}차 정기</span>
+                            <span>{formatShort(r.start)}</span>
                           </li>
                         );
                       })}
                     </ul>
                   </details>
-                  <p className="mt-2 text-xs text-zinc-500">전입일 + 6주마다 정기 2박3일(14번), 정기 시작 2주 뒤 위로 하루. 참고용이며 휴가 기록은 아래 달력에 직접 입력하세요.</p>
+                  <p className="mt-2 text-xs text-zinc-500">전입일 + 6주마다 정기가 들어오는 날(2박3일, 14번)만 표시합니다. 참고용이며 휴가 기록은 아래 달력에 직접 입력하세요.</p>
                 </>
               ) : (
                 <p className="mt-1 text-sm text-zinc-500">입대·전역일 옆 &ldquo;수정&rdquo;에서 전입일을 입력하면 정기휴가 일정이 계산됩니다.</p>
