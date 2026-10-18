@@ -117,11 +117,12 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
             {l.absent.map((a) => {
               // 사유: "라인업 불참"은 직접 쓴 사유만, 나머지는 종류(+상세)
               const reason = a.kind === "lineup" ? (a.detail ?? "불참") : `${KIND_LABEL[a.kind]}${a.detail ? `·${a.detail}` : ""}`;
+              const longReason = reason.length > 7; // 긴 사유는 잘리지 않게 아랫줄에 전체를 보여 줌
               const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
               return (
                 <li
                   key={`${a.id}-${a.kind}-${a.start}`}
-                  className={`flex items-center gap-2 border-l-4 px-3 py-1.5 text-sm ${a.isNew ? "border-blue-600 bg-blue-50 dark:bg-blue-950" : "border-transparent"}`}
+                  className={`flex flex-wrap items-center gap-x-2 gap-y-1 border-l-4 px-3 py-1.5 text-sm ${a.isNew ? "border-blue-600 bg-blue-50 dark:bg-blue-950" : "border-transparent"}`}
                 >
                   <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted">{a.cohort ?? ""}</span>
                   <span className="min-w-0 flex-1 truncate">
@@ -132,7 +133,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
                     {a.isNew && <span className="ml-1 rounded bg-blue-600 px-1 py-0.5 text-[10px] font-bold text-white">신규</span>}
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-foreground/80">{a.start === a.end ? md(a.start) : `${md(a.start)}~${md(a.end)}`}</span>
-                  <span className={`max-w-[34%] shrink-0 truncate rounded-full px-2 py-0.5 text-xs font-bold ${KIND_BADGE[a.kind]}`}>{reason}</span>
+                  {!longReason && <span className={`max-w-[34%] shrink-0 truncate rounded-full px-2 py-0.5 text-xs font-bold ${KIND_BADGE[a.kind]}`}>{reason}</span>}
                   {deletable.has(`${a.id}:${a.kind}`) && (
                     <form action={deleteAbsenceAction} className="shrink-0">
                       <input type="hidden" name="id" value={deletable.get(`${a.id}:${a.kind}`)} />
@@ -141,6 +142,9 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
                         ✕
                       </button>
                     </form>
+                  )}
+                  {longReason && (
+                    <span className={`ml-10 basis-full rounded-xl px-2.5 py-1 text-xs leading-snug font-bold break-words ${KIND_BADGE[a.kind]}`}>{reason}</span>
                   )}
                 </li>
               );
