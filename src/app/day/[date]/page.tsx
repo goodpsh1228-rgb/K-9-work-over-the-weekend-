@@ -15,7 +15,7 @@ import { addDays, dateRange, formatLong, formatShort, isValidDate } from "@/lib/
 import { autoLabel, computeDutyDays } from "@/lib/duty-days";
 import { getOverrides, getVoteInfo } from "@/lib/duty-days-server";
 import { getDayBoard, getPostsForDate, myStateFrom, type PostSlot } from "@/lib/day-board";
-import { STATUS_LABEL } from "@/lib/voting";
+import { STATUS_LABEL, VOTING_OVERRIDES } from "@/lib/voting";
 import { Notice, Page } from "@/components/ui";
 import { buildDrawInput, getDraw, getRoster, runVisitTasksSafely, simulateDraw, type RosterEntry } from "@/lib/draw-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
@@ -237,11 +237,13 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
       {/* 2) 투표 기간 + 내 투표 */}
       <section className="mt-3 rounded-[18px] border border-hairline bg-card p-4">
         <p className="text-sm">
-          <StatusChip status={overall} /> {formatShort(win.monday)} 00:00 ~ {formatShort(win.closeDate)} 21:00
+          <StatusChip status={overall} /> {formatShort(win.openDate)} 00:00 ~ {formatShort(win.closeDate)} 21:00
         </p>
         <p className="mt-1 text-xs text-zinc-500">
-          월요일은 상병·병장만, 화요일부터 일병·이병도 투표할 수 있습니다.
-          {fridayIsDuty && " 이번 주는 금요일이 공휴일이라 화요일 21:00에 마감합니다."}
+          {VOTING_OVERRIDES[date]
+            ? `이 날은 투표 기간이 연장되었습니다: ${formatShort(win.openDate)}은 상병·병장만, ${formatShort(win.juniorDate)}부터 일병·이병도 투표할 수 있습니다.`
+            : "월요일은 상병·병장만, 화요일부터 일병·이병도 투표할 수 있습니다."}
+          {fridayIsDuty && !VOTING_OVERRIDES[date] && " 이번 주는 금요일이 공휴일이라 화요일 21:00에 마감합니다."}
         </p>
         <p className="mt-2 font-semibold">
           내 상태: <MyStateText state={mine} />

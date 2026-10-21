@@ -111,12 +111,12 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
           ? {
               title: "내 투표 시작까지",
               target: win.juniorOpensAt,
-              sub: `${me.rank ?? "계급 미지정"}은(는) 화요일 00:00부터 · ${cover}`,
+              sub: `${me.rank ?? "계급 미지정"}은(는) ${formatShort(win.juniorDate)} 00:00부터 · ${cover}`,
             }
           : {
               title: "투표 시작까지",
               target: win.seniorOpensAt,
-              sub: `${formatShort(win.monday)} 00:00 시작 · ${cover}`,
+              sub: `${formatShort(win.openDate)} 00:00 시작 · ${cover}`,
             };
   } else {
     const monday = addDays(mondayOf(todayKST()), 7);
@@ -311,7 +311,7 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
                         <span className="text-xs text-muted">
                           {overall(d.date) === "open" &&
                           myStatus(d.date) === "before"
-                            ? "화요일부터"
+                            ? `${formatShort(votingWindow(d.date, fridayIsDuty(d.date)).juniorDate)}부터`
                             : overall(d.date) === "closed"
                               ? me.is_admin
                                 ? "마감 · 차출 대기"

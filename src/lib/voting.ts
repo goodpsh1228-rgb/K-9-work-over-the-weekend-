@@ -33,14 +33,26 @@ export function voteFriday(dutyDate: string): string {
   return addDays(voteMonday(dutyDate), 4);
 }
 
+// ── 특정 근무일만 투표 기간을 따로 정하기 (관리자 요청으로 연장할 때) ──
+//   근무일 → { 상병·병장 시작일, 일병·이병 시작일, 마감일 } (모두 00:00 시작 / 마감은 21:00, 한국 시간)
+//   여기 적힌 근무일만 기본 주간 일정 대신 이 일정을 씁니다. 지나간 항목은 지워도 됩니다.
+export const VOTING_OVERRIDES: Record<string, { seniorFrom: string; juniorFrom: string; closeDate: string }> = {
+  // 2026-10-21 요청: 10/24·10/25 투표 연장 — 10/21(수) 상병·병장, 10/22(목) 일병·이병, 10/22(목) 21:00 마감
+  "2026-10-24": { seniorFrom: "2026-10-21", juniorFrom: "2026-10-22", closeDate: "2026-10-22" },
+  "2026-10-25": { seniorFrom: "2026-10-21", juniorFrom: "2026-10-22", closeDate: "2026-10-22" },
+};
+
 // fridayIsDuty: 그 주 금요일이 근무일(공휴일 등)인지 — 데이터베이스 설정을 봐야 해서 밖에서 넣어 줌
 export function votingWindow(dutyDate: string, fridayIsDuty: boolean) {
   const monday = voteMonday(dutyDate);
-  const closeDate = addDays(monday, fridayIsDuty ? 1 : 2); // 화 또는 수
+  const ov = VOTING_OVERRIDES[dutyDate];
+  const closeDate = ov ? ov.closeDate : addDays(monday, fridayIsDuty ? 1 : 2); // 화 또는 수 (연장 시 그 날)
   return {
     monday,
-    seniorOpensAt: kstMoment(monday, 0), // 월 00:00 (상병·병장)
-    juniorOpensAt: kstMoment(addDays(monday, 1), 0), // 화 00:00 (일병·이병)
+    openDate: ov ? ov.seniorFrom : monday, // 투표가 처음 열리는 날 (화면 표시용)
+    juniorDate: ov ? ov.juniorFrom : addDays(monday, 1), // 일병·이병 시작일 (화면 표시용)
+    seniorOpensAt: kstMoment(ov ? ov.seniorFrom : monday, 0), // 월 00:00 (상병·병장)
+    juniorOpensAt: kstMoment(ov ? ov.juniorFrom : addDays(monday, 1), 0), // 화 00:00 (일병·이병)
     closesAt: kstMoment(closeDate, CLOSE_HOUR), // 화 또는 수 21:00
     closeDate,
     coverFrom: fridayIsDuty ? addDays(monday, 4) : addDays(monday, 5), // 대상 근무일 범위 (금 또는 토 ~ 다음 주 목)

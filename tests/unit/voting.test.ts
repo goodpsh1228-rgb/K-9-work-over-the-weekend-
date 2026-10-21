@@ -43,3 +43,18 @@ assert.strictEqual(s("2026-10-10", true, "2026-10-06T21:00:00", "이병"), "clos
 assert.strictEqual(s("2026-10-10", true, "2026-10-05T10:00:00", "일병"), "before"); // 화요일에만 일병 가능
 assert.strictEqual(s("2026-10-10", true, "2026-10-05T10:00:00", "상병"), "open");
 console.log("ALL OK");
+
+// 특정 근무일 투표 연장 (VOTING_OVERRIDES): 10/24·10/25 — 10/21 상병·병장, 10/22 일병·이병, 10/22 21:00 마감
+{
+  const at = (s: string) => new Date(`${s}+09:00`);
+  for (const d of ["2026-10-24", "2026-10-25"]) {
+    assert.strictEqual(votingStatus(d, false, at("2026-10-21T12:00:00"), "병장"), "open");
+    assert.strictEqual(votingStatus(d, false, at("2026-10-21T21:30:00"), "상병"), "open"); // 원래 마감(수 21:00) 지나도 열림
+    assert.strictEqual(votingStatus(d, false, at("2026-10-21T21:30:00"), "일병"), "before"); // 일병·이병은 내일부터
+    assert.strictEqual(votingStatus(d, false, at("2026-10-22T00:00:00"), "이병"), "open");
+    assert.strictEqual(votingStatus(d, false, at("2026-10-22T20:59:59"), "일병"), "open");
+    assert.strictEqual(votingStatus(d, false, at("2026-10-22T21:00:00"), "병장"), "closed");
+  }
+  assert.strictEqual(votingStatus("2026-10-31", false, at("2026-10-26T12:00:00"), "병장"), "open"); // 다른 주는 기본 일정 그대로
+  console.log("✔ 10/24·25 투표 연장: 10/21 상병·병장, 10/22 일병·이병, 10/22 21:00 마감 / 다른 주는 기본");
+}
