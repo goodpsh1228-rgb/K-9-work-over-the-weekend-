@@ -153,3 +153,14 @@ inp = mkd(0, 20, [], [200]); r = runDraw(inp, rng); check(inp, r);
 assert.strictEqual(driverOf(r).length, 0); assert.strictEqual(r.shortage.driver, 1);
 console.log("✔ ⑰ 운전 희망 초과 → 1명, 쉼 없음 / 운전병 없으면 운전 부족 / 일반 인원 운전 희망 무시");
 console.log("ALL OK");
+
+// 진료반이 투표를 안 해도 다른 동으로는 차출되지 않음 (일반 동이 비어도 인원 부족으로 남김)
+for (let k = 0; k < 200; k++) {
+  const input = mk(6, 3); // 진료반 6명(전원 미응답), 일반 3명 → 일반 15자리 중 12자리 부족
+  const r = runDraw(input, rng);
+  const postPool = new Map(input.posts.map(p => [p.id, p.pool]));
+  for (const a of r.assignments) if (a.memberId < 200) assert.strictEqual(postPool.get(a.postId), "clinic", "투표 안 한 진료반이 다른 동으로 차출됨");
+  assert.strictEqual(r.assignments.filter(a => a.memberId < 200).length, 2); // 진료실 2자리만
+  assert.strictEqual(r.shortage.general, 12);
+}
+console.log("✔ 투표 안 한 진료반은 진료실 차출만 — 다른 동으로는 차출 안 됨(일반 자리는 인원 부족으로 표시)");

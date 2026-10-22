@@ -31,7 +31,8 @@ export async function buildDrawInput(date: string): Promise<DrawInput> {
     getDriverIds(),
     getDriveWants(date),
     getDriverIdsOn(date), // 운전 지정(/drive)
-    db.from("members").select("id, is_clinic").eq("is_active", true),
+    // 반(squad) 칸(SQL 0015)이 있으면 같이 읽음 — 없으면 진료반 여부만
+    db.from("members").select("id, is_clinic, squad").eq("is_active", true).then(async (r) => (r.error ? await db.from("members").select("id, is_clinic").eq("is_active", true) : r)),
     db.from("responses").select("member_id, choice, post_id").eq("duty_date", date),
   ]);
   // 0007 SQL 전이면(운전 희망 표 없음) 운전 자리는 빼고 추첨 (동+운전 중복 저장이 안 되므로)
@@ -45,7 +46,8 @@ export async function buildDrawInput(date: string): Promise<DrawInput> {
     posts: posts.map((p) => ({ id: p.id, pool: p.pool, required: p.required })),
     members: (members ?? [])
       .filter((m) => !excluded.has(m.id)) // 제외자(휴가·부상, 운전 지정자)는 동·진료실 풀에 넣지 않음
-      .map((m) => ({ id: m.id as number, pool: m.is_clinic ? "clinic" : "general", driver: drivers.has(m.id) })),
+      // 진료반(진료반 여부 또는 반이 "진료반")은 진료실 풀에만 → 투표를 안 해도 다른 동으로는 절대 차출되지 않음
+      .map((m) => ({ id: m.id as number, pool: m.is_clinic || (m as { squad?: string | null }).squad === "진료반" ? "clinic" : "general", driver: drivers.has(m.id) })),
     responses: new Map(
       (responses ?? []).map((r) => [r.member_id as number, { choice: r.choice, postId: r.post_id as number | null }]),
     ),
