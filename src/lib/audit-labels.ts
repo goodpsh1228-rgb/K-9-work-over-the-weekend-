@@ -41,6 +41,7 @@ const LABELS: Record<string, string> = {
   "roster.escort_draw": "선탑 추첨",
   "roster.remove": "명단에서 삭제",
   "roster.replace": "명단 교체",
+  "roster.redraw": "한 명 다시 뽑기",
 };
 
 export function actionLabel(action: string): string {
@@ -120,6 +121,8 @@ export function detailText(action: string, d: Record<string, unknown>): string {
       return `${s(d.name)} (${s(d.post)})`;
     case "roster.replace":
       return `${s(d.post)}: ${s(d.from)} → ${s(d.to)}${d.excluded ? " (휴가·부상 중)" : ""}`;
+    case "roster.redraw":
+      return `${s(d.post)}: ${s(d.from)} → ${s(d.to)} (랜덤 · ${s(d.pool)} ${s(d.candidates)}명 중)`;
     default: {
       const text = JSON.stringify(d);
       return text === "{}" ? "" : text.slice(0, 80);

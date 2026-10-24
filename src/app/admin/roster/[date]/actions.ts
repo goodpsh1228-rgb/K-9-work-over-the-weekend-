@@ -4,6 +4,7 @@
 //   - 삭제: 명단에서 한 사람 빼기
 //   - 추가: 사람 + 자리를 골라 넣기 (꼬리표 "관리자 수정")
 //   - 교체: 한 사람을 다른 사람으로 바꾸기 (같은 자리, 꼬리표 "관리자 수정")
+//   - 이 사람만 다시 뽑기: 한 사람을 빼고 그 자리를 랜덤으로 다시 채움 (나머지 명단은 그대로)
 //   - 선탑 추첨: 그날 출근자 중 관리자가 고른 대상자 안에서 랜덤 1명 (다시 누르면 다시 뽑음)
 //   ※ 한 사람은 하루에 동(진료실 포함) 한 곳 + 주말 운전 + 선탑까지 가질 수 있습니다(종류별 한 번).
 //   휴가·부상 중인 사람도 넣을 수 있습니다(화면에서 경고만). 변경 이력에 "제외 기간 중" 표시를 남깁니다.
@@ -150,6 +151,61 @@ export async function replaceAssignmentAction(formData: FormData) {
     details: { from: oldName, to: newM.name, post, excluded },
   });
   back(date, "msg", `${post}: ${oldName} → ${newM.name} 으로 바꿨습니다.${excluded ? " (휴가·부상 기간 중인 사람)" : ""}`);
+}
+
+// 이 사람만 다시 뽑기 (동·진료실 자리만)
+//   한 사람이 사정이 생겼을 때, 그 사람만 빼고 같은 자리를 추첨 규칙대로 랜덤으로 다시 채웁니다.
+//   후보 순서: ① 이 자리를 희망했다가 정원 초과로 떨어진 사람 → 없으면 ② 차출 후보(미응답·미희망)
+//   후보에서 빠지는 사람: 빠지는 본인, 이미 그날 다른 동·진료실 명단에 있는 사람, 휴가·부상 등 제외자, 다른 풀
+//   (진료실 자리는 진료반만, 동 자리는 진료반이 아닌 사람만 차출 — 처음 추첨과 같은 규칙)
+export async function redrawOneAction(formData: FormData) {
+  const { me, date, db } = await common(formData);
+  const oldId = Number(formData.get("member_id"));
+  const postId = Number(formData.get("post_id"));
+  const posts = await getPostsForDate(date);
+  const post = posts.find((p) => p.id === postId);
+  if (!post || (post.pool !== "clinic" && post.pool !== "general")) back(date, "error", "동·진료실 자리만 다시 뽑을 수 있습니다.");
+  const { data: row } = await db.from("assignments").select("id").eq("duty_date", date).eq("member_id", oldId).eq("post_id", postId).maybeSingle();
+  if (!row) back(date, "error", "명단에 없는 사람입니다.");
+
+  const postPool = new Map(posts.map((p) => [p.id, p.pool]));
+  let mem = await db.from("members").select("id, name, is_clinic, squad").eq("is_active", true);
+  if (mem.error) mem = (await db.from("members").select("id, name, is_clinic").eq("is_active", true)) as typeof mem;
+  const [excluded, { data: assigned }, { data: responses }] = await Promise.all([
+    getExcludedIds(date),
+    db.from("assignments").select("member_id, post_id").eq("duty_date", date),
+    db.from("responses").select("member_id, choice, post_id").eq("duty_date", date),
+  ]);
+  // 이미 그날 동·진료실 명단에 있는 사람 (운전·선탑만 있는 사람은 후보 가능)
+  const busy = new Set((assigned ?? []).filter((a) => { const k = postPool.get(a.post_id); return k === "clinic" || k === "general"; }).map((a) => a.member_id as number));
+  const wantOf = new Map((responses ?? []).filter((r) => r.choice === "want" && r.post_id !== null).map((r) => [r.member_id as number, r.post_id as number]));
+  const people = ((mem.data ?? []) as { id: number; name: string; is_clinic: boolean; squad?: string | null }[]).filter(
+    (m) => m.id !== oldId && !busy.has(m.id) && !excluded.has(m.id),
+  );
+  const isClinic = (m: { is_clinic: boolean; squad?: string | null }) => m.is_clinic || m.squad === "진료반";
+  // ① 이 자리를 희망했다가 떨어진 사람 (진료실 자리는 진료반만)
+  const wanters = people.filter((m) => wantOf.get(m.id) === postId && (post.pool !== "clinic" || isClinic(m)));
+  // ② 차출 후보: 같은 풀 + 어떤 자리도 희망하지 않은 사람(미응답·미희망)
+  const drafts = people.filter((m) => !wantOf.has(m.id) && (post.pool === "clinic" ? isClinic(m) : !isClinic(m)));
+  const fromWanters = wanters.length > 0;
+  const cands = fromWanters ? wanters : drafts;
+  if (cands.length === 0) back(date, "error", "다시 뽑을 후보가 없습니다. (교체 메뉴로 직접 골라 주세요)");
+  const picked = cands[randomInt(cands.length)]; // 후보 모두 같은 확률
+
+  const { error } = await db.from("assignments").insert({ duty_date: date, member_id: picked.id, post_id: postId, source: fromWanters ? "wanted" : "drafted" });
+  if (error) back(date, "error", "저장 중 오류: " + error.message);
+  await db.from("assignments").delete().eq("id", row.id);
+  await recomputeShortage(date);
+  const oldName = (await memberName(oldId))?.name ?? "?";
+  await writeAudit({
+    actorId: me.id,
+    action: "roster.redraw",
+    targetMemberId: picked.id,
+    dutyDate: date,
+    details: { from: oldName, to: picked.name, post: post.name, pool: fromWanters ? "떨어진 희망자" : "차출 후보", candidates: cands.length },
+  });
+  const to = formData.get("return_to") === "day" ? "day" : "roster";
+  back(date, "msg", `${post.name}: ${oldName} → ${picked.name} (랜덤 다시 뽑기 · ${fromWanters ? "이 자리 희망자" : "차출 후보"} ${cands.length}명 중 1명)`, to);
 }
 
 // 선탑 추첨: 관리자가 체크한 대상자(그날 동·진료실 출근자) 중에서 서버 난수로 1명

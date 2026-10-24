@@ -58,6 +58,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   const workPosts = board.posts.filter((p) => p.pool === "general" || p.pool === "clinic");
   const drawWanted = workPosts.reduce((s, p) => s + Math.min(p.required, p.wanters.length), 0);
   const drawNeed = workPosts.reduce((s, p) => s + p.required, 0) - drawWanted;
+  const excusedIdSet = new Set(board.excluded.filter((m) => board.nonVoters.some((n) => n.id === m.id)).map((m) => m.id)); // 미참여 중 스크리닝으로 빠진 사람
   const screenPool = [...board.unanswered.map((m) => ({ ...m, declined: false })), ...board.declines.map((m) => ({ ...m, declined: true }))];
 
   // 추첨 결과 (있으면) / 관리자 미리보기
@@ -198,11 +199,27 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         </section>
       )}
 
+      {/* 1-0) 추첨 뒤: 투표 미참여자 (마감 때까지 응답하지 않은 사람) — 접어 둠 */}
+      {draw && board.nonVoters.length > 0 && (
+        <details className="mb-4 rounded-[11px] border border-orange-300 bg-orange-50 p-3 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100">
+          <summary className="cursor-pointer font-semibold">투표 미참여 {board.nonVoters.length}명 ▾</summary>
+          <p className="mt-1 text-sm leading-6">
+            {board.nonVoters.map((m) => `${m.name}${excusedIdSet.has(m.id) ? "(추첨 제외)" : ""}`).join(", ")}
+          </p>
+          <p className="mt-1 text-xs opacity-80">마감까지 희망·미희망을 누르지 않은 사람입니다. (추첨 제외) = 관리자가 스크리닝에서 뺀 사람</p>
+        </details>
+      )}
+
       {/* 1) 미응답자 — 최상단 주황색 (추첨 전까지) */}
       {!draw && board.unanswered.length > 0 && (
         <section className="mb-4 rounded-[11px] border border-orange-300 bg-orange-50 p-3 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100">
           <p className="font-semibold">아직 응답하지 않은 사람 ({board.unanswered.length}명)</p>
           <p className="mt-1 text-sm leading-6">{board.unanswered.map((m) => m.name).join(", ")}</p>
+          {excusedIdSet.size > 0 && (
+            <p className="mt-1 text-xs opacity-80">
+              응답 없이 관리자가 이 날 추첨에서 뺀 사람: {board.nonVoters.filter((m) => excusedIdSet.has(m.id)).map((m) => m.name).join(", ")}
+            </p>
+          )}
           {/* 단톡방에 붙여넣을 독촉 문구 (투표 중일 때) */}
           {overall === "open" && (
             <div className="mt-2">

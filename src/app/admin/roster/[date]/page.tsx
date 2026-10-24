@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // 확정 명단 수정 화면 (/admin/roster/2026-10-03) — 관리자 전용
 //   자리별로 확정된 사람과 꼬리표를 보여 주고,
-//   각 사람마다 [교체] [삭제], 자리마다 빈자리가 있으면 [추가]를 할 수 있습니다.
+//   각 사람마다 [다시 뽑기](동·진료실) [교체] [삭제], 자리마다 빈자리가 있으면 [추가]를 할 수 있습니다.
 //   후보 목록에서 휴가·부상 중인 사람은 "⚠ 휴가·부상"으로 표시되고, 고르면 경고 확인창이 뜹니다.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
@@ -17,7 +17,7 @@ import { ConfirmButton, WarnSelectForm } from "@/components/confirm-button";
 import { EscortDrawForm, escortWorkers } from "@/components/escort-draw-form";
 import { EscortAutoForm } from "@/components/escort-auto-form";
 import { getEscortPlan } from "@/lib/escort-server";
-import { addAssignmentAction, autoEscortAction, drawEscortAction, removeAssignmentAction, replaceAssignmentAction } from "./actions";
+import { addAssignmentAction, autoEscortAction, drawEscortAction, redrawOneAction, removeAssignmentAction, replaceAssignmentAction } from "./actions";
 
 const SOURCE_LABEL = { wanted: "희망 확정", drafted: "차출", admin: "관리자 수정" } as const;
 const SOURCE_COLOR = {
@@ -142,17 +142,33 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
                           <span className={`rounded px-1 text-[11px] ${SOURCE_COLOR[r.source]}`}>{SOURCE_LABEL[r.source]}</span>
                           {excluded.has(r.memberId) && <span className="ml-1 text-xs text-red-600">⚠ 휴가·부상</span>}
                         </span>
-                        <form action={removeAssignmentAction}>
-                          <input type="hidden" name="date" value={date} />
-                          <input type="hidden" name="member_id" value={r.memberId} />
-                          <input type="hidden" name="post_id" value={p.id} />
-                          <ConfirmButton
-                            message={`${r.name} 을(를) 명단에서 뺄까요?`}
-                            className="rounded border border-red-300 px-2 py-1 text-xs text-red-700"
-                          >
-                            삭제
-                          </ConfirmButton>
-                        </form>
+                        <span className="flex shrink-0 gap-1.5">
+                          {/* 이 사람만 빼고 같은 자리를 랜덤으로 다시 채움 */}
+                          {(p.pool === "clinic" || p.pool === "general") && (
+                            <form action={redrawOneAction}>
+                              <input type="hidden" name="date" value={date} />
+                              <input type="hidden" name="member_id" value={r.memberId} />
+                              <input type="hidden" name="post_id" value={p.id} />
+                              <ConfirmButton
+                                message={`${r.name} 을(를) 빼고 ${p.name} 자리를 랜덤으로 다시 뽑을까요? (이 자리 희망자 → 없으면 미응답·미희망 중에서)`}
+                                className="rounded border border-blue-600 px-2 py-1 text-xs text-link"
+                              >
+                                다시 뽑기
+                              </ConfirmButton>
+                            </form>
+                          )}
+                          <form action={removeAssignmentAction}>
+                            <input type="hidden" name="date" value={date} />
+                            <input type="hidden" name="member_id" value={r.memberId} />
+                            <input type="hidden" name="post_id" value={p.id} />
+                            <ConfirmButton
+                              message={`${r.name} 을(를) 명단에서 뺄까요?`}
+                              className="rounded border border-red-300 px-2 py-1 text-xs text-red-700"
+                            >
+                              삭제
+                            </ConfirmButton>
+                          </form>
+                        </span>
                       </div>
                       {/* 교체: 같은 자리에 다른 사람 */}
                       <WarnSelectForm action={replaceAssignmentAction} className="flex items-center gap-1.5">

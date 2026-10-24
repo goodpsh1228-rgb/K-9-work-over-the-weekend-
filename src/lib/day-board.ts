@@ -27,7 +27,8 @@ export type DayBoard = {
   declines: MemberLite[]; // 미희망
   excluded: MemberLite[]; // 제외 (휴가·부상 등, 관리자가 그날만 뺀 사람, 그날 운전이 지정된 운전병 포함)
   driving: number[]; // 제외 중 "운전 지정"으로 빠진 사람 번호
-  unanswered: MemberLite[]; // 미응답
+  unanswered: MemberLite[]; // 미응답 (추첨 대상 중 아직 응답 안 한 사람)
+  nonVoters: MemberLite[]; // 투표 미참여: 응답 안 한 사람 전부 (관리자가 그날 추첨에서 뺀 사람 포함, 휴가 등 제외자는 빼고)
 };
 
 export type MyState =
@@ -64,14 +65,18 @@ export const getExcludedIds = cache(async (date: string): Promise<Set<number>> =
 
 export async function getDayBoard(date: string): Promise<DayBoard> {
   const db = getSupabaseAdmin();
-  const [posts, excludedIds, driveWants, drivingNow, { data: members }, { data: responses }] = await Promise.all([
+  const [posts, excludedIds, driveWants, drivingNow, { data: members }, { data: responses }, { data: excusedRows }] = await Promise.all([
     getPostsForDate(date),
     getExcludedIds(date),
     getDriveWants(date),
     getDriverIdsOn(date),
     db.from("members").select("id, name, is_clinic").eq("is_active", true).order("name"),
     db.from("responses").select("member_id, choice, post_id").eq("duty_date", date),
+    // 관리자가 "이 날 추첨에서 빼기"(스크리닝)로 뺀 사람 — 투표는 안 했으므로 미참여 목록에는 남김
+    db.from("absences").select("member_id").eq("kind", "excused").lte("start_date", date).gte("end_date", date),
   ]);
+  const excusedIds = new Set((excusedRows ?? []).map((r) => r.member_id as number));
+  const allResponded = new Set((responses ?? []).map((r) => r.member_id as number));
 
   const active = (members ?? []) as MemberLite[];
   const byId = new Map(active.map((m) => [m.id, m]));
@@ -102,6 +107,7 @@ export async function getDayBoard(date: string): Promise<DayBoard> {
     excluded: active.filter((m) => excludedIds.has(m.id)),
     driving: active.filter((m) => drivingNow.ids.has(m.id)).map((m) => m.id),
     unanswered: active.filter((m) => !excludedIds.has(m.id) && !responded.has(m.id)),
+    nonVoters: active.filter((m) => !allResponded.has(m.id) && (!excludedIds.has(m.id) || excusedIds.has(m.id))),
   };
 }
 
