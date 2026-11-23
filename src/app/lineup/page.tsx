@@ -6,6 +6,7 @@
 //   ③ 출근자: 평일은 계급별, 주말·공휴일은 자리(동)별 (부상·외출·면회는 출근, 꼬리표만)
 //   ④ 라인업 글 복사 / 이 날 불참 입력(본인, 관리자는 다른 사람도)
 // ─────────────────────────────────────────────────────────────
+import { withoutOfficers } from "@/lib/officers";
 import Link from "next/link";
 import { requireMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
@@ -267,7 +268,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
             back={`/lineup?date=${date}`}
             defaultDate={date}
             myId={me.id}
-            members={me.is_admin ? (members ?? []).map((m) => ({ id: m.id as number, name: m.name as string })) : undefined}
+            members={me.is_admin ? (await withoutOfficers(members)).map((m) => ({ id: m.id as number, name: m.name as string })) : undefined}
           />
         </div>
       </details>

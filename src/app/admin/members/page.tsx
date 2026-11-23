@@ -6,6 +6,7 @@
 //   - 인원 한 명 추가 (초기 비밀번호 1111)
 //   - 이름을 누르면 상세 화면: 진료반 변경, 비밀번호 초기화, 관리자 지정/내려놓기, 비활성화
 // ─────────────────────────────────────────────────────────────
+import { getOfficerIds } from "@/lib/officers";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
@@ -33,12 +34,13 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
   const inactiveCount = all.filter((m) => !m.is_active).length;
   const list = showInactive ? all : all.filter((m) => m.is_active);
   const drivers = await getDriverIds();
+  const officers = await getOfficerIds(); // 간부 계정
   // 기수·반 (SQL 0015 전이면 칸이 없어 오류 → 기수·반 입력칸 숨김)
   const { data: cohortRows, error: cohortErr } = await getSupabaseAdmin().from("members").select("id, cohort, squad");
   const cohortReady = !cohortErr;
   const cohortOf = new Map((cohortRows ?? []).map((r) => [r.id as number, (r.cohort as number | null) ?? null]));
   const squadRaw = new Map((cohortRows ?? []).map((r) => [r.id as number, (r.squad as string | null) ?? null]));
-  const noRank = all.filter((m) => m.is_active && !m.rank).length;
+  const noRank = all.filter((m) => m.is_active && !m.rank && !officers.has(m.id)).length; // 간부는 계급이 없는 것이 정상
 
   return (
     <Page title="인원 관리">
@@ -105,6 +107,13 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="is_driver" className="h-5 w-5" /> 운전병
         </label>
+        <label className="flex items-start gap-2 rounded-[11px] bg-hairline/30 p-2 text-sm">
+          <input type="checkbox" name="is_officer" className="mt-0.5 h-5 w-5 shrink-0" />
+          <span>
+            간부 계정으로 추가
+            <span className="block text-xs text-muted">관리자 기능을 쓸 수 있고, 주말출근·순번·기수·전역일·휴가 계산기 대상은 아닙니다. (위의 계급·기수·반·운전병은 무시됩니다)</span>
+          </span>
+        </label>
         <button type="submit" className="h-12 w-full rounded-full bg-blue-600 px-4 text-base font-normal text-white">
           추가
         </button>
@@ -147,19 +156,22 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
               <span className="ml-1 space-x-1 text-[11px]">
                 {m.is_clinic && <span className="rounded bg-hairline/60 text-foreground/80 px-1 py-0.5">진료반</span>}
                 {drivers.has(m.id) && <span className="rounded bg-hairline/60 text-foreground/80 px-1 py-0.5">운전병</span>}
-                {m.is_admin && <span className="rounded bg-blue-100 px-1 py-0.5 text-blue-800">관리자</span>}
+                {officers.has(m.id) && <span className="rounded bg-violet-100 px-1 py-0.5 text-violet-800">간부</span>}
+                {m.is_admin && !officers.has(m.id) && <span className="rounded bg-blue-100 px-1 py-0.5 text-blue-800">관리자</span>}
                 {!m.is_active && <span className="rounded bg-zinc-200 px-1 py-0.5 text-zinc-600">비활성</span>}
                 {m.must_change_password && m.is_active && (
                   <span className="rounded bg-zinc-100 px-1 py-0.5 text-zinc-500">첫 로그인 전</span>
                 )}
               </span>
             </div>
-            <form action={updateRankAction}>
-              <input type="hidden" name="member_id" value={m.id} />
-              <RankSelect defaultValue={m.rank ?? ""} />
-            </form>
+            {!officers.has(m.id) && (
+              <form action={updateRankAction}>
+                <input type="hidden" name="member_id" value={m.id} />
+                <RankSelect defaultValue={m.rank ?? ""} />
+              </form>
+            )}
             {/* 기수 · 반: 바꾸고 "저장" 한 번 (기수를 비우면 삭제, 진료반으로 지정하면 진료반 여부도 켜짐) */}
-            {cohortReady && (
+            {cohortReady && !officers.has(m.id) && (
               <form action={updateSquadCohortAction} className="flex w-full items-center gap-1.5 pl-7">
                 <input type="hidden" name="member_id" value={m.id} />
                 <input

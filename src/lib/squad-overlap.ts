@@ -4,6 +4,7 @@
 //   - 겹침 대상: 같은 반 다른 사람의 휴가(확정) + 휴가 계획 (오늘 이후)
 //   - 반이 없는 사람은 비교 대상이 없음
 // ─────────────────────────────────────────────────────────────
+import { getOfficerIds } from "./officers";
 import { getSupabaseAdmin } from "./supabase-server";
 import { LEAVE_KINDS } from "./leave";
 import { effectiveSquad, mergeConsecutive, spansOverlap, type Squad } from "./squads";
@@ -15,7 +16,8 @@ export async function getSquadmateLeaves(meId: number): Promise<{ squad: Squad |
   const db = getSupabaseAdmin();
   const mem = await db.from("members").select("id, name, rank, squad, is_clinic").eq("is_active", true);
   if (mem.error) return { squad: null, leaves: [], supported: false }; // SQL 0015 전
-  const all = (mem.data ?? []) as { id: number; name: string; rank: string | null; squad: string | null; is_clinic: boolean }[];
+  const officers = await getOfficerIds();
+  const all = ((mem.data ?? []) as { id: number; name: string; rank: string | null; squad: string | null; is_clinic: boolean }[]).filter((m) => !officers.has(m.id));
   const mine = all.find((m) => m.id === meId);
   const squad = mine ? effectiveSquad(mine.squad, mine.is_clinic) : null;
   if (!squad) return { squad: null, leaves: [], supported: true };

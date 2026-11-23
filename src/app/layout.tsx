@@ -6,6 +6,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 import { BottomTabs } from "@/components/bottom-tabs";
+import { getCurrentMember } from "@/lib/session";
 import { GlobalBar } from "@/components/global-bar";
 
 // 애플 기기(SF Pro)가 아닌 곳에서 쓰는 대체 글꼴 Inter (영문·숫자용). 배포할 때 사이트 안에 함께 저장되어 외부 접속 없이 보입니다.
@@ -39,7 +40,9 @@ export const viewport: Viewport = {
   themeColor: "#000000", // 안드로이드 주소창·앱 상단 색 (검정 바와 맞춤)
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // 간부 계정이면 하단 탭이 "휴가 계산기" 대신 "관리자 메뉴"를 보여 줌 (로그인 전·오류 시에는 일반 탭)
+  const officer = await getCurrentMember().then((m) => Boolean(m?.is_officer)).catch(() => false);
   return (
     // lang="ko": 이 사이트가 한국어라는 표시
     <html lang="ko" className={`h-full antialiased ${inter.variable} ${noto.variable}`}>
@@ -48,7 +51,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <GlobalBar />
         {children}
         {/* 아래 고정 탭: 주말출근 투표 / 휴가 계산기 */}
-        <BottomTabs />
+        <BottomTabs officer={officer} />
       </body>
     </html>
   );

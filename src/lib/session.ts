@@ -10,6 +10,7 @@
 //   비밀번호를 바꾸거나, 관리자가 비밀번호를 초기화·비활성화하면 번호가 1 올라갑니다.
 //   그러면 예전 번호가 적힌 쿠키는 모두 무효 → 다른 기기의 로그인이 자동으로 풀립니다.
 // ─────────────────────────────────────────────────────────────
+import { getOfficerIds } from "@/lib/officers";
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
@@ -29,6 +30,7 @@ export type Member = {
   is_admin: boolean;
   is_clinic: boolean;
   is_driver: boolean; // 운전병 여부
+  is_officer: boolean; // 간부 여부 (관리자 기능 사용 가능, 주말출근·순번·기수·전역일·휴가 계산기 대상 아님)
   must_change_password: boolean;
   session_version: number;
   rank: string | null; // 계급 (이병/일병/상병/병장, 미지정이면 null)
@@ -106,6 +108,7 @@ export const getCurrentMember = cache(async (): Promise<Member | null> => {
 
   return {
     is_driver: (await driversPromise).has(data.id),
+    is_officer: (await getOfficerIds()).has(data.id),
     id: data.id,
     name: data.name,
     is_admin: data.is_admin,
@@ -129,5 +132,12 @@ export async function requireMember(options?: { allowMustChange?: boolean }): Pr
 export async function requireAdmin(): Promise<Member> {
   const member = await requireMember();
   if (!member.is_admin) redirect("/home");
+  return member;
+}
+
+// 병사 본인 기능(휴가 계산기·기수·개인 투표 등) 전용 화면: 간부는 홈으로 보냄
+export async function requireSoldier(): Promise<Member> {
+  const member = await requireMember();
+  if (member.is_officer) redirect("/home");
   return member;
 }

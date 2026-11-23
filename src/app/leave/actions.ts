@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────────
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireMember } from "@/lib/session";
+import { requireSoldier } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { addDays, formatShort, isValidDate, todayKST } from "@/lib/kst";
@@ -35,7 +35,7 @@ function back(formData: FormData, kind: "msg" | "error", text: string): never {
 
 // 입대일·전역일 저장
 export async function saveServiceDatesAction(formData: FormData) {
-  const me = await requireMember();
+  const me = await requireSoldier();
   const enlist = String(formData.get("enlist_date") ?? "");
   const rawDischarge = String(formData.get("discharge_date") ?? "");
   if (!isValidDate(enlist)) back(formData, "error", "입대일을 입력해 주세요.");
@@ -105,7 +105,7 @@ async function sendToDraw(meId: number, leave: { id: number; kind: string; start
 
 // 기록 추가 (휴가·외출·면회)
 export async function addLeaveAction(formData: FormData) {
-  const me = await requireMember();
+  const me = await requireSoldier();
   const kind = String(formData.get("kind") ?? "");
   const subRaw = String(formData.get("subkind") ?? "");
   const subkind = subRaw === "" ? null : subRaw;
@@ -171,7 +171,7 @@ async function myLeave(formData: FormData, meId: number) {
 
 // 주말출근 제외로 보내기
 export async function sendLeaveAction(formData: FormData) {
-  const me = await requireMember();
+  const me = await requireSoldier();
   const leave = await myLeave(formData, me.id);
   if (leave.planned) back(formData, "error", "계획은 먼저 '실제로 확정'한 뒤에 주말출근 제외로 보낼 수 있습니다.");
   if (leave.absence_id) back(formData, "msg", "이미 주말출근 제외로 보낸 기록입니다.");
@@ -182,7 +182,7 @@ export async function sendLeaveAction(formData: FormData) {
 
 // 계획을 실제 휴가로 확정 (이때부터 사용 현황에 반영, 주말출근 제외로 보낼 수 있음)
 export async function confirmPlanAction(formData: FormData) {
-  const me = await requireMember();
+  const me = await requireSoldier();
   const leave = await myLeave(formData, me.id);
   if (!leave.planned) back(formData, "msg", "이미 실제 휴가입니다.");
   await getSupabaseAdmin().from("leaves").update({ planned: false }).eq("id", leave.id);
@@ -192,7 +192,7 @@ export async function confirmPlanAction(formData: FormData) {
 
 // 보내기 취소 (제외 기간 삭제 → 다시 추첨 대상)
 export async function unsendLeaveAction(formData: FormData) {
-  const me = await requireMember();
+  const me = await requireSoldier();
   const leave = await myLeave(formData, me.id);
   if (leave.absence_id) {
     const blocked = await removeAbsence(me.id, leave.absence_id, me.is_admin);
@@ -204,7 +204,7 @@ export async function unsendLeaveAction(formData: FormData) {
 
 // 기록 삭제 (보낸 제외 기간도 함께 삭제)
 export async function deleteLeaveAction(formData: FormData) {
-  const me = await requireMember();
+  const me = await requireSoldier();
   const leave = await myLeave(formData, me.id);
   if (leave.absence_id) {
     const blocked = await removeAbsence(me.id, leave.absence_id, me.is_admin);

@@ -11,6 +11,7 @@
 //       · 주말·공휴일(근무일)      → 추첨으로 확정된 출근자 (추첨 전이면 "추첨 전")
 //   - 주말·공휴일에도 불참 기록이 있는 사람은 불참 목록에 보임(수기 입력 때 참고)
 // ─────────────────────────────────────────────────────────────
+import { getOfficerIds } from "./officers";
 import { getSupabaseAdmin } from "./supabase-server";
 import { addDays, dateRange, weekday } from "./kst";
 import { dotsRange } from "./spans";
@@ -74,8 +75,9 @@ export async function getLineup(date: string): Promise<Lineup> {
     db.from("posts").select("id, name, sort_order").order("sort_order"),
     getDriverIdsOn(date), // 그날 운전하는 사람 (운전 지정)
   ]);
+  const officers = await getOfficerIds(); // 간부는 출근·불참 인원에 포함되지 않음
   const person = new Map(
-    (mem.data ?? []).map((m) => [
+    (mem.data ?? []).filter((m) => !officers.has(m.id as number)).map((m) => [
       m.id as number,
       { id: m.id as number, name: m.name as string, rank: (m.rank as string | null) ?? null, cohort: ((m as { cohort?: number | null }).cohort ?? null) as number | null },
     ]),

@@ -33,6 +33,7 @@ export type VoteChoice = { kind: "want"; postId: number } | { kind: "decline" } 
 // 규칙 확인에 필요한 정보는 동시에(병렬로) 읽어서 기다리는 시간을 줄입니다.
 export async function voteAction(date: string, choice: VoteChoice): Promise<VoteResult> {
   const me = await requireMember();
+  if (me.is_officer) return { ok: false, message: "간부 계정은 주말출근 투표 대상이 아닙니다." };
   if (!isValidDate(date)) return { ok: false, message: "잘못된 날짜입니다." };
 
   const [overrides, info, excluded, posts] = await Promise.all([
@@ -79,6 +80,7 @@ export async function voteAction(date: string, choice: VoteChoice): Promise<Vote
 //   끄면(미희망) 운전 희망자가 없을 때 운전병 중 랜덤으로 뽑힐 수 있습니다.
 export async function driveVoteAction(date: string, want: boolean): Promise<VoteResult> {
   const me = await requireMember();
+  if (me.is_officer) return { ok: false, message: "간부 계정은 주말출근 투표 대상이 아닙니다." };
   if (!isValidDate(date)) return { ok: false, message: "잘못된 날짜입니다." };
   if (!me.is_driver) return { ok: false, message: "주말 운전은 운전병만 희망할 수 있습니다." };
   const [overrides, info, excluded] = await Promise.all([getOverrides(date, date), getVoteInfo(date, me.rank), getExcludedIds(date)]);

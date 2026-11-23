@@ -29,10 +29,20 @@ function CalendarIcon() {
   );
 }
 
-export function BottomTabs() {
+function GearIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" />
+    </svg>
+  );
+}
+
+export function BottomTabs({ officer = false }: { officer?: boolean }) {
   const path = usePathname();
   if (path === "/" || HIDDEN.some((h) => path.startsWith(h))) return null;
   const onLeave = path.startsWith("/leave");
+  const onAdmin = officer && path.startsWith("/admin");
   const tab = (active: boolean) =>
     `flex flex-1 flex-col items-center gap-0.5 pt-2 pb-1.5 text-xs ${active ? "font-semibold text-link" : "font-normal text-muted"}`;
   return (
@@ -41,14 +51,22 @@ export function BottomTabs() {
       <div aria-hidden className="h-24" />
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-hairline bg-card/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl backdrop-saturate-150">
         <div className="mx-auto flex max-w-md">
-          <Link href="/home" data-press className={tab(!onLeave)} aria-current={!onLeave ? "page" : undefined}>
+          <Link href="/home" data-press className={tab(!onLeave && !onAdmin)} aria-current={!onLeave && !onAdmin ? "page" : undefined}>
             <BallotIcon />
-            주말출근 투표
+            {officer ? "홈" : "주말출근 투표"}
           </Link>
-          <Link href="/leave" data-press className={tab(onLeave)} aria-current={onLeave ? "page" : undefined}>
-            <CalendarIcon />
-            휴가 계산기
-          </Link>
+          {officer ? (
+            // 간부 계정에는 휴가 계산기가 없고, 대신 관리자 메뉴로 바로 갈 수 있음
+            <Link href="/admin" data-press className={tab(path.startsWith("/admin"))} aria-current={path.startsWith("/admin") ? "page" : undefined}>
+              <GearIcon />
+              관리자 메뉴
+            </Link>
+          ) : (
+            <Link href="/leave" data-press className={tab(onLeave)} aria-current={onLeave ? "page" : undefined}>
+              <CalendarIcon />
+              휴가 계산기
+            </Link>
+          )}
         </div>
       </nav>
     </>

@@ -3,6 +3,7 @@
 //   ① 내 출근 기록: 횟수 요약 + 날짜별 목록 (확정된 앞으로의 근무 포함)
 //   ② 전체 인원 출근 횟수 (많은 순) — "나만 많이 뽑힌다"는 걱정을 숫자로 확인
 // ─────────────────────────────────────────────────────────────
+import { getOfficerIds } from "@/lib/officers";
 import Link from "next/link";
 import { requireMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
@@ -42,7 +43,8 @@ export default async function StatsPage() {
   }
 
   // 전체 인원 (출근일 많은 순 → 이름순)
-  const table = (members ?? [])
+  const officers = await getOfficerIds(); // 간부는 통계에서 제외
+  const table = (members ?? []).filter((m) => !officers.has(m.id as number))
     .map((m) => ({ ...m, s: stats.get(m.id) ?? empty }))
     .sort((a, b) => b.s.days - a.s.days || a.name.localeCompare(b.name, "ko"));
   const avg = table.length ? table.reduce((t, m) => t + m.s.days, 0) / table.length : 0;

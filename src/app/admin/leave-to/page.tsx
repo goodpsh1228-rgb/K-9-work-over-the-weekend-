@@ -3,6 +3,7 @@
 //   반마다 휴가 희망(계획)·확정 휴가 건수와 명단(예: 병장 홍길동 8.12~8.16 휴가 희망), 가장 많이 겹치는 날
 //   한 사람의 이어지는 휴가는 하나로 합쳐 보여 줍니다. 반 지정·기수 입력은 "인원 관리 목록"에서 합니다.
 // ─────────────────────────────────────────────────────────────
+import { getOfficerIds } from "@/lib/officers";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
@@ -28,7 +29,8 @@ export default async function LeaveToPage() {
       </Page>
     );
   }
-  const members = (mem.data ?? []) as M[];
+  const officers = await getOfficerIds(); // 간부는 반별 휴가 TO 인원이 아님
+  const members = ((mem.data ?? []) as M[]).filter((m) => !officers.has(m.id));
   const fullKinds = LEAVE_KINDS.filter((k) => k.isLeave).map((k) => k.value);
   // 계획 칸(SQL 0013)이 없으면 계획 없이 읽음
   let lv = await db.from("leaves").select("member_id, kind, start_date, end_date, planned").in("kind", fullKinds).gte("end_date", today).order("start_date");
