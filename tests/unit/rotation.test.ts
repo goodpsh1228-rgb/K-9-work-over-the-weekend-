@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { planRotation, compareMembers, type RotMember, type RotLogRow, type RotDay } from "../../src/lib/rotation";
+import { planRotation, compareMembers, rotationBoard, type RotMember, type RotLogRow, type RotDay } from "../../src/lib/rotation";
 
 // 기수 숫자가 작을수록 높은 기수. id 1=기수10(최고참) … 5=기수50
 const M = (id: number, cohort: number | null, enlist: string | null = null): RotMember => ({ id, cohort, enlistDate: enlist });
@@ -88,4 +88,16 @@ assert.deepStrictEqual(ids(r, "p1"), [2, 3]);
 assert.deepStrictEqual(ids(r, "p2"), [1]);
 assert.strictEqual(r.skips.length, 0);
 assert.strictEqual(r.volunteers.length, 0);
+
+// 12) 순번 현황판: 빚·대기·완료
+const log12: RotLogRow[] = [
+  { memberId: 1, dutyDate: "d1", cycle: 1, kind: "served", repaid: false },
+  { memberId: 2, dutyDate: "d1", cycle: 1, kind: "skipped", reason: "휴가", repaid: false },
+  { memberId: 3, dutyDate: "d1", cycle: 1, kind: "volunteered", repaid: false },
+  { memberId: 4, dutyDate: "d0", cycle: 0, kind: "skipped", reason: "교육", repaid: true }, // 갚은 빚은 안 보임
+];
+const b = rotationBoard(five, log12, 1);
+assert.deepStrictEqual(b.waiting, [4, 5]);
+assert.deepStrictEqual(b.finished.map((f) => [f.memberId, f.kind]), [[1, "served"], [2, "skipped"], [3, "volunteered"]]);
+assert.deepStrictEqual(b.debtors, [{ memberId: 2, debts: 1, since: "d1" }]);
 console.log("ALL OK");

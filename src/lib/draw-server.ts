@@ -5,10 +5,6 @@
 // ─────────────────────────────────────────────────────────────
 import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
-import { computeDutyDays } from "@/lib/duty-days";
-import { votingStatus } from "@/lib/voting";
-import { addDays, todayKST } from "@/lib/kst";
-import { getFridayChecker, getOverrides } from "@/lib/duty-days-server";
 import { syncServiceStatusSafely } from "@/lib/service-sync";
 
 export type Trigger = "cron" | "visit" | "manual" | "rotation";
@@ -50,27 +46,6 @@ export async function getRoster(date: string): Promise<RosterEntry[]> {
     }))
     // 높은 기수(작은 숫자)부터, 기수가 같거나 없으면 가나다순
     .sort((a, b) => (a.cohort ?? 99999) - (b.cohort ?? 99999) || a.name.localeCompare(b.name, "ko"));
-}
-
-// ─────────────────────────────────────────────────────────────
-// 차출 대기 날짜 찾기: 투표가 마감됐는데 아직 추첨하지 않은 근무일 목록 (추첨은 하지 않음!)
-//   - 예전에는 정기 실행(크론)·접속 시 안전장치가 자동으로 추첨했지만, 지금은 관리자가 버튼을 눌러야 추첨합니다.
-//   - 오늘(한국 날짜) 이후의 근무일만 대상 (이미 지나간 날은 제외)
-//   - 관리자 화면 안내와 크론 응답("pending")에 쓰입니다.
-// ─────────────────────────────────────────────────────────────
-const LOOKAHEAD_DAYS = 14; // 투표 주의 대상은 최대 월요일+10일이므로 넉넉히 2주
-
-export async function getPendingDrawDates(): Promise<string[]> {
-  const from = todayKST();
-  const to = addDays(from, LOOKAHEAD_DAYS);
-  const days = computeDutyDays(from, to, await getOverrides(from, to));
-  const fridayIsDuty = await getFridayChecker(from, to);
-  const now = new Date();
-  const closed = days.map((d) => d.date).filter((d) => votingStatus(d, fridayIsDuty(d), now) === "closed");
-  if (closed.length === 0) return [];
-  const { data: done } = await getSupabaseAdmin().from("draws").select("duty_date").in("duty_date", closed);
-  const doneSet = new Set((done ?? []).map((r) => r.duty_date as string));
-  return closed.filter((d) => !doneSet.has(d));
 }
 
 // 화면을 열 때 하는 일: 계급 자동 진급·전역 자동 비활성화만 합니다 (추첨은 하지 않음). 실패해도 화면은 정상으로 보이도록 오류를 삼킵니다.

@@ -15,7 +15,8 @@ import { votingStatus } from "@/lib/voting";
 import { addDays } from "@/lib/kst";
 import { writeAudit } from "@/lib/audit";
 import { planMonth, type MDayInput, type MMember, type PoolState, type RotPool } from "@/lib/monthly-draw";
-import type { RotLogRow } from "@/lib/rotation";
+import { rotationBoard, type RotLogRow } from "@/lib/rotation";
+import { KIND_LABEL } from "@/lib/absence-kinds";
 
 const POOLS: RotPool[] = ["general", "clinic", "driver"];
 
@@ -204,4 +205,69 @@ export async function getUnassignedPicks(date: string) {
       cohort: info.get(r.member_id as number)?.cohort ?? null,
     }))
     .sort((a, b) => (a.cohort ?? 99999) - (b.cohort ?? 99999) || a.name.localeCompare(b.name, "ko"));
+}
+
+// ─────────────────────────────────────────────────────────────
+// 관리자 안내용
+// ─────────────────────────────────────────────────────────────
+
+// 투표가 모두 마감됐는데 아직 한 달 차출을 하지 않은 달 (이번 달 ~ 2달 뒤까지 확인)
+export async function getPendingMonths(today: string, now: Date = new Date()): Promise<string[]> {
+  const out: string[] = [];
+  const [y, m] = today.slice(0, 7).split("-").map(Number);
+  for (let i = 0; i < 3; i++) {
+    const t = y * 12 + (m - 1) + i;
+    const month = `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
+    const st = await getMonthStatus(month, now);
+    if (!st.executedAt && st.days.length > 0 && st.stillVoting.length === 0 && st.undrawn.some((d) => d >= today)) out.push(month);
+  }
+  return out;
+}
+
+export type RosterConflict = { date: string; memberId: number; name: string; post: string; reason: string };
+
+// 확정 명단 충돌: 이미 확정된 사람인데 그날 출근할 수 없게 된 경우 (확정 뒤에 휴가·교육·부상 등을 입력함)
+//   자동으로 바꾸지 않고 관리자에게 알리기만 합니다. 교체는 [명단 수정]에서 수동으로 합니다.
+export async function getRosterConflicts(today: string, days = 70): Promise<RosterConflict[]> {
+  const to = addDays(today, days);
+  const db = getSupabaseAdmin();
+  const [{ data: asg }, { data: abs }, { data: posts }, { data: duties }] = await Promise.all([
+    db.from("assignments").select("duty_date, member_id, post_id").gte("duty_date", today).lte("duty_date", to),
+    db.from("absences").select("member_id, kind, start_date, end_date").lte("start_date", to).gte("end_date", today),
+    db.from("posts").select("id, name, pool"),
+    db.from("drive_duties").select("member_id, start_date, end_date").lte("start_date", to).gte("end_date", today),
+  ]);
+  const postInfo = new Map((posts ?? []).map((p) => [p.id as number, { name: p.name as string, pool: p.pool as string }]));
+  const rows = (asg ?? []).filter((a) => {
+    const pool = postInfo.get(a.post_id as number)?.pool;
+    return pool === "clinic" || pool === "general"; // 운전·선탑은 제외 판정이 달라서 동·진료실만 확인
+  });
+  if (rows.length === 0) return [];
+  const driveOn = (id: number, date: string) => (duties ?? []).some((d) => d.member_id === id && d.start_date <= date && d.end_date >= date);
+  const found: RosterConflict[] = [];
+  for (const a of rows) {
+    const date = a.duty_date as string;
+    const id = a.member_id as number;
+    const hit = (abs ?? []).find((x) => x.member_id === id && x.start_date <= date && x.end_date >= date);
+    const reason = hit ? (KIND_LABEL[hit.kind as string] ?? (hit.kind as string)) : driveOn(id, date) ? "운전 지정" : null;
+    if (reason) found.push({ date, memberId: id, name: "", post: postInfo.get(a.post_id as number)?.name ?? "", reason });
+  }
+  if (found.length === 0) return [];
+  const { data: names } = await db.from("members").select("id, name").in("id", [...new Set(found.map((f) => f.memberId))]);
+  const nameOf = new Map((names ?? []).map((m) => [m.id as number, m.name as string]));
+  return found.map((f) => ({ ...f, name: nameOf.get(f.memberId) ?? "?" })).sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
+// 순번 현황 (순번표별)
+export async function getRotationBoards() {
+  const [members, state] = await Promise.all([loadMembers(), loadRotationState()]);
+  const db = getSupabaseAdmin();
+  const { data: names } = await db.from("members").select("id, name, rank").eq("is_active", true);
+  const info = new Map((names ?? []).map((m) => [m.id as number, { name: m.name as string, rank: (m.rank as string | null) ?? null }]));
+  const poolMembers: Record<RotPool, MMember[]> = {
+    general: members.filter((m) => !m.clinic),
+    clinic: members.filter((m) => m.clinic),
+    driver: members.filter((m) => m.driver),
+  };
+  return POOLS.map((pool) => ({ pool, board: rotationBoard(poolMembers[pool], state[pool].log, state[pool].cycle), info, cohortOf: new Map(members.map((m) => [m.id, m.cohort])) }));
 }

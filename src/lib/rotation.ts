@@ -163,3 +163,43 @@ export function toLogRows(r: RotResult): RotLogRow[] {
     ...r.skips.map((s) => ({ memberId: s.memberId, dutyDate: s.date, cycle: s.cycle, kind: "skipped" as const, reason: s.reason, repaid: false })),
   ];
 }
+
+// ─────────────────────────────────────────────────────────────
+// 순번 현황판 (화면용): 지금 누구 차례인지
+//   · debtors  : 빚이 있는 사람 (오래된 빚부터) — 출근 가능한 날이 오면 가장 먼저 배정됨
+//   · waiting  : 이번 바퀴에서 아직 안 지나간 사람 — 위에서부터 차례 (높은 기수순)
+//   · finished : 이번 바퀴에서 이미 근무·자발 출근·건너뜀으로 지나간 사람
+// ─────────────────────────────────────────────────────────────
+export type RotBoard = {
+  cycle: number;
+  debtors: { memberId: number; debts: number; since: string }[];
+  waiting: number[];
+  finished: { memberId: number; kind: "served" | "volunteered" | "skipped" }[];
+};
+
+export function rotationBoard(members: RotMember[], log: RotLogRow[], cycle: number): RotBoard {
+  const order = [...members].sort(compareMembers);
+  const ids = new Set(order.map((m) => m.id));
+  const thisCycle = log.filter((r) => r.cycle === cycle && ids.has(r.memberId));
+  // 한 사람에게 여러 기록이 있으면 근무 > 자발 > 건너뜀 순으로 대표 하나만 보여 줌
+  const rank = { served: 0, volunteered: 1, skipped: 2 } as const;
+  const kindOf = new Map<number, "served" | "volunteered" | "skipped">();
+  for (const r of thisCycle) {
+    const cur = kindOf.get(r.memberId);
+    if (cur === undefined || rank[r.kind] < rank[cur]) kindOf.set(r.memberId, r.kind);
+  }
+  const debtMap = new Map<number, { debts: number; since: string }>();
+  for (const r of log) {
+    if (r.kind !== "skipped" || r.repaid || !ids.has(r.memberId)) continue;
+    const cur = debtMap.get(r.memberId);
+    debtMap.set(r.memberId, { debts: (cur?.debts ?? 0) + 1, since: cur && cur.since < r.dutyDate ? cur.since : r.dutyDate });
+  }
+  return {
+    cycle,
+    debtors: [...debtMap.entries()]
+      .map(([memberId, v]) => ({ memberId, ...v }))
+      .sort((a, b) => (a.since < b.since ? -1 : a.since > b.since ? 1 : 0)),
+    waiting: order.filter((m) => !kindOf.has(m.id)).map((m) => m.id),
+    finished: order.filter((m) => kindOf.has(m.id)).map((m) => ({ memberId: m.id, kind: kindOf.get(m.id)! })),
+  };
+}
