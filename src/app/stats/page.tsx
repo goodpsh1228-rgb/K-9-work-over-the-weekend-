@@ -125,7 +125,7 @@ export default async function StatsPage() {
 }
 
 // 확정 명단 전체 읽기 — Supabase는 한 번에 최대 1,000줄만 주므로 1,000줄씩 나눠 끝까지 읽음
-type AssignmentRow = { member_id: number; duty_date: string; source: "wanted" | "drafted" | "admin"; post_id: number };
+type AssignmentRow = { member_id: number; duty_date: string; source: "wanted" | "drafted" | "admin" | "rotation"; post_id: number };
 async function allAssignments(): Promise<AssignmentRow[]> {
   const db = getSupabaseAdmin();
   const out: AssignmentRow[] = [];

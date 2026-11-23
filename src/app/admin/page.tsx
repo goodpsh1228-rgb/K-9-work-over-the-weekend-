@@ -14,6 +14,7 @@ const GROUPS: { title: string; items: [string, string, string][] }[] = [
   {
     title: "근무일",
     items: [
+      ["/admin/draw", "한 달 차출", "투표 마감 후 한 달치 공석을 순번으로 한꺼번에 채우기, 동 배정이 필요한 날 확인"],
       ["/admin/duty-days", "공휴일 추가", "공휴일·평일 출근일 추가(한 해 목록 붙여넣기), 근무 없음 처리, 날짜별 동 인원 설정"],
       ["/admin/posts", "동 설정", "동 이름·기본 인원 변경, 새 동 추가, 사용 중지"],
     ],
