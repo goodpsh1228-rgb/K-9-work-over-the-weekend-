@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // 간부 홈 화면 — 간부 계정(관리자 기능 + 병사 기능 없음)용
 //   간부는 주말출근·순번·기수·전역일·휴가 계산기 대상이 아니라서, 관리·확인에 필요한 것만 보여 줍니다.
-//     ① 반별 휴가 TO  ② 주말출근 투표 현황(날짜별 희망 인원)  ③ 순번 현황·한 달 차출·미리보기  ④ 라인업  ⑤ 출근 인원 변경(날짜 → 명단 수정)
+//     맨 위: 라인업 · 반별 휴가 TO → 안내(차출 대기·확정 명단 확인) → 순번 현황·한 달 차출·미리보기 → 주말출근 현황(날짜 → 명단 수정)
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
 import { logoutAction } from "@/app/auth-actions";
@@ -58,6 +58,20 @@ export async function OfficerHome({ me, msg, error }: { me: Member; msg: string 
         {error && <div className="mt-3"><Notice kind="error">{error}</Notice></div>}
       </div>
 
+      {/* ① 맨 위: 라인업 · 반별 휴가 TO (간부가 가장 자주 보는 것) */}
+      <div className="mt-4 space-y-2">
+        <Link href={`/lineup?date=${addDays(today, 1)}`} className={card}>
+          <span><b className="block text-base">라인업</b><span className="text-xs text-muted">내일 출근·불참 인원표</span></span>
+          <span className="shrink-0 text-sm text-muted">
+            {lineup ? <>출근 {lineup.presentCount}명 · 불참 {new Set(lineup.absent.map((a) => a.id)).size}명 ›</> : "›"}
+          </span>
+        </Link>
+        <Link href="/admin/leave-to" className={card}>
+          <span><b className="block text-base">반별 휴가 TO</b><span className="text-xs text-muted">반마다 휴가 희망·확정 인원, 가장 많이 겹치는 날</span></span>
+          <span aria-hidden>›</span>
+        </Link>
+      </div>
+
       {/* 관리자 안내: 한 달 차출 대기 / 확정 뒤 출근 불가 */}
       {pendingMonths.length > 0 && (
         <div className="mt-3 rounded-[18px] border border-red-300 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/30">
@@ -86,12 +100,8 @@ export async function OfficerHome({ me, msg, error }: { me: Member; msg: string 
         </div>
       )}
 
-      {/* ① 바로가기 */}
+      {/* ② 그 밖의 바로가기: 순번 현황 · 한 달 차출 */}
       <div className="mt-4 space-y-2">
-        <Link href="/admin/leave-to" className={card}>
-          <span><b className="block text-base">반별 휴가 TO</b><span className="text-xs text-muted">반마다 휴가 희망·확정 인원, 가장 많이 겹치는 날</span></span>
-          <span aria-hidden>›</span>
-        </Link>
         <Link href="/admin/rotation" className={card}>
           <span><b className="block text-base">순번 현황</b><span className="text-xs text-muted">다음 차례, 빚(건너뛴 사람), 이번 바퀴 진행</span></span>
           <span aria-hidden>›</span>
@@ -100,15 +110,9 @@ export async function OfficerHome({ me, msg, error }: { me: Member; msg: string 
           <span><b className="block text-base">한 달 차출 · 미리보기</b><span className="text-xs text-muted">순번으로 공석을 채우는 결과를 미리 보고 실행</span></span>
           <span aria-hidden>›</span>
         </Link>
-        <Link href={`/lineup?date=${addDays(today, 1)}`} className={card}>
-          <span><b className="block text-base">라인업</b><span className="text-xs text-muted">내일 출근·불참 인원표</span></span>
-          <span className="shrink-0 text-sm text-muted">
-            {lineup ? <>출근 {lineup.presentCount}명 · 불참 {new Set(lineup.absent.map((a) => a.id)).size}명 ›</> : "›"}
-          </span>
-        </Link>
       </div>
 
-      {/* ② 주말출근 투표 현황 + 출근 인원 변경(날짜 → 명단 수정) */}
+      {/* ③ 주말출근 투표 현황 + 출근 인원 변경(날짜 → 명단 수정) */}
       <h2 className="mt-8 mb-2 text-[26px] leading-[1.14] font-display font-black tracking-[-0.02em]">주말출근 현황</h2>
       <p className="mb-3 text-xs text-muted">날짜를 누르면 희망 현황을 보고, 차출이 끝난 날은 [명단 수정]으로 출근 인원을 바꿀 수 있습니다.</p>
       {months.length === 0 && <p className="text-sm text-muted">표시할 근무일이 없습니다.</p>}
