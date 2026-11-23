@@ -15,7 +15,7 @@ import { isValidMonth, newSeed, previewMonthlyDraw, type PreviewPerson } from "@
 import { excludeFromDayAction, monthlyDrawAction, undoExcludeAction } from "../actions";
 
 const DOW = ["일", "월", "화", "수", "목", "금", "토"];
-const POOL = { general: "일반(동 미배정)", clinic: "진료실", driver: "주말 운전" } as const;
+const POOL = { general: "일반 (동 랜덤 배정)", clinic: "진료실", driver: "주말 운전" } as const;
 
 export default async function PreviewPage({ searchParams }: PageProps<"/admin/draw/preview">) {
   await requireAdmin();

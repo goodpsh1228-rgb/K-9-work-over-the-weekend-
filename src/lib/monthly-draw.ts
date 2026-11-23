@@ -4,12 +4,14 @@
 // 순번제 전환(2026-11-23): 랜덤 차출 대신, 한 달치 근무일을 한꺼번에 처리합니다.
 //   ① 날짜마다 희망을 먼저 확정합니다. (희망자 > 정원이면 그 자리 희망자끼리만 랜덤 → 떨어진 사람은 그날 쉼)
 //   ② 남은 공석을 순번표(일반·진료실·운전 각각)로 채웁니다. 순번 규칙은 rotation.ts 참고.
-//      · 진료실·운전 공석은 자리까지 바로 정해지고, 일반(동) 공석은 동이 비어 있는 채로 뽑혀 관리자가 동을 배정합니다.
+//      · 뽑힌 사람은 빈 자리에 바로 배정됩니다. 진료실·운전은 자리 순서대로, 일반(동)은 빈 동 자리를 랜덤으로 배정해 견사표가 한 번에 완성됩니다.
 //   ③ 순번에서 조용히 빠지는 사람(passed): 희망했다가 정원 초과로 떨어진 사람, 동을 희망해서 진료실 순번에서 빠지는 진료반.
+//   ⑤ 전역 1개월 전부터는 순번에서 완전히 빠집니다(빚도 근무 인정도 없음). 전역일이 지난 사람도 마찬가지.
 //   ④ 그날 운전이 지정된 운전병은 "주말 운전"을 먼저 채우고, 그날 동·진료실 순번에서는 근무 1회로 인정됩니다(출근하므로).
 // ─────────────────────────────────────────────────────────────
 import { planRotation, type RotLogRow, type RotMember, type RotResult } from "./rotation";
 import { shuffle, type Rng } from "./draw";
+import { dischargeRange } from "./absence-kinds";
 
 export type RotPool = "general" | "clinic" | "driver";
 
@@ -20,14 +22,15 @@ export type MDayInput = {
   driveWants: Set<number>; // 주말 운전 희망
   designated: number[]; // 그날 운전이 지정된 운전병
   excluded: Set<number>; // 휴가·부상·교육·관리자 제외·운전 지정 등으로 그날 출근 불가한 사람
+  exempt?: Set<number>; // 전역 1개월 전 면제 기록이 있는 사람 (순번에서 조용히 빠짐 — 건너뜀·빚 없음)
 };
 
-export type MMember = RotMember & { clinic: boolean; driver: boolean }; // 활성 인원
+export type MMember = RotMember & { clinic: boolean; driver: boolean; dischargeDate?: string | null }; // 활성 인원
 
 export type MDayPlan = {
   date: string;
   wanted: { memberId: number; postId: number; pool: RotPool }[]; // 희망 확정
-  picks: { memberId: number; pool: RotPool; postId: number | null }[]; // 순번으로 뽑힘 (일반은 postId 비어 있음 = 동 미배정)
+  picks: { memberId: number; pool: RotPool; postId: number | null }[]; // 순번으로 뽑힘 (자리까지 배정됨)
   rested: number[]; // 희망했지만 떨어져 쉬는 사람
   shortage: Record<RotPool, number>; // 후보가 모자라 못 채운 자리
 };
@@ -116,9 +119,14 @@ export function planMonth(
       if (m) working[m.clinic ? "clinic" : "general"].push(id);
     }
 
-    // 출근 불가 사유 (운전 지정자는 출근하므로 제외 목록에서 뺌)
+    // 전역 면제: 전역일 1개월 전부터(전역일이 지난 뒤 포함) 순번에서 완전히 빠짐 — 면제 기록 또는 전역일로 판단
+    const exempt = new Set<number>(day.exempt ?? []);
+    for (const m of members) if (m.dischargeDate && day.date >= dischargeRange(m.dischargeDate).start) exempt.add(m.id);
+    for (const id of exempt) for (const pool of ["general", "clinic", "driver"] as RotPool[]) passed[pool].push(id);
+
+    // 출근 불가 사유 (운전 지정자는 출근하므로, 전역 면제자는 순번에서 빠지므로 제외 목록에서 뺌)
     const unavailable: Record<number, string> = {};
-    for (const id of day.excluded) if (!designated.includes(id)) unavailable[id] = "제외(휴가·부상·교육 등)";
+    for (const id of day.excluded) if (!designated.includes(id) && !exempt.has(id)) unavailable[id] = "제외(휴가·부상·교육 등)";
     return { plan, seats, working, passed, unavailable };
   });
 
@@ -144,10 +152,13 @@ export function planMonth(
       })),
     );
     rotation[pool] = r;
-    // 뽑힌 사람을 날짜별로 정리: 진료실·운전은 자리까지 순서대로, 일반은 동 미배정(null)
+    // 뽑힌 사람을 날짜별로 정리: 빈 자리에 배정
+    //   · 진료실·운전: 자리 순서대로
+    //   · 일반(동): 빈 동 자리를 섞어서(랜덤) 배정 → 차출 즉시 동별 명단(견사표)이 완성됨. 관리자는 [명단 수정]에서 바꿀 수 있음
     for (const p of preps) {
       const picked = r.picks.filter((x) => x.date === p.plan.date);
-      picked.forEach((x, i) => p.plan.picks.push({ memberId: x.memberId, pool, postId: pool === "general" ? null : (p.seats[pool][i] ?? null) }));
+      const seatOrder = pool === "general" ? shuffle(p.seats.general, rng) : p.seats[pool];
+      picked.forEach((x, i) => p.plan.picks.push({ memberId: x.memberId, pool, postId: seatOrder[i] ?? null }));
       p.plan.shortage[pool] = r.shortage[p.plan.date] ?? 0;
     }
   }
