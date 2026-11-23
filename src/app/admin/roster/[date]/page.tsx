@@ -122,6 +122,12 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
         {msg && <Notice kind="success">{msg}</Notice>}
         {error && <Notice kind="error">{error}</Notice>}
       </div>
+      <p className="mt-2 text-xs text-muted">
+        동별로 누가 출근하는지 보여 줍니다. <span className="rounded-full bg-blue-100 px-1.5 text-blue-800">파랑</span> 희망 확정 ·{" "}
+        <span className="rounded-full bg-violet-100 px-1.5 text-violet-800">보라</span> 순번 ·{" "}
+        <span className="rounded-full bg-hairline/60 px-1.5">회색</span> 차출 ·{" "}
+        <span className="rounded-full bg-foreground px-1.5 text-background">검정</span> 관리자 수정 · ⚠ 휴가·부상 중
+      </p>
 
       {/* 순번으로 뽑혔지만 동이 아직 없는 사람: 동 배정 */}
       {unassigned.length > 0 && (
@@ -172,7 +178,26 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
                     {people.length}/{p.required}명{empty > 0 ? ` · 빈자리 ${empty}` : ""}
                   </span>
                 </p>
-                <ul className="divide-y divide-hairline ">
+                {/* 견사표: 이 자리에 누가 출근하는지 (파랑 = 희망 확정, 보라 = 순번, 회색 = 차출, 검정 = 관리자 수정) */}
+                <p className="flex flex-wrap gap-1.5 px-3 py-2">
+                  {people.map((r) => (
+                    <span key={r.memberId} className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs ${SOURCE_COLOR[r.source]}`}>
+                      {r.name}
+                      {r.cohort != null && <i className="ml-1 not-italic opacity-60">{r.cohort}기</i>}
+                      {excluded.has(r.memberId) && <i className="ml-1 not-italic text-red-600">⚠</i>}
+                    </span>
+                  ))}
+                  {Array.from({ length: empty }).map((_, i) => (
+                    <span key={`e${i}`} className="inline-flex items-center rounded-full border border-dashed border-red-300 px-2.5 py-1 text-xs text-red-600">
+                      빈자리
+                    </span>
+                  ))}
+                  {people.length === 0 && empty === 0 && <span className="text-xs text-muted">없음</span>}
+                </p>
+                {/* 수정(교체·삭제·추가): 빈자리가 있으면 펼쳐 둠 */}
+                <details open={empty > 0} className="border-t border-hairline">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-link">수정 (교체 · 삭제 · 추가)</summary>
+                <ul className="divide-y divide-hairline border-t border-hairline">
                   {people.map((r) => (
                     <li key={r.memberId} className="space-y-1.5 px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
@@ -237,6 +262,7 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
                     </WarnSelectForm>
                   </li>
                 </ul>
+                </details>
               </li>
             );
           })}
