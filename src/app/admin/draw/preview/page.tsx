@@ -10,12 +10,11 @@ import { requireAdmin } from "@/lib/session";
 import { Notice, Page } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
-import { formatShort, todayKST, weekday } from "@/lib/kst";
+import { formatShort, todayKST } from "@/lib/kst";
 import { getMissingCohorts, isValidMonth, newSeed, previewMonthlyDraw } from "@/lib/monthly-draw-server";
 import { excludeFromDayAction, monthlyDrawAction, undoExcludeAction } from "../actions";
 
-const DOW = ["일", "월", "화", "수", "목", "금", "토"];
-const POOL = { general: "일반", clinic: "진료실", driver: "주말 운전" } as const;
+const POOL = { general: "일반", clinic: "진료실", driver: "주말 운전" } as const; // 건너뜀(빚) 표시용
 
 export default async function PreviewPage({ searchParams }: PageProps<"/admin/draw/preview">) {
   await requireAdmin();
@@ -44,7 +43,7 @@ export default async function PreviewPage({ searchParams }: PageProps<"/admin/dr
   return (
     <Page title="차출 미리보기">
       <p className="-mt-4 mb-4 text-sm text-zinc-500">
-        {month.replace("-", "년 ")}월 · 저장되지 않습니다. 이름 옆 × 를 누르면 그 사람을 이 날 순번에서 뺍니다. (희망 확정은 파랑, 순번 배정은 보라)
+        {month.replace("-", "년 ")}월 · 저장되지 않습니다. 동별로 누가 출근하는지 보여 줍니다. 파랑 = 희망 확정, 보라 = 순번 배정(이름 옆 × 를 누르면 그 사람을 이 날 순번에서 뺍니다).
       </p>
       <div className="space-y-3">
         {msg && <Notice kind="success">{msg}</Notice>}
@@ -69,55 +68,55 @@ export default async function PreviewPage({ searchParams }: PageProps<"/admin/dr
           return (
             <section key={d.date} className="rounded-[18px] border border-hairline bg-card">
               <p className="flex justify-between border-b border-hairline px-3 py-2 text-sm font-semibold">
-                <span>{formatShort(d.date)} ({DOW[weekday(d.date)]})</span>
+                <span>{formatShort(d.date)}</span>
                 <span className={d.shortage > 0 ? "text-red-600" : "text-muted"}>{d.shortage > 0 ? `인원 부족 ${d.shortage}` : "충족"}</span>
               </p>
               <div className="space-y-2 px-3 py-2 text-sm">
-                {/* 희망 확정: 파랑 칩 (투표로 정해진 사람) */}
-                {d.wanted.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-blue-700">희망 확정</p>
-                    <p className="mt-1 flex flex-wrap gap-1.5">
-                      {d.wanted.map((w) => (
-                        <span key={`${w.id}-${w.post}`} className="rounded-full bg-blue-100 px-2.5 py-1 text-xs text-blue-800">
-                          {w.name}
-                          <i className="ml-1 not-italic opacity-70">{w.post}</i>
-                        </span>
-                      ))}
-                    </p>
-                  </div>
-                )}
-                {/* 순번 배정: 보라 칩. 작은 × 를 누르면(확인창 뒤) 그 사람을 이 날 순번에서 뺌 */}
-                {(["general", "clinic", "driver"] as const).map((pool) => {
-                  const rows = d.picks.filter((x) => x.pool === pool);
-                  if (rows.length === 0) return null;
-                  return (
-                    <div key={pool}>
-                      <p className="text-xs font-semibold text-violet-700">순번 · {POOL[pool]}</p>
-                      <p className="mt-1 flex flex-wrap gap-1.5">
-                        {rows.map((x) => (
-                          <form key={x.id} action={excludeFromDayAction} className="inline-flex items-center rounded-full bg-violet-100 pl-2.5 text-xs text-violet-800">
-                            <input type="hidden" name="month" value={month} />
-                            <input type="hidden" name="seed" value={seed} />
-                            <input type="hidden" name="date" value={d.date} />
-                            <input type="hidden" name="member_id" value={x.id} />
-                            <span className="py-1">
-                              {x.name}
-                              {x.cohort != null && <i className="ml-1 not-italic opacity-60">{x.cohort}기</i>}
-                              {x.post && <i className="ml-1 not-italic opacity-70">{x.post}</i>}
+                {/* 동별 견사표: 자리마다 누가 출근하는지. 희망 확정은 파랑 칩, 순번 배정은 보라 칩(× = 확인창 뒤 이 날 순번에서 빼기) */}
+                {d.posts
+                  .filter((p) => p.required > 0 || d.wanted.some((w) => w.postId === p.id) || d.picks.some((x) => x.postId === p.id))
+                  .map((p) => {
+                    const wanted = d.wanted.filter((w) => w.postId === p.id);
+                    const picked = d.picks.filter((x) => x.postId === p.id);
+                    const count = wanted.length + picked.length;
+                    return (
+                      <div key={p.id} className="border-t border-hairline pt-2 first:border-t-0 first:pt-0">
+                        <p className="flex items-baseline justify-between text-sm font-semibold">
+                          <span>{p.name}</span>
+                          <span className={`text-xs ${count < p.required ? "text-red-600" : "text-muted"}`}>
+                            {count}/{p.required}명
+                          </span>
+                        </p>
+                        <p className="mt-1 flex flex-wrap gap-1.5">
+                          {wanted.map((w) => (
+                            <span key={`w${w.id}`} className="rounded-full bg-blue-100 px-2.5 py-1 text-xs text-blue-800">
+                              {w.name}
+                              {w.cohort != null && <i className="ml-1 not-italic opacity-60">{w.cohort}기</i>}
                             </span>
-                            <ConfirmButton
-                              message={`${x.name} 을(를) ${formatShort(d.date)} 순번에서 뺄까요? 다음 순번 사람이 대신 뽑히고, ${x.name}은(는) 빚으로 기록되어 다음에 먼저 배정됩니다.`}
-                              className="px-2 py-1 text-violet-500 hover:text-red-600"
-                            >
-                              <span aria-label={`${x.name} 이 날 빼기`}>×</span>
-                            </ConfirmButton>
-                          </form>
-                        ))}
-                      </p>
-                    </div>
-                  );
-                })}
+                          ))}
+                          {picked.map((x) => (
+                            <form key={`p${x.id}`} action={excludeFromDayAction} className="inline-flex items-center rounded-full bg-violet-100 pl-2.5 text-xs text-violet-800">
+                              <input type="hidden" name="month" value={month} />
+                              <input type="hidden" name="seed" value={seed} />
+                              <input type="hidden" name="date" value={d.date} />
+                              <input type="hidden" name="member_id" value={x.id} />
+                              <span className="py-1">
+                                {x.name}
+                                {x.cohort != null && <i className="ml-1 not-italic opacity-60">{x.cohort}기</i>}
+                              </span>
+                              <ConfirmButton
+                                message={`${x.name} 을(를) ${formatShort(d.date)} 순번에서 뺄까요? 다음 순번 사람이 대신 뽑히고, ${x.name}은(는) 빚으로 기록되어 다음에 먼저 배정됩니다.`}
+                                className="px-2 py-1 text-violet-500 hover:text-red-600"
+                              >
+                                <span aria-label={`${x.name} 이 날 빼기`}>×</span>
+                              </ConfirmButton>
+                            </form>
+                          ))}
+                          {count === 0 && <span className="text-xs text-muted">없음</span>}
+                        </p>
+                      </div>
+                    );
+                  })}
                 {(d.skips.length > 0 || d.rested.length > 0) && (
                   <div className="space-y-0.5 rounded-lg bg-hairline/40 px-2.5 py-1.5 text-xs text-muted">
                     {d.skips.length > 0 && <p><b>건너뜀(빚)</b> {d.skips.map((x) => `${x.name}(${POOL[x.pool]})`).join(", ")}</p>}
