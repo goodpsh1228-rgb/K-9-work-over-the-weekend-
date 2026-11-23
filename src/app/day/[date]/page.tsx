@@ -21,7 +21,9 @@ import { getDraw, getRoster, runVisitTasksSafely, type RosterEntry } from "@/lib
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { buildPostText, buildRankText } from "@/lib/roster-text";
 import { CopyButton } from "@/components/copy-button";
-import { excuseUnansweredAction, undoExcuseAction } from "./actions";
+import { excuseUnansweredAction, manualDrawAction, undoExcuseAction } from "./actions";
+import { ConfirmButton } from "@/components/confirm-button";
+import { isLegacyDrawDate } from "@/lib/legacy-draw-server";
 import { VotePanel } from "./vote-panel";
 import { DrivePanel } from "./drive-panel";
 import { EscortDrawForm, escortWorkers } from "@/components/escort-draw-form";
@@ -248,7 +250,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         </p>
         <p className="mt-1 text-xs text-zinc-500">
           {VOTING_OVERRIDES[date]
-            ? `이 달 근무일은 이번에만 ${formatShort(win.openDate)}부터 ${formatShort(win.closeDate)} 21:00까지 투표합니다. (${formatShort(win.coverFrom)} ~ ${formatShort(win.coverTo)} 근무일)`
+            ? `이 날은 이번에만 ${formatShort(win.openDate)}부터 ${formatShort(win.closeDate)} 21:00까지 투표합니다.`
             : `매달 1일부터 처음 돌아오는 금요일 21:00까지, 다음 달 근무일 전체를 미리 투표합니다. (${formatShort(win.coverFrom)} ~ ${formatShort(win.coverTo)} 근무일)`}
         </p>
         <p className="mt-2 font-semibold">
@@ -297,7 +299,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           <p className="text-lg font-black">주말출근 차출하기 (관리자)</p>
           <p className="mt-1 text-sm text-muted">투표가 마감되었습니다. 자동으로 뽑지 않으니 아래 순서로 진행해 주세요.</p>
           <p className="mt-3 text-sm">
-            <b>① 순번 후보 확인</b> · 희망 {drawWanted}명 확정 → 남은 약 <b>{drawNeed}자리</b>는 순번(미희망·미응답자, 높은 기수부터)으로 채움
+            <b>① 후보 확인</b> · 희망 {drawWanted}명 확정 → 남은 약 <b>{drawNeed}자리</b>는 {isLegacyDrawDate(date) ? "투표 안 한 사람 중 랜덤으로 차출" : "순번(미희망·미응답자, 높은 기수부터)으로 채움"}
           </p>
           {screenPool.length === 0 ? (
             <p className="mt-1 text-sm text-muted">차출 후보(미응답·미희망)가 없습니다.</p>
@@ -322,12 +324,28 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
               </form>
             </details>
           )}
-          <p className="mt-3 text-sm">
-            <b>② 한 달 차출</b> · 이제 랜덤 차출이 아니라 <b>순번제</b>입니다. 그 달 투표가 모두 마감되면 [한 달 차출]에서 한 번에 진행해 주세요.
-          </p>
-          <Link href={`/admin/draw?month=${date.slice(0, 7)}`} className="mt-2 flex min-h-12 w-full items-center justify-center rounded-full bg-red-600 px-[22px] text-base font-semibold text-white">
-            한 달 차출로 이동
-          </Link>
+          {isLegacyDrawDate(date) ? (
+            <>
+              <p className="mt-3 text-sm">
+                <b>② 차출 실행</b> · 이번 달 근무일은 예전 방식(랜덤)입니다. 한 번만 실행되고, 뽑는 즉시 <b>선탑</b>(운전병보다 기수 같거나 높은 출근자 중 랜덤)도 함께 정해집니다.
+              </p>
+              <form action={manualDrawAction} className="mt-2">
+                <input type="hidden" name="date" value={date} />
+                <ConfirmButton message="지금 주말출근을 차출합니다. 결과는 바로 모두에게 보이고 한 번만 실행됩니다. 후보 확인(출근이 어려운 사람 빼기)은 끝나셨나요?" className="min-h-12 w-full rounded-full bg-red-600 px-[22px] text-base font-semibold text-white">
+                  주말출근 차출하기
+                </ConfirmButton>
+              </form>
+            </>
+          ) : (
+            <>
+              <p className="mt-3 text-sm">
+                <b>② 한 달 차출</b> · 다음 달부터는 <b>순번제</b>입니다. 그 달 투표가 모두 마감되면 [한 달 차출]에서 한 번에 진행해 주세요.
+              </p>
+              <Link href={`/admin/draw?month=${date.slice(0, 7)}`} className="mt-2 flex min-h-12 w-full items-center justify-center rounded-full bg-red-600 px-[22px] text-base font-semibold text-white">
+                한 달 차출로 이동
+              </Link>
+            </>
+          )}
         </section>
       )}
 

@@ -56,11 +56,14 @@ export function voteFriday(dutyDate: string): string {
 //   (seniorFrom/juniorFrom 은 예전 계급별 시차용 이름이고, 지금은 항상 같은 날짜를 씁니다)
 type VotingOverride = { seniorFrom: string; juniorFrom: string; closeDate: string };
 export const VOTING_OVERRIDES: Record<string, VotingOverride> = {
-  // 2026-11-23 요청: 월 투표 전환 직후라 12월 근무일 전체를 11/23(월) 00:00 ~ 11/27(금) 21:00 까지 받음 (12/5 근무 전에 차출·동 배정을 끝내기 위해 앞당김)
+  // 2026-11-23 요청: 월 투표 전환 직후라 12월 근무일 전체를 11/23(월) 00:00 ~ 11/26(목) 21:00 까지 받음 (12/5 근무 전에 차출·동 배정을 끝내기 위해 앞당김)
+  // 2026-11-23: 11/28·29 은 예전 주간 투표 일정 그대로 (11/23(월) 00:00 ~ 11/25(수) 21:00) — 월 투표로 바뀌며 마감 처리되는 것을 막음
+  "2026-11-28": { seniorFrom: "2026-11-23", juniorFrom: "2026-11-23", closeDate: "2026-11-25" },
+  "2026-11-29": { seniorFrom: "2026-11-23", juniorFrom: "2026-11-23", closeDate: "2026-11-25" },
   ...Object.fromEntries(
     dateRange("2026-12-01", "2026-12-31").map((d): [string, VotingOverride] => [
       d,
-      { seniorFrom: "2026-11-23", juniorFrom: "2026-11-23", closeDate: "2026-11-27" },
+      { seniorFrom: "2026-11-23", juniorFrom: "2026-11-23", closeDate: "2026-11-26" },
     ]),
   ),
 };

@@ -34,7 +34,8 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
       if (rows.length > 0) pendingDong.push({ date, names: rows.map((r) => r.name) });
     }
   }
-  const canRun = !st.executedAt && st.stillVoting.length === 0 && st.undrawn.length > 0;
+  const isPastMonth = month <= thisMonth; // 이번 달 이전은 예전 주간 투표로 운영된 달 → 순번 차출 대상 아님
+  const canRun = !isPastMonth && !st.executedAt && st.stillVoting.length === 0 && st.undrawn.length > 0;
 
   return (
     <Page title="한 달 차출">
@@ -68,7 +69,10 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
         {st.executedAt && <p className="text-muted">이미 차출했습니다. ({st.executedAt.slice(0, 16).replace("T", " ")} UTC)</p>}
       </section>
 
-      {st.days.length > 0 && (
+      {isPastMonth && (
+        <Notice kind="warn">이번 달 이전은 예전 주간 투표로 운영된 달이라 순번 차출 대상이 아닙니다. 위의 › 를 눌러 다음 달(12월)을 선택하세요.</Notice>
+      )}
+      {!isPastMonth && st.days.length > 0 && (
         <Link href={`/admin/draw/preview?month=${month}`} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-full border border-blue-600 px-[22px] text-base font-semibold text-link">
           차출 미리보기 (저장 안 됨)
         </Link>
