@@ -316,3 +316,76 @@ begin
   end if;
 end;
 $$;
+
+-- 0022 한 달 차출 뒤 추가된 근무일도 차출
+create or replace function record_monthly_draw(
+  p_month        text,
+  p_executed_by  bigint,
+  p_shortage     jsonb,
+  p_days         jsonb,
+  p_log          jsonb,
+  p_repaid       jsonb,
+  p_cycles       jsonb
+)
+returns boolean
+language plpgsql
+as $$
+declare
+  inserted integer;
+  d jsonb;
+  skip_dates text[] := '{}';
+  any_new boolean := false;
+begin
+  insert into monthly_draws (month, executed_by, shortage)
+  values (p_month, p_executed_by, coalesce(p_shortage, '{}'::jsonb))
+  on conflict (month) do update
+    set shortage = monthly_draws.shortage || excluded.shortage,
+        executed_by = excluded.executed_by,
+        executed_at = now();
+
+  for d in select * from jsonb_array_elements(p_days) loop
+    insert into draws (duty_date, triggered_by, executed_by, clinic_shortage, general_shortage)
+    values ((d->>'date')::date, 'rotation', p_executed_by, coalesce((d->>'clinic_shortage')::int, 0), coalesce((d->>'general_shortage')::int, 0))
+    on conflict (duty_date) do nothing;
+    get diagnostics inserted = row_count;
+    if inserted = 0 then
+      skip_dates := array_append(skip_dates, d->>'date'); -- 이미 추첨된 날
+      continue;
+    end if;
+    any_new := true;
+
+    insert into assignments (duty_date, member_id, post_id, source)
+    select (d->>'date')::date, (a->>'member_id')::bigint, (a->>'post_id')::bigint, a->>'source'
+    from jsonb_array_elements(d->'assignments') as a;
+
+    insert into rotation_picks (duty_date, pool, member_id, post_id)
+    select (d->>'date')::date, x->>'pool', (x->>'member_id')::bigint, nullif(x->>'post_id', '')::bigint
+    from jsonb_array_elements(d->'picks') as x;
+  end loop;
+
+  if not any_new then
+    return false; -- 새로 저장된 날이 없음 (이미 모두 차출됨)
+  end if;
+
+  insert into rotation_log (pool, member_id, duty_date, cycle, kind, reason)
+  select l->>'pool', (l->>'member_id')::bigint, (l->>'duty_date')::date, (l->>'cycle')::int, l->>'kind', l->>'reason'
+  from jsonb_array_elements(p_log) as l
+  where not ((l->>'duty_date') = any (skip_dates))
+  on conflict do nothing;
+
+  update rotation_log r
+     set repaid_at = now()
+   from jsonb_array_elements(p_repaid) as x
+  where r.pool = x->>'pool'
+    and r.member_id = (x->>'member_id')::bigint
+    and r.duty_date = (x->>'duty_date')::date
+    and r.kind = 'skipped'
+    and r.repaid_at is null;
+
+  update rotation_state s
+     set cycle = greatest(s.cycle, (p_cycles->>s.pool)::int), updated_at = now()
+  where p_cycles ? s.pool;
+
+  return true;
+end;
+$$;

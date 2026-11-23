@@ -11,7 +11,7 @@ import { Notice, Page } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { formatShort, todayKST, weekday } from "@/lib/kst";
-import { isValidMonth, newSeed, previewMonthlyDraw, type PreviewPerson } from "@/lib/monthly-draw-server";
+import { getMissingCohorts, isValidMonth, newSeed, previewMonthlyDraw, type PreviewPerson } from "@/lib/monthly-draw-server";
 import { excludeFromDayAction, monthlyDrawAction, undoExcludeAction } from "../actions";
 
 const DOW = ["일", "월", "화", "수", "목", "금", "토"];
@@ -37,7 +37,8 @@ export default async function PreviewPage({ searchParams }: PageProps<"/admin/dr
   const nameOf = new Map((names ?? []).map((m) => [m.id as number, m.name as string]));
 
   const label = (p: PreviewPerson) => `${p.rank ? `${p.rank} ` : ""}${p.name}${p.cohort != null ? ` (${p.cohort}기)` : ""}`;
-  const canRun = !pv.executedAt && pv.stillVoting === 0 && pv.days.length > 0;
+  const canRun = pv.stillVoting === 0 && pv.days.length > 0;
+  const missingCohorts = await getMissingCohorts();
   const totalPicks = pv.days.reduce((s, d) => s + d.picks.length, 0);
   const totalShort = pv.days.reduce((s, d) => s + d.shortage, 0);
 
@@ -49,7 +50,9 @@ export default async function PreviewPage({ searchParams }: PageProps<"/admin/dr
       <div className="space-y-3">
         {msg && <Notice kind="success">{msg}</Notice>}
         {error && <Notice kind="error">{error}</Notice>}
-        {pv.executedAt && <Notice kind="warn">이 달은 이미 차출했습니다. 미리보기는 참고용입니다.</Notice>}
+        {pv.executedAt && pv.days.length === 0 && <Notice kind="warn">이 달은 이미 차출했고 남은 날이 없습니다.</Notice>}
+        {pv.executedAt && pv.days.length > 0 && <Notice kind="warn">이미 차출한 달입니다. 그 뒤에 추가된 근무일 {pv.days.length}일만 미리보기합니다.</Notice>}
+        {missingCohorts.length > 0 && <Notice kind="warn">기수를 입력하지 않은 인원 {missingCohorts.length}명은 순번 맨 뒤로 갑니다. ({missingCohorts.slice(0, 8).join(", ")}{missingCohorts.length > 8 ? " 외" : ""})</Notice>}
         {pv.stillVoting > 0 && !pv.executedAt && (
           <Notice kind="warn">아직 투표가 끝나지 않은 날이 {pv.stillVoting}일 있습니다. 지금 결과는 현재까지의 응답 기준입니다. 마감 후에 차출할 수 있어요.</Notice>
         )}
@@ -84,7 +87,7 @@ export default async function PreviewPage({ searchParams }: PageProps<"/admin/dr
                         {rows.map((x) => (
                           <li key={x.id} className="flex items-center justify-between gap-2 py-1.5">
                             <span>{label(x)}{x.post && <span className="text-muted"> · {x.post}</span>}</span>
-                            {!pv.executedAt && (
+                            {(
                               <form action={excludeFromDayAction}>
                                 <input type="hidden" name="month" value={month} />
                                 <input type="hidden" name="seed" value={seed} />
@@ -114,7 +117,7 @@ export default async function PreviewPage({ searchParams }: PageProps<"/admin/dr
                         <input type="hidden" name="seed" value={seed} />
                         <input type="hidden" name="absence_id" value={e.id} />
                         <span>{nameOf.get(e.member_id as number) ?? "?"}</span>
-                        {!pv.executedAt && <button type="submit" className="text-xs text-link underline">되돌리기</button>}
+                        <button type="submit" className="text-xs text-link underline">되돌리기</button>
                       </form>
                     ))}
                   </div>
