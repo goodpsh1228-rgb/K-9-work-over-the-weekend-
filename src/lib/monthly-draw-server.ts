@@ -244,8 +244,9 @@ export type MonthPreview = {
   skippedPast: number; // 이미 지난 날 수
   days: {
     date: string;
-    wanted: (PreviewPerson & { post: string })[];
-    picks: (PreviewPerson & { pool: RotPool; post: string | null })[];
+    posts: { id: number; name: string; pool: "clinic" | "general" | "driver"; required: number }[]; // 그날 자리(동·진료실·운전)와 정원 — 견사표 표시용
+    wanted: (PreviewPerson & { post: string; postId: number })[];
+    picks: (PreviewPerson & { pool: RotPool; post: string | null; postId: number | null })[];
     rested: PreviewPerson[];
     skips: (PreviewPerson & { pool: RotPool; reason: string })[];
     shortage: number;
@@ -263,12 +264,21 @@ export async function previewMonthlyDraw(month: string, seed: string): Promise<M
   const person = (id: number): PreviewPerson => ({ id, name: info.get(id)?.name ?? "?", rank: info.get(id)?.rank ?? null, cohort: info.get(id)?.cohort ?? members.find((x) => x.id === id)?.cohort ?? null });
   const postName = new Map<number, string>();
   for (const date of targets.slice(0, 1)) for (const p of await getPostsForDate(date)) postName.set(p.id, p.name);
+  // 날짜별 자리(정원은 날짜마다 다를 수 있음). 선탑은 차출 뒤 따로 정하므로 제외
+  const postsByDate = new Map<string, MonthPreview["days"][number]["posts"]>();
+  for (const date of targets) {
+    postsByDate.set(
+      date,
+      (await getPostsForDate(date)).filter((p): p is typeof p & { pool: "clinic" | "general" | "driver" } => p.pool !== "escort").map((p) => ({ id: p.id, name: p.name, pool: p.pool, required: p.required })),
+    );
+  }
   return {
     ...base,
     days: plan.days.map((d) => ({
       date: d.date,
-      wanted: d.wanted.map((w) => ({ ...person(w.memberId), post: postName.get(w.postId) ?? "?" })),
-      picks: d.picks.map((x) => ({ ...person(x.memberId), pool: x.pool, post: x.postId === null ? null : (postName.get(x.postId) ?? "?") })),
+      posts: postsByDate.get(d.date) ?? [],
+      wanted: d.wanted.map((w) => ({ ...person(w.memberId), post: postName.get(w.postId) ?? "?", postId: w.postId })),
+      picks: d.picks.map((x) => ({ ...person(x.memberId), pool: x.pool, post: x.postId === null ? null : (postName.get(x.postId) ?? "?"), postId: x.postId })),
       rested: d.rested.map(person),
       skips: POOLS.flatMap((pool) => plan.rotation[pool].skips.filter((x) => x.date === d.date).map((x) => ({ ...person(x.memberId), pool, reason: x.reason }))),
       shortage: d.shortage.general + d.shortage.clinic + d.shortage.driver,
