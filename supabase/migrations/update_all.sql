@@ -157,3 +157,162 @@ alter table drive_duties enable row level security;
 -- 0018 전입일
 alter table members add column if not exists transfer_date date;
 comment on column members.transfer_date is '전입일 (정기휴가 6주 간격 계산 기준)';
+
+-- 0019 순번제
+-- ① 순번표는 3개: general(일반 동), clinic(진료실), driver(주말 운전)
+--    rotation_state : 순번표별 현재 "바퀴 번호". 한 바퀴를 다 돌면 1 올라감.
+create table if not exists rotation_state (
+  pool        text primary key check (pool in ('general', 'clinic', 'driver')),
+  cycle       integer not null default 1 check (cycle >= 1),
+  updated_at  timestamptz not null default now()
+);
+insert into rotation_state (pool) values ('general'), ('clinic'), ('driver')
+on conflict (pool) do nothing;
+alter table rotation_state enable row level security;
+comment on table rotation_state is '순번표별 현재 바퀴 번호(cycle)';
+
+-- ② rotation_log : 순번 기록 (누가 몇 번째 바퀴에서 근무/건너뜀)
+--    kind = 'served'  : 순번으로 근무가 배정됨
+--    kind = 'skipped' : 순번이었지만 출근 불가라 건너뜀 → 빚. repaid_at 이 비어 있으면 아직 안 갚은 빚
+--    "지금 누구 차례인가"는 이 기록에서 계산합니다 (별도 포인터를 저장하지 않아 어긋날 일이 없음).
+create table if not exists rotation_log (
+  id          bigint generated always as identity primary key,
+  pool        text not null check (pool in ('general', 'clinic', 'driver')),
+  member_id   bigint not null references members(id) on delete cascade,
+  duty_date   date not null,                                   -- 배정되었거나 건너뛴 근무일
+  cycle       integer not null check (cycle >= 1),             -- 그때의 바퀴 번호
+  kind        text not null check (kind in ('served', 'skipped')),
+  reason      text,                                            -- 건너뛴 이유 (예: 휴가, 교육)
+  repaid_at   timestamptz,                                     -- skipped 빚을 갚은 시각 (갚으면 채움)
+  created_at  timestamptz not null default now()
+);
+create index if not exists rotation_log_by_pool on rotation_log (pool, cycle, created_at);
+create index if not exists rotation_log_by_member on rotation_log (member_id, pool);
+-- 같은 근무일·순번표에서 같은 사람이 같은 종류로 두 번 기록되지 않게
+create unique index if not exists rotation_log_unique on rotation_log (pool, duty_date, member_id, kind);
+alter table rotation_log enable row level security;
+comment on table rotation_log is '순번 기록: served=배정, skipped=건너뜀(빚, repaid_at 비면 미상환)';
+
+-- ③ rotation_picks : 순번으로 뽑힌 사람 (동은 관리자가 나중에 배정 → post_id 비어 있을 수 있음)
+--    관리자가 동을 정하면 assignments(확정 명단)에 source='rotation' 으로 들어갑니다.
+create table if not exists rotation_picks (
+  id          bigint generated always as identity primary key,
+  duty_date   date not null,
+  pool        text not null check (pool in ('general', 'clinic', 'driver')),
+  member_id   bigint not null references members(id) on delete cascade,
+  post_id     bigint references posts(id),                     -- 비어 있음 = 아직 동 미배정
+  created_at  timestamptz not null default now(),
+  unique (duty_date, pool, member_id)
+);
+create index if not exists rotation_picks_by_date on rotation_picks (duty_date, pool);
+alter table rotation_picks enable row level security;
+comment on table rotation_picks is '순번으로 뽑힌 사람. post_id 가 비면 관리자가 동을 배정해야 함';
+
+-- ④ monthly_draws : 한 달 차출 실행 기록 (한 달에 한 번만 — 기본 키가 중복을 막음)
+--    month = 근무 대상 달 ('2026-12' 형식)
+create table if not exists monthly_draws (
+  month         text primary key check (month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+  executed_by   bigint references members(id) on delete set null,
+  shortage      jsonb not null default '{}'::jsonb,            -- 후보 부족 등 (예: {"2026-12-05": 1})
+  executed_at   timestamptz not null default now()
+);
+alter table monthly_draws enable row level security;
+comment on table monthly_draws is '한 달 차출 실행 기록. 대상 달당 1건';
+
+-- ⑤ 기존 표에서 "순번" 꼬리표를 쓸 수 있게
+alter table assignments drop constraint if exists assignments_source_check;
+alter table assignments add constraint assignments_source_check
+  check (source in ('wanted', 'drafted', 'admin', 'rotation'));
+alter table draws drop constraint if exists draws_triggered_by_check;
+alter table draws add constraint draws_triggered_by_check
+  check (triggered_by in ('cron', 'visit', 'manual', 'rotation'));
+
+-- 0020 자발 출근 인정
+alter table rotation_log drop constraint if exists rotation_log_kind_check;
+alter table rotation_log add constraint rotation_log_kind_check
+  check (kind in ('served', 'skipped', 'volunteered'));
+
+-- 0021 한 달 차출 저장 함수
+create or replace function record_monthly_draw(
+  p_month        text,
+  p_executed_by  bigint,
+  p_shortage     jsonb,   -- {"2026-12-05": 1, ...}
+  p_days         jsonb,   -- [{date, clinic_shortage, general_shortage, assignments:[{member_id,post_id,source}], picks:[{pool,member_id,post_id}]}]
+  p_log          jsonb,   -- [{pool, member_id, duty_date, cycle, kind, reason}]
+  p_repaid       jsonb,   -- [{pool, member_id, duty_date}]  갚은 빚 (건너뛰었던 날짜)
+  p_cycles       jsonb    -- {"general": 2, "clinic": 1, "driver": 1}
+)
+returns boolean
+language plpgsql
+as $$
+declare
+  inserted integer;
+  d jsonb;
+  skip_dates text[] := '{}';
+begin
+  insert into monthly_draws (month, executed_by, shortage)
+  values (p_month, p_executed_by, coalesce(p_shortage, '{}'::jsonb))
+  on conflict (month) do nothing;
+  get diagnostics inserted = row_count;
+  if inserted = 0 then
+    return false; -- 이미 차출된 달
+  end if;
+
+  for d in select * from jsonb_array_elements(p_days) loop
+    insert into draws (duty_date, triggered_by, executed_by, clinic_shortage, general_shortage)
+    values ((d->>'date')::date, 'rotation', p_executed_by, coalesce((d->>'clinic_shortage')::int, 0), coalesce((d->>'general_shortage')::int, 0))
+    on conflict (duty_date) do nothing;
+    get diagnostics inserted = row_count;
+    if inserted = 0 then
+      skip_dates := array_append(skip_dates, d->>'date'); -- 예전 방식으로 이미 추첨된 날
+      continue;
+    end if;
+
+    insert into assignments (duty_date, member_id, post_id, source)
+    select (d->>'date')::date, (a->>'member_id')::bigint, (a->>'post_id')::bigint, a->>'source'
+    from jsonb_array_elements(d->'assignments') as a;
+
+    insert into rotation_picks (duty_date, pool, member_id, post_id)
+    select (d->>'date')::date, x->>'pool', (x->>'member_id')::bigint, nullif(x->>'post_id', '')::bigint
+    from jsonb_array_elements(d->'picks') as x;
+  end loop;
+
+  -- 건너뛴 날(skip_dates)의 순번 기록은 넣지 않음
+  insert into rotation_log (pool, member_id, duty_date, cycle, kind, reason)
+  select l->>'pool', (l->>'member_id')::bigint, (l->>'duty_date')::date, (l->>'cycle')::int, l->>'kind', l->>'reason'
+  from jsonb_array_elements(p_log) as l
+  where not ((l->>'duty_date') = any (skip_dates))
+  on conflict do nothing;
+
+  update rotation_log r
+     set repaid_at = now()
+   from jsonb_array_elements(p_repaid) as x
+  where r.pool = x->>'pool'
+    and r.member_id = (x->>'member_id')::bigint
+    and r.duty_date = (x->>'duty_date')::date
+    and r.kind = 'skipped'
+    and r.repaid_at is null;
+
+  update rotation_state s
+     set cycle = greatest(s.cycle, (p_cycles->>s.pool)::int), updated_at = now()
+  where p_cycles ? s.pool;
+
+  return true;
+end;
+$$;
+
+-- 보안: 이 함수는 우리 서버(비밀 키)만 부를 수 있게 합니다.
+revoke all on function record_monthly_draw(text, bigint, jsonb, jsonb, jsonb, jsonb, jsonb) from public;
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    execute 'revoke all on function record_monthly_draw(text, bigint, jsonb, jsonb, jsonb, jsonb, jsonb) from anon';
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    execute 'revoke all on function record_monthly_draw(text, bigint, jsonb, jsonb, jsonb, jsonb, jsonb) from authenticated';
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    execute 'grant execute on function record_monthly_draw(text, bigint, jsonb, jsonb, jsonb, jsonb, jsonb) to service_role';
+  end if;
+end;
+$$;

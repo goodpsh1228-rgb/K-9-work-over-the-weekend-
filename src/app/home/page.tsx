@@ -13,11 +13,12 @@ import { updateMyCohortAction, updateMyRankAction } from "./actions";
 import { effectiveSquad } from "@/lib/squads";
 import { Card, Notice } from "@/components/ui";
 import { CountdownCard } from "@/components/countdown-card";
-import { addDays, formatShort, kstMoment, mondayOf, todayKST } from "@/lib/kst";
+import { addDays, formatShort, kstMoment, todayKST } from "@/lib/kst";
 import { getMyStates, type MyState } from "@/lib/day-board";
 import { STATUS_LABEL, votingStatus, votingWindow } from "@/lib/voting";
 import { getFridayChecker } from "@/lib/duty-days-server";
 import { runVisitTasksSafely } from "@/lib/draw-server";
+import { getPendingMonths, getRosterConflicts, type RosterConflict } from "@/lib/monthly-draw-server";
 import { getLineup } from "@/lib/lineup";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 
@@ -56,12 +57,14 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
     db.from("posts").select("id, name"),
   ]);
   const now = new Date();
-  const drawn0 = new Set((drawRows ?? []).map((d) => d.duty_date as string));
   const lineupDate = addDays(todayKST(), 1); // 홈에는 내일 라인업을 보여 줌 (전날 미리 확인·수기 입력용)
   const todayLineup = await getLineup(lineupDate); // 내일 라인업 요약 (출근·불참 인원 수, 1차탑승)
   const todayAbsent = new Set(todayLineup.absent.map((a) => a.id)).size;
   // 투표가 마감됐는데 아직 차출하지 않은 근무일 (관리자에게 안내)
-  const pendingDraw = days.filter((d) => !drawn0.has(d.date) && votingStatus(d.date, fridayIsDuty(d.date), now) === "closed").map((d) => d.date);
+  // 관리자 안내: 투표가 모두 마감됐지만 아직 한 달 차출을 하지 않은 달 / 확정 뒤 출근 불가가 된 사람
+  const [pendingMonths, conflicts] = me.is_admin
+    ? await Promise.all([getPendingMonths(todayKST(), now).catch(() => [] as string[]), getRosterConflicts(todayKST()).catch(() => [] as RosterConflict[])])
+    : [[] as string[], [] as RosterConflict[]];
   // 입대일을 넣었는지 (넣었으면 계급 자동) — SQL 0009 전이면 칸이 없어 오류 → 입력 안 한 것으로
   const { data: svc } = await db
     .from("members")
@@ -103,7 +106,7 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
     countdown =
       myStatus(nextOpen.date) === "open"
         ? {
-            title: "이번 주 투표 마감까지",
+            title: "이번 달 투표 마감까지",
             target: win.closesAt,
             sub: `${formatShort(win.closeDate)} 21:00 마감 · ${cover}`,
           }
@@ -119,11 +122,13 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
               sub: `${formatShort(win.openDate)} 00:00 시작 · ${cover}`,
             };
   } else {
-    const monday = addDays(mondayOf(todayKST()), 7);
+    // 다음 달 1일 00:00 에 다음 투표가 열림 (매월 1일 ~ 처음 돌아오는 금요일 21:00)
+    const [ty, tm] = todayKST().split("-").map(Number);
+    const nextFirst = tm === 12 ? `${ty + 1}-01-01` : `${ty}-${String(tm + 1).padStart(2, "0")}-01`;
     countdown = {
       title: "다음 투표 시작까지",
-      target: kstMoment(monday, 0),
-      sub: `${formatShort(monday)} 00:00 시작`,
+      target: kstMoment(nextFirst, 0),
+      sub: `${formatShort(nextFirst)} 00:00 시작 · 다음 달 근무일 전체`,
     };
   }
 
@@ -165,8 +170,6 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
               휴가 계산기
             </Link>
             에서 입대일을 입력하면 계급이 매월 1일 자동으로 진급됩니다.
-            {me.rank === null &&
-              " (계급이 없으면 화요일부터만 투표할 수 있습니다)"}
           </Notice>
         </div>
       )}
@@ -183,17 +186,31 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
       )}
 
       {/* 관리자: 투표가 마감됐는데 아직 차출하지 않은 날 → 차출하기 안내 (추첨은 자동으로 하지 않음) */}
-      {me.is_admin && pendingDraw.length > 0 && (
+      {me.is_admin && pendingMonths.length > 0 && (
         <div className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-3">
-          <p className="text-sm font-black text-red-600">주말출근 차출 대기 {pendingDraw.length}일</p>
-          <p className="mt-0.5 text-xs text-muted">투표가 마감됐습니다. 날짜를 눌러 [주말출근 차출하기]를 실행해 주세요.</p>
+          <p className="text-sm font-black text-red-600">한 달 차출 대기 {pendingMonths.length}달</p>
+          <p className="mt-0.5 text-xs text-muted">투표가 마감됐습니다. [한 달 차출]에서 순번으로 공석을 채워 주세요.</p>
           <p className="mt-2 flex flex-wrap gap-2">
-            {pendingDraw.map((d) => (
-              <Link key={d} href={`/day/${d}`} className="rounded-full bg-red-600 px-3 py-1 text-sm font-semibold text-white">
-                {formatShort(d)} 차출하기 ›
+            {pendingMonths.map((m) => (
+              <Link key={m} href={`/admin/draw?month=${m}`} className="rounded-full bg-red-600 px-3 py-1 text-sm font-semibold text-white">
+                {Number(m.slice(5))}월 차출하기 ›
               </Link>
             ))}
           </p>
+        </div>
+      )}
+      {me.is_admin && conflicts.length > 0 && (
+        <div className="mt-3 rounded-[18px] border-2 border-orange-500 bg-card p-3">
+          <p className="text-sm font-black text-orange-700">확정 명단 확인 필요 {conflicts.length}건</p>
+          <p className="mt-0.5 text-xs text-muted">확정된 뒤 출근이 어려워진 사람입니다. 명단 수정에서 다른 사람으로 교체해 주세요.</p>
+          <ul className="mt-2 space-y-1 text-sm">
+            {conflicts.map((c) => (
+              <li key={`${c.date}-${c.memberId}`} className="flex items-center justify-between gap-2">
+                <span>{formatShort(c.date)} · <b>{c.name}</b> <span className="text-muted">({c.post} · {c.reason})</span></span>
+                <Link href={`/admin/roster/${c.date}`} className="shrink-0 text-link underline">교체</Link>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

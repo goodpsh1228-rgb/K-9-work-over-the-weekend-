@@ -15,7 +15,7 @@ import { isValidDate } from "@/lib/kst";
 import { computeDutyDays } from "@/lib/duty-days";
 import { getOverrides, getVoteInfo } from "@/lib/duty-days-server";
 import { getDayBoard, getExcludedIds, getPostsForDate } from "@/lib/day-board";
-import { executeDraw, getDraw } from "@/lib/draw-server";
+import { getDraw } from "@/lib/draw-server";
 import { writeAudit } from "@/lib/audit";
 
 function back(date: string, kind: "msg" | "error", text: string): never {
@@ -98,21 +98,6 @@ export async function driveVoteAction(date: string, want: boolean): Promise<Vote
   if (error) return { ok: false, message: "저장 중 오류(관리자에게 0007 SQL 실행을 요청하세요): " + error.message };
   revalidatePath(`/day/${date}`);
   return { ok: true, message: want ? "주말 운전 희망으로 저장했습니다." : "주말 운전 희망을 취소했습니다." };
-}
-
-// ── 관리자: 주말출근 차출하기 (마감이 지난 날, 아직 추첨 안 된 날만) ──
-//   추첨은 자동으로 하지 않습니다. 관리자가 후보(투표 안 한 사람)를 확인한 뒤 이 버튼을 눌러야 실행되고,
-//   추첨과 함께 선탑(운전병보다 기수가 같거나 높은 출근자 중 랜덤)도 자동으로 정해집니다.
-export async function manualDrawAction(formData: FormData) {
-  const me = await requireAdmin();
-  const date = String(formData.get("date") ?? "");
-  const r = await executeDraw(date, "manual", me.id);
-  if (r.status === "not-ready") back(date, "error", r.reason);
-  if (r.status === "already") back(date, "msg", "이미 추첨이 끝난 날입니다. (결과는 한 번만 만들어집니다)");
-  const e = r.escort;
-  const escortText = e.ok ? ` 선탑: ${e.picked.name}(${e.picked.cohort}기) — 운전병 ${e.drivers.map((d) => `${d.name}(${d.cohort}기)`).join(", ")}보다 기수가 같거나 높은 ${e.poolSize}명 중 랜덤.` : ` ⚠️ ${e.message}`;
-  const short = r.result.shortage.clinic + r.result.shortage.general + r.result.shortage.driver;
-  back(date, "msg", `주말출근 차출을 완료했습니다.${short > 0 ? ` ⚠️ 인원 부족 ${short}명.` : ""}${escortText} 출근이 어려운 사람이 있으면 [명단 수정]에서 바꿀 수 있습니다.`);
 }
 
 // ── 관리자: 투표를 깜빡한 미응답자 중 골라 이 날 추첨에서만 빼기 ──

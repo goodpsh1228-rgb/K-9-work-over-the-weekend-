@@ -17,17 +17,16 @@ import { getOverrides, getVoteInfo } from "@/lib/duty-days-server";
 import { getDayBoard, getPostsForDate, myStateFrom, type PostSlot } from "@/lib/day-board";
 import { STATUS_LABEL, VOTING_OVERRIDES } from "@/lib/voting";
 import { Notice, Page } from "@/components/ui";
-import { buildDrawInput, getDraw, getRoster, runVisitTasksSafely, simulateDraw, type RosterEntry } from "@/lib/draw-server";
+import { getDraw, getRoster, runVisitTasksSafely, type RosterEntry } from "@/lib/draw-server";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { buildPostText, buildRankText } from "@/lib/roster-text";
 import { CopyButton } from "@/components/copy-button";
-import { excuseUnansweredAction, manualDrawAction, undoExcuseAction } from "./actions";
+import { excuseUnansweredAction, undoExcuseAction } from "./actions";
 import { VotePanel } from "./vote-panel";
 import { DrivePanel } from "./drive-panel";
 import { EscortDrawForm, escortWorkers } from "@/components/escort-draw-form";
 import { autoEscortAction, drawEscortAction } from "@/app/admin/roster/[date]/actions";
 import { EscortAutoForm } from "@/components/escort-auto-form";
-import { ConfirmButton } from "@/components/confirm-button";
 import { getEscortPlan } from "@/lib/escort-server";
 
 export default async function DayPage({ params, searchParams }: PageProps<"/day/[date]">) {
@@ -61,17 +60,8 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   const excusedIdSet = new Set(board.excluded.filter((m) => board.nonVoters.some((n) => n.id === m.id)).map((m) => m.id)); // 미참여 중 스크리닝으로 빠진 사람
   const screenPool = [...board.unanswered.map((m) => ({ ...m, declined: false })), ...board.declines.map((m) => ({ ...m, declined: true }))];
 
-  // 추첨 결과 (있으면) / 관리자 미리보기
+  // 추첨 결과 (있으면)
   const roster = draw ? await getRoster(date) : null;
-  let preview: RosterEntry[] | null = null;
-  let previewShortage = 0;
-  if (!draw && me.is_admin && sp.preview === "1") {
-    const sim = simulateDraw(await buildDrawInput(date));
-    const { data: names } = await getSupabaseAdmin().from("members").select("id, name");
-    const nameOf = new Map((names ?? []).map((m) => [m.id as number, m.name as string]));
-    preview = sim.assignments.map((a) => ({ ...a, name: nameOf.get(a.memberId) ?? "?", rank: null }));
-    previewShortage = sim.shortage.clinic + sim.shortage.general + sim.shortage.driver;
-  }
   // 희망했지만 정원 초과로 떨어져 쉬는 사람 (추첨 후)
   const rosterIds = new Set((roster ?? []).map((r) => r.memberId));
   //   (운전 희망에서 떨어진 사람은 쉼이 아님 — 동 출근은 따로)
@@ -258,9 +248,8 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         </p>
         <p className="mt-1 text-xs text-zinc-500">
           {VOTING_OVERRIDES[date]
-            ? `이 날은 투표 기간이 연장되었습니다: ${formatShort(win.openDate)}은 상병·병장만, ${formatShort(win.juniorDate)}부터 일병·이병도 투표할 수 있습니다.`
-            : "월요일은 상병·병장만, 화요일부터 일병·이병도 투표할 수 있습니다."}
-          {fridayIsDuty && !VOTING_OVERRIDES[date] && " 이번 주는 금요일이 공휴일이라 화요일 21:00에 마감합니다."}
+            ? `이 달 근무일은 이번에만 ${formatShort(win.openDate)}부터 ${formatShort(win.closeDate)} 21:00까지 투표합니다. (${formatShort(win.coverFrom)} ~ ${formatShort(win.coverTo)} 근무일)`
+            : `매달 1일부터 처음 돌아오는 금요일 21:00까지, 다음 달 근무일 전체를 미리 투표합니다. (${formatShort(win.coverFrom)} ~ ${formatShort(win.coverTo)} 근무일)`}
         </p>
         <p className="mt-2 font-semibold">
           내 상태: <MyStateText state={mine} />
@@ -299,7 +288,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
 
       {/* 일반 인원: 마감 뒤 아직 추첨 전 안내 */}
       {!me.is_admin && !draw && overall === "closed" && (
-        <p className="mt-3 rounded-[18px] border border-hairline bg-card p-3 text-sm text-muted">투표가 마감되었습니다. 관리자가 확인한 뒤 차출하면 결과가 여기에 표시됩니다.</p>
+        <p className="mt-3 rounded-[18px] border border-hairline bg-card p-3 text-sm text-muted">투표가 마감되었습니다. 관리자가 한 달 차출을 하면 순번 결과가 여기에 표시됩니다.</p>
       )}
 
       {/* 관리자: 마감 뒤 [주말출근 차출하기] — 자동으로 뽑지 않고, 후보를 스크리닝한 뒤 관리자가 직접 실행 */}
@@ -308,13 +297,13 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           <p className="text-lg font-black">주말출근 차출하기 (관리자)</p>
           <p className="mt-1 text-sm text-muted">투표가 마감되었습니다. 자동으로 뽑지 않으니 아래 순서로 진행해 주세요.</p>
           <p className="mt-3 text-sm">
-            <b>① 후보 확인</b> · 희망 {drawWanted}명 확정 → 투표 안 한 사람 중 약 <b>{drawNeed}명</b> 차출 예정
+            <b>① 순번 후보 확인</b> · 희망 {drawWanted}명 확정 → 남은 약 <b>{drawNeed}자리</b>는 순번(미희망·미응답자, 높은 기수부터)으로 채움
           </p>
           {screenPool.length === 0 ? (
             <p className="mt-1 text-sm text-muted">차출 후보(미응답·미희망)가 없습니다.</p>
           ) : (
             <details open className="mt-2 rounded-[18px] bg-hairline/30">
-              <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">차출 후보 {screenPool.length}명 (미응답 {board.unanswered.length} · 미희망 {board.declines.length}) — 출근이 어려운 사람을 체크하세요</summary>
+              <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">순번 후보 {screenPool.length}명 (미응답 {board.unanswered.length} · 미희망 {board.declines.length}) — 출근이 어려운 사람을 체크하세요</summary>
               <form action={excuseUnansweredAction} className="space-y-2 px-3 pb-3">
                 <input type="hidden" name="date" value={date} />
                 <div className="grid grid-cols-2 gap-x-2 gap-y-1">
@@ -327,38 +316,18 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
                   ))}
                 </div>
                 <button type="submit" className="h-11 w-full rounded-full bg-orange-600 text-sm font-semibold text-white">
-                  체크한 사람 이 날 추첨에서 빼기
+                  체크한 사람 이 날 순번에서 빼기 (다음 순번에게 넘김 · 빚으로 기록)
                 </button>
                 <p className="text-xs text-muted">이 날 하루만 빠집니다. 아래 &quot;제외&quot; 목록에서 되돌릴 수 있습니다.</p>
               </form>
             </details>
           )}
           <p className="mt-3 text-sm">
-            <b>② 차출 실행</b> · 한 번만 실행됩니다. 뽑는 즉시 <b>선탑</b>(운전병보다 기수 같거나 높은 출근자 중 랜덤)도 함께 정해집니다.
+            <b>② 한 달 차출</b> · 이제 랜덤 차출이 아니라 <b>순번제</b>입니다. 그 달 투표가 모두 마감되면 [한 달 차출]에서 한 번에 진행해 주세요.
           </p>
-          <form action={manualDrawAction} className="mt-2">
-            <input type="hidden" name="date" value={date} />
-            <ConfirmButton message="지금 주말출근을 차출합니다. 결과는 바로 모두에게 보이고 한 번만 실행됩니다. 후보 확인(출근이 어려운 사람 빼기)은 끝나셨나요?" className="min-h-12 w-full rounded-full bg-red-600 px-[22px] text-base font-semibold text-white">
-              주말출근 차출하기
-            </ConfirmButton>
-          </form>
-          <p className="mt-2 text-xs text-muted">뽑은 뒤에도 출근이 어려운 사람은 [명단 수정]에서 다른 사람으로 교체할 수 있습니다.</p>
-        </section>
-      )}
-
-      {/* 관리자: 투표 중에는 미리보기 (저장 안 됨) */}
-      {me.is_admin && !draw && overall !== "closed" && (
-        <section className="mt-3 rounded-[18px] border border-dashed border-hairline p-3 ">
-          <p className="text-sm font-semibold">관리자</p>
-          <Link href={`/day/${date}?preview=1`} className="mt-2 block text-sm text-link underline">
-            추첨 미리보기 (현재 응답 기준 · 저장 안 됨 · 누를 때마다 결과가 달라짐)
+          <Link href={`/admin/draw?month=${date.slice(0, 7)}`} className="mt-2 flex min-h-12 w-full items-center justify-center rounded-full bg-red-600 px-[22px] text-base font-semibold text-white">
+            한 달 차출로 이동
           </Link>
-          {preview && (
-            <div className="mt-3 space-y-2">
-              {previewShortage > 0 && <Notice kind="warn">미리보기상 인원 부족 {previewShortage}명</Notice>}
-              <RosterView title="미리보기 (저장 안 됨)" posts={board.posts} roster={preview} />
-            </div>
-          )}
         </section>
       )}
 
@@ -449,10 +418,11 @@ function Fold({ title, hint, className, children }: { title: string; hint?: stri
 }
 
 // 확정 명단 표: 자리마다 이름 + 꼬리표, 빈자리는 빨간색 (선탑은 "미정")
-const SOURCE_LABEL = { wanted: "희망 확정", drafted: "차출", admin: "관리자 수정" } as const;
+const SOURCE_LABEL = { wanted: "희망 확정", drafted: "차출", rotation: "순번", admin: "관리자 수정" } as const;
 const SOURCE_COLOR = {
   wanted: "bg-blue-100 text-blue-800",
   drafted: "bg-hairline/60 text-foreground/80",
+  rotation: "bg-orange-100 text-orange-800",
   admin: "bg-foreground text-background",
 } as const;
 function RosterView({ title, posts, roster, driving = [] }: { title: string; posts: PostSlot[]; roster: RosterEntry[]; driving?: number[] }) {
