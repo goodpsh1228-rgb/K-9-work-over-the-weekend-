@@ -6,10 +6,12 @@
 //   ② 남은 공석을 순번표(일반·진료실·운전 각각)로 채웁니다. 순번 규칙은 rotation.ts 참고.
 //      · 진료실·운전 공석은 자리까지 바로 정해지고, 일반(동) 공석은 동이 비어 있는 채로 뽑혀 관리자가 동을 배정합니다.
 //   ③ 순번에서 조용히 빠지는 사람(passed): 희망했다가 정원 초과로 떨어진 사람, 동을 희망해서 진료실 순번에서 빠지는 진료반.
+//   ⑤ 전역 1개월 전부터는 순번에서 완전히 빠집니다(빚도 근무 인정도 없음). 전역일이 지난 사람도 마찬가지.
 //   ④ 그날 운전이 지정된 운전병은 "주말 운전"을 먼저 채우고, 그날 동·진료실 순번에서는 근무 1회로 인정됩니다(출근하므로).
 // ─────────────────────────────────────────────────────────────
 import { planRotation, type RotLogRow, type RotMember, type RotResult } from "./rotation";
 import { shuffle, type Rng } from "./draw";
+import { dischargeRange } from "./absence-kinds";
 
 export type RotPool = "general" | "clinic" | "driver";
 
@@ -20,9 +22,10 @@ export type MDayInput = {
   driveWants: Set<number>; // 주말 운전 희망
   designated: number[]; // 그날 운전이 지정된 운전병
   excluded: Set<number>; // 휴가·부상·교육·관리자 제외·운전 지정 등으로 그날 출근 불가한 사람
+  exempt?: Set<number>; // 전역 1개월 전 면제 기록이 있는 사람 (순번에서 조용히 빠짐 — 건너뜀·빚 없음)
 };
 
-export type MMember = RotMember & { clinic: boolean; driver: boolean }; // 활성 인원
+export type MMember = RotMember & { clinic: boolean; driver: boolean; dischargeDate?: string | null }; // 활성 인원
 
 export type MDayPlan = {
   date: string;
@@ -116,9 +119,14 @@ export function planMonth(
       if (m) working[m.clinic ? "clinic" : "general"].push(id);
     }
 
-    // 출근 불가 사유 (운전 지정자는 출근하므로 제외 목록에서 뺌)
+    // 전역 면제: 전역일 1개월 전부터(전역일이 지난 뒤 포함) 순번에서 완전히 빠짐 — 면제 기록 또는 전역일로 판단
+    const exempt = new Set<number>(day.exempt ?? []);
+    for (const m of members) if (m.dischargeDate && day.date >= dischargeRange(m.dischargeDate).start) exempt.add(m.id);
+    for (const id of exempt) for (const pool of ["general", "clinic", "driver"] as RotPool[]) passed[pool].push(id);
+
+    // 출근 불가 사유 (운전 지정자는 출근하므로, 전역 면제자는 순번에서 빠지므로 제외 목록에서 뺌)
     const unavailable: Record<number, string> = {};
-    for (const id of day.excluded) if (!designated.includes(id)) unavailable[id] = "제외(휴가·부상·교육 등)";
+    for (const id of day.excluded) if (!designated.includes(id) && !exempt.has(id)) unavailable[id] = "제외(휴가·부상·교육 등)";
     return { plan, seats, working, passed, unavailable };
   });
 

@@ -16,7 +16,8 @@ import { addDays, todayKST } from "@/lib/kst";
 import { writeAudit } from "@/lib/audit";
 import { planMonth, type MDayInput, type MMember, type PoolState, type RotPool } from "@/lib/monthly-draw";
 import { rotationBoard, type RotLogRow } from "@/lib/rotation";
-import { KIND_LABEL } from "@/lib/absence-kinds";
+import { KIND_LABEL, dischargeRange } from "@/lib/absence-kinds";
+import { syncServiceStatusSafely } from "@/lib/service-sync";
 
 const POOLS: RotPool[] = ["general", "clinic", "driver"];
 
@@ -83,9 +84,10 @@ async function loadMembers(): Promise<MMember[]> {
   const db = getSupabaseAdmin();
   const drivers = await getDriverIds();
   // 기수·반 칸(SQL 0015)이 없으면 기수 없이 읽음
-  let r = await db.from("members").select("id, is_clinic, squad, cohort, enlist_date").eq("is_active", true);
+  let r = await db.from("members").select("id, is_clinic, squad, cohort, enlist_date, discharge_date").eq("is_active", true);
   if (r.error) r = (await db.from("members").select("id, is_clinic").eq("is_active", true)) as typeof r;
-  return ((r.data ?? []) as { id: number; is_clinic: boolean; squad?: string | null; cohort?: number | null; enlist_date?: string | null }[]).map((m) => ({
+  return ((r.data ?? []) as { id: number; is_clinic: boolean; squad?: string | null; cohort?: number | null; enlist_date?: string | null; discharge_date?: string | null }[]).map((m) => ({
+    dischargeDate: m.discharge_date ?? null,
     id: m.id,
     cohort: m.cohort ?? null,
     enlistDate: m.enlist_date ?? null,
@@ -124,11 +126,13 @@ async function buildMonthPlan(month: string, seed: string) {
   const targets = st.undrawn.filter((d) => d >= todayKST());
   if (targets.length === 0) return { st, targets, plan: null, members: [] as MMember[] };
 
+  await syncServiceStatusSafely({ force: true }); // 전역일이 지난 사람은 비활성화되어 순번에서 빠지도록 먼저 정리
   const db = getSupabaseAdmin();
-  const [members, state, { data: resp }] = await Promise.all([
+  const [members, state, { data: resp }, { data: dis }] = await Promise.all([
     loadMembers(),
     loadRotationState(),
     db.from("responses").select("duty_date, member_id, choice, post_id").in("duty_date", targets),
+    db.from("absences").select("member_id, start_date, end_date").eq("kind", "discharge").lte("start_date", targets[targets.length - 1]).gte("end_date", targets[0]),
   ]);
 
   const inputs: MDayInput[] = [];
@@ -148,6 +152,7 @@ async function buildMonthPlan(month: string, seed: string) {
       driveWants: driveWants.ids,
       designated: [...designated.ids],
       excluded,
+      exempt: new Set((dis ?? []).filter((a) => a.start_date <= date && a.end_date >= date).map((a) => a.member_id as number)), // 전역 1개월 전 면제
     });
   }
   return { st, targets, plan: planMonth(inputs, members, state, seededRng(seed)), members };
@@ -337,10 +342,13 @@ export async function getRotationBoards() {
   const db = getSupabaseAdmin();
   const { data: names } = await db.from("members").select("id, name, rank").eq("is_active", true);
   const info = new Map((names ?? []).map((m) => [m.id as number, { name: m.name as string, rank: (m.rank as string | null) ?? null }]));
+  // 전역 1개월 전부터는 순번에서 빠지므로 현황판에도 보이지 않음
+  const today = todayKST();
+  const staying = members.filter((m) => !(m.dischargeDate && today >= dischargeRange(m.dischargeDate).start));
   const poolMembers: Record<RotPool, MMember[]> = {
-    general: members.filter((m) => !m.clinic),
-    clinic: members.filter((m) => m.clinic),
-    driver: members.filter((m) => m.driver),
+    general: staying.filter((m) => !m.clinic),
+    clinic: staying.filter((m) => m.clinic),
+    driver: staying.filter((m) => m.driver),
   };
   return POOLS.map((pool) => ({ pool, board: rotationBoard(poolMembers[pool], state[pool].log, state[pool].cycle), info, cohortOf: new Map(members.map((m) => [m.id, m.cohort])) }));
 }

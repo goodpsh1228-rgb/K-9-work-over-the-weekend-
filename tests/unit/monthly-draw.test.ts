@@ -79,4 +79,19 @@ assert.strictEqual(p.rotation.general.skips.length, 0); // 운전 지정자는 �
 // 8) 후보 부족: 모두 제외면 인원 부족으로 보고
 p = planMonth([day("2026-12-05", { excluded: new Set([1, 2, 3, 4, 5, 6]) })], members, fresh, rng);
 assert.strictEqual(p.days[0].shortage.general, 3);
+
+// 9) 전역 1개월 전부터 순번에서 완전히 빠짐 (빚 없음). 전역 12/20 → 11/20부터 면제
+const leaving: MMember[] = members.map((m) => (m.id === 1 ? { ...m, dischargeDate: "2026-12-20" } : m));
+p = planMonth([day("2026-11-10"), day("2026-12-05"), day("2026-12-26")], leaving, fresh, rng);
+assert.ok(picks(p, "2026-11-10", "general").includes(1)); // 면제 전(11/20 이전)에는 평소처럼 순번
+assert.ok(!picks(p, "2026-12-05", "general").includes(1)); // 면제 구간
+assert.ok(!picks(p, "2026-12-26", "general").includes(1)); // 전역 뒤에도 빠짐
+assert.strictEqual(p.rotation.general.skips.length, 0); // 빚 없음
+// 면제 기록(exempt)만 있고 전역일 정보가 없어도 같은 처리 — 제외 목록에 있어도 빚이 생기지 않음
+p = planMonth([day("2026-12-05", { excluded: new Set([1]), exempt: new Set([1]) })], members, fresh, rng);
+assert.ok(!picks(p, "2026-12-05", "general").includes(1));
+assert.strictEqual(p.rotation.general.skips.length, 0);
+// 반대로 휴가로 제외된 사람은 지금처럼 건너뛰고 빚
+p = planMonth([day("2026-12-05", { excluded: new Set([1]) })], members, fresh, rng);
+assert.deepStrictEqual(p.rotation.general.skips.map((x) => x.memberId), [1]);
 console.log("ALL OK");
