@@ -215,107 +215,20 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
     </li>
   );
 
-  return (
-    <Page title={`${me.name} 님`}>
-      {/* 내 구분: 계급(직접 바꿀 수 있음, 입대일이 있으면 매월 1일 자동 진급) + 역할 칩 */}
-      <div className="-mt-3 flex flex-wrap items-center gap-2 text-sm">
-        <MyRankSelect action={updateMyRankAction} current={me.rank} />
-        {/* 기수: 한 번 입력하면 고정(칩으로만 표시). 바꿔야 하면 관리자가 수정 */}
-        {cohortReady && myCohort !== null && <Chip tone="blue">{myCohort}기</Chip>}
-        {cohortReady && myCohort === null && (
-          <form action={updateMyCohortAction} className="inline-flex items-center gap-1">
-            <input
-              name="cohort"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={9999}
-              required
-              placeholder="기수"
-              aria-label="내 기수"
-              className="h-8 w-[72px] rounded-full border border-orange-400 bg-card px-3 text-sm"
-            />
-            <button type="submit" className="h-8 rounded-full border border-blue-600 px-3 text-xs font-semibold text-link">
-              기수 저장
-            </button>
-          </form>
-        )}
-        {mySquad && <Chip tone="gray">{mySquad}</Chip>}
-        {me.is_admin && <Chip tone="blue">관리자</Chip>}
-        {me.is_driver && <Chip tone="gray">운전병</Chip>}
-      </div>
-
-      {/* 계급·입대일 안내: 입대일을 넣으면 계급이 자동으로 진급됨 */}
-      {!enlisted && (
-        <div className="mt-3">
-          <Notice kind="warn">
-            <Link href="/leave" className="text-link underline">
-              휴가 계산기
-            </Link>
-            에서 입대일을 입력하면 계급이 매월 1일 자동으로 진급됩니다.
-          </Notice>
-        </div>
-      )}
-
-      {msg && (
-        <div className="mt-3">
-          <Notice kind="success">{msg}</Notice>
-        </div>
-      )}
-      {error && (
-        <div className="mt-3">
-          <Notice kind="error">{error}</Notice>
-        </div>
-      )}
-
-      {/* 관리자: 투표가 마감됐는데 아직 차출하지 않은 날 → 차출하기 안내 (추첨은 자동으로 하지 않음) */}
-      {me.is_admin && pendingLegacy.length > 0 && (
-        <div className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-3">
-          <p className="text-sm font-black text-red-600">주말출근 차출 대기 {pendingLegacy.length}일 (이번 달 · 랜덤 방식)</p>
-          <p className="mt-0.5 text-xs text-muted">투표가 마감됐습니다. 날짜를 눌러 [주말출근 차출하기]를 실행해 주세요.</p>
-          <p className="mt-2 flex flex-wrap gap-2">
-            {pendingLegacy.map((d) => (
-              <Link key={d} href={`/day/${d}`} className="rounded-full bg-red-600 px-3 py-1 text-sm font-semibold text-white">
-                {formatShort(d)} 차출하기 ›
-              </Link>
-            ))}
-          </p>
-        </div>
-      )}
-      {me.is_admin && pendingMonths.length > 0 && (
-        <div className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-3">
-          <p className="text-sm font-black text-red-600">한 달 차출 대기 {pendingMonths.length}달</p>
-          <p className="mt-0.5 text-xs text-muted">투표가 마감됐습니다. [한 달 차출]에서 순번으로 공석을 채워 주세요.</p>
-          <p className="mt-2 flex flex-wrap gap-2">
-            {pendingMonths.map((m) => (
-              <Link key={m} href={`/admin/draw?month=${m}`} className="rounded-full bg-red-600 px-3 py-1 text-sm font-semibold text-white">
-                {Number(m.slice(5))}월 차출하기 ›
-              </Link>
-            ))}
-          </p>
-        </div>
-      )}
-      {me.is_admin && conflicts.length > 0 && (
-        <div className="mt-3 rounded-[18px] border-2 border-orange-500 bg-card p-3">
-          <p className="text-sm font-black text-orange-700">확정 명단 확인 필요 {conflicts.length}건</p>
-          <p className="mt-0.5 text-xs text-muted">확정된 뒤 출근이 어려워진 사람입니다. 명단 수정에서 다른 사람으로 교체해 주세요.</p>
-          <ul className="mt-2 space-y-1 text-sm">
-            {conflicts.map((c) => (
-              <li key={`${c.date}-${c.memberId}`} className="flex items-center justify-between gap-2">
-                <span>{formatShort(c.date)} · <b>{c.name}</b> <span className="text-muted">({c.post} · {c.reason})</span></span>
-                <Link href={`/admin/roster/${c.date}`} className="shrink-0 text-link underline">교체</Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
+  // 내가 아직 안 한(응답 없음) 투표 가능한 날이 있는가 → 있으면 투표 목록을 위로 올림
+  const votingNow = days.some((d) => !drawn.has(d.date) && myStatus(d.date) === "open" && myState(d.date).kind === "none");
+  const absenceBlock = (
+    <>
       {/* ───── 1순위 ① 휴가·불참 입력 (가장 크게) ───── */}
       <Link href="/absences" data-press className="mt-4 flex h-16 items-center justify-between rounded-[18px] bg-blue-600 px-5 text-white">
         <span className="text-xl font-black">휴가·불참 입력</span>
         <span aria-hidden className="text-2xl leading-none">＋</span>
       </Link>
 
+    </>
+  );
+  const lineupBlock = (
+    <>
       {/* ───── 1순위 ② 1차 명단 (내일 출근자 중 높은 기수 9명 + 예비 2명) + 아래에 작게 "내일 운전병" ───── */}
       {(todayLineup.boardingSupported || todayLineup.driveSupported) && (
         <Card className="mt-4 p-4">
@@ -371,6 +284,10 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         </Card>
       )}
 
+    </>
+  );
+  const voteBlock = (
+    <>
       {/* ───── 1순위 ③ 주말출근 투표 ───── */}
       <h2 className="mt-8 mb-2 text-[26px] leading-[1.14] font-display font-black tracking-[-0.02em]">주말출근 투표</h2>
       <CountdownCard compact title={countdown.title} target={countdown.target.toISOString()} sub={countdown.sub} />
@@ -383,11 +300,9 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
           {months.map((m) => (
             <div key={m.key}>
               {/* 달 제목: 마감 시각과 내가 아직 안 한 날 수를 한 번만 보여 줌 */}
-              <p className="mb-2 flex items-baseline justify-between px-1">
+              <p className="mb-2 flex items-baseline gap-2 px-1">
                 <span className="text-lg font-black tracking-[-0.02em]">{Number(m.key.slice(5))}월</span>
-                <span className="text-xs text-muted">
-                  {m.deadline}
-                </span>
+                <span className="text-xs text-muted">{m.deadline}</span>
               </p>
               {/* 이어진 날(토·일, 금·토·일)은 한 카드에 묶어서 보여 줌. 눌러서 각 날짜로 들어감 */}
               <div className="space-y-2">
@@ -400,6 +315,119 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
             </div>
           ))}
         </div>
+      )}
+
+    </>
+  );
+
+  return (
+    <Page title={`${me.name} 님`}>
+      {/* 내 구분: 계급(직접 바꿀 수 있음, 입대일이 있으면 매월 1일 자동 진급) + 역할 칩 */}
+      <div className="-mt-3 flex flex-wrap items-center gap-2 text-sm">
+        <MyRankSelect action={updateMyRankAction} current={me.rank} />
+        {/* 기수: 한 번 입력하면 고정(칩으로만 표시). 바꿔야 하면 관리자가 수정 */}
+        {cohortReady && myCohort !== null && <Chip tone="blue">{myCohort}기</Chip>}
+        {cohortReady && myCohort === null && (
+          <form action={updateMyCohortAction} className="inline-flex items-center gap-1">
+            <input
+              name="cohort"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={9999}
+              required
+              placeholder="기수"
+              aria-label="내 기수"
+              className="h-8 w-[72px] rounded-full border border-orange-400 bg-card px-3 text-sm"
+            />
+            <button type="submit" className="h-8 rounded-full border border-blue-600 px-3 text-xs font-semibold text-link">
+              기수 저장
+            </button>
+          </form>
+        )}
+        {mySquad && <Chip tone="gray">{mySquad}</Chip>}
+        {me.is_admin && <Chip tone="blue">관리자</Chip>}
+        {me.is_driver && <Chip tone="gray">운전병</Chip>}
+      </div>
+
+      {/* 계급·입대일 안내: 입대일을 넣으면 계급이 자동으로 진급됨 */}
+      {!enlisted && (
+        <div className="mt-3">
+          <Notice kind="warn">
+            <Link href="/leave" className="text-link underline">
+              휴가 계산기
+            </Link>
+            에서 입대일을 입력하면 계급이 매월 1일 자동으로 진급됩니다.
+          </Notice>
+        </div>
+      )}
+
+      {msg && (
+        <div className="mt-3">
+          <Notice kind="success">{msg}</Notice>
+        </div>
+      )}
+      {error && (
+        <div className="mt-3">
+          <Notice kind="error">{error}</Notice>
+        </div>
+      )}
+
+      {/* 관리자: 투표가 마감됐는데 아직 차출하지 않은 날 → 차출하기 안내 (추첨은 자동으로 하지 않음) */}
+      {me.is_admin && pendingLegacy.length > 0 && (
+        <div className="mt-3 rounded-[18px] border border-red-300 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/30">
+          <p className="text-sm font-black text-red-600">주말출근 차출 대기 {pendingLegacy.length}일 (이번 달 · 랜덤 방식)</p>
+          <p className="mt-0.5 text-xs text-muted">투표가 마감됐습니다. 날짜를 눌러 [주말출근 차출하기]를 실행해 주세요.</p>
+          <p className="mt-2 flex flex-wrap gap-2">
+            {pendingLegacy.map((d) => (
+              <Link key={d} href={`/day/${d}`} className="rounded-full bg-red-600 px-3 py-1 text-sm font-semibold text-white">
+                {formatShort(d)} 차출하기 ›
+              </Link>
+            ))}
+          </p>
+        </div>
+      )}
+      {me.is_admin && pendingMonths.length > 0 && (
+        <div className="mt-3 rounded-[18px] border border-red-300 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/30">
+          <p className="text-sm font-black text-red-600">한 달 차출 대기 {pendingMonths.length}달</p>
+          <p className="mt-0.5 text-xs text-muted">투표가 마감됐습니다. [한 달 차출]에서 순번으로 공석을 채워 주세요.</p>
+          <p className="mt-2 flex flex-wrap gap-2">
+            {pendingMonths.map((m) => (
+              <Link key={m} href={`/admin/draw?month=${m}`} className="rounded-full bg-red-600 px-3 py-1 text-sm font-semibold text-white">
+                {Number(m.slice(5))}월 차출하기 ›
+              </Link>
+            ))}
+          </p>
+        </div>
+      )}
+      {me.is_admin && conflicts.length > 0 && (
+        <div className="mt-3 rounded-[18px] border border-orange-300 bg-orange-50 p-3 dark:border-orange-900 dark:bg-orange-950/30">
+          <p className="text-sm font-black text-orange-700">확정 명단 확인 필요 {conflicts.length}건</p>
+          <p className="mt-0.5 text-xs text-muted">확정된 뒤 출근이 어려워진 사람입니다. 명단 수정에서 다른 사람으로 교체해 주세요.</p>
+          <ul className="mt-2 space-y-1 text-sm">
+            {conflicts.map((c) => (
+              <li key={`${c.date}-${c.memberId}`} className="flex items-center justify-between gap-2">
+                <span>{formatShort(c.date)} · <b>{c.name}</b> <span className="text-muted">({c.post} · {c.reason})</span></span>
+                <Link href={`/admin/roster/${c.date}`} className="shrink-0 text-link underline">교체</Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* 투표 중이고 내가 아직 안 한 날이 있으면 "투표"를 맨 위로, 아니면 기존 순서(불참 입력 → 1차 명단 → 투표) */}
+      {votingNow ? (
+        <>
+          {voteBlock}
+          {absenceBlock}
+          {lineupBlock}
+        </>
+      ) : (
+        <>
+          {absenceBlock}
+          {lineupBlock}
+          {voteBlock}
+        </>
       )}
 
       {/* ───── 2순위: 라인업 파일 확인 ───── */}
@@ -434,9 +462,11 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
 function Chip({
   tone,
   children,
+  aligned = false,
 }: {
   tone: "blue" | "solid" | "gray" | "outline" | "orange" | "red";
   children: React.ReactNode;
+  aligned?: boolean; // 목록 행의 상태 배지: 최소 폭을 맞춰 왼쪽 끝선을 정돈
 }) {
   const color = {
     blue: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
@@ -448,7 +478,7 @@ function Chip({
     red: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
   }[tone];
   return (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs ${color}`}>
+    <span className={`rounded-full px-2.5 py-0.5 text-xs ${aligned ? "inline-block min-w-[4.5rem] text-center" : ""} ${color}`}>
       {children}
     </span>
   );
@@ -463,9 +493,9 @@ function StateBadge({
   status: "before" | "open" | "closed";
 }) {
   if (state.kind === "want")
-    return <Chip tone="blue">희망·{state.postName}</Chip>;
-  if (state.kind === "decline") return <Chip tone="gray">미희망</Chip>;
-  if (state.kind === "excluded") return <Chip tone="gray">제외</Chip>;
-  if (status === "open") return <Chip tone="outline">미응답</Chip>;
+    return <Chip tone="blue" aligned>희망·{state.postName}</Chip>;
+  if (state.kind === "decline") return <Chip tone="gray" aligned>미희망</Chip>;
+  if (state.kind === "excluded") return <Chip tone="gray" aligned>제외</Chip>;
+  if (status === "open") return <Chip tone="outline" aligned>미응답</Chip>;
   return null;
 }

@@ -230,7 +230,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
 
       {/* 관리자: 마감 뒤 [주말출근 차출하기] — 자동으로 뽑지 않고, 후보를 스크리닝한 뒤 관리자가 직접 실행 */}
       {me.is_admin && !draw && overall === "closed" && (
-        <section className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-4">
+        <section className="mt-3 rounded-[18px] border border-red-300 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30">
           <p className="text-lg font-black">주말출근 차출하기 (관리자)</p>
           <p className="mt-1 text-sm text-muted">투표가 마감되었습니다. 자동으로 뽑지 않으니 아래 순서로 진행해 주세요.</p>
           <p className="mt-3 text-sm">

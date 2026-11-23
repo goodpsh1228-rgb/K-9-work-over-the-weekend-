@@ -118,10 +118,12 @@ export default async function PreviewPage({ searchParams }: PageProps<"/admin/dr
                     </div>
                   );
                 })}
-                {d.skips.length > 0 && (
-                  <p className="text-xs text-muted"><b>건너뜀(빚)</b> {d.skips.map((x) => `${x.name}(${POOL[x.pool].split("(")[0]})`).join(", ")}</p>
+                {(d.skips.length > 0 || d.rested.length > 0) && (
+                  <div className="space-y-0.5 rounded-lg bg-hairline/40 px-2.5 py-1.5 text-xs text-muted">
+                    {d.skips.length > 0 && <p><b>건너뜀(빚)</b> {d.skips.map((x) => `${x.name}(${POOL[x.pool]})`).join(", ")}</p>}
+                    {d.rested.length > 0 && <p><b>정원 초과로 쉼</b> {d.rested.map((x) => x.name).join(", ")}</p>}
+                  </div>
                 )}
-                {d.rested.length > 0 && <p className="text-xs text-muted"><b>정원 초과로 쉼</b> {d.rested.map((x) => x.name).join(", ")}</p>}
                 {dayExcused.length > 0 && (
                   <div className="border-t border-hairline pt-2">
                     <p className="text-xs text-muted">관리자가 이 날 뺀 사람</p>
