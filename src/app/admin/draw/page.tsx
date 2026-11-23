@@ -84,7 +84,7 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
             <li>희망 확정 → 남은 공석을 순번(미희망·미응답자)으로 채웁니다.</li>
             <li>휴가·부상·교육 등으로 못 하는 순번은 자동으로 다음 사람에게 넘기고 빚으로 기록합니다.</li>
-            <li>진료실·운전은 자리까지 정해지고, 동은 뽑힌 뒤 [명단 수정]에서 배정합니다.</li>
+            <li>뽑힌 사람은 빈 동 자리에 랜덤으로 배정되어, 차출하면 동별 명단(견사표)이 바로 완성됩니다. 바꾸고 싶으면 [명단 수정]에서 교체하세요.</li>
             <li>한 번만 실행되고 되돌릴 수 없습니다. 출근이 어려운 사람은 먼저 휴가·불참으로 입력하거나 근무일 화면에서 &quot;이 날 추첨에서 빼기&quot;를 해 주세요.</li>
           </ul>
           <form action={monthlyDrawAction} className="mt-3">

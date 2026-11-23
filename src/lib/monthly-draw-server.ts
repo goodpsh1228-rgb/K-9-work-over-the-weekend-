@@ -2,7 +2,7 @@
 // 한 달 차출 실행 · 조회 (서버 전용) — 순번제
 //   - 관리자가 [한 달 차출하기]를 누르면, 그 달 모든 근무일의 공석을 순번으로 채웁니다.
 //   - 계산은 monthly-draw.ts(순수 계산), 저장은 record_monthly_draw 함수(한 번에, 딱 한 번만)
-//   - 일반(동) 공석은 동이 비어 있는 채로 저장되고, 관리자가 [명단 수정]에서 동을 배정합니다.
+//   - 뽑힌 사람은 빈 자리(동은 랜덤)에 바로 배정되어 동별 명단(견사표)이 한 번에 완성됩니다. 바꿀 사람은 [명단 수정]에서 교체합니다.
 // ─────────────────────────────────────────────────────────────
 import "server-only";
 import { randomInt } from "node:crypto";
@@ -182,7 +182,7 @@ export async function executeMonthlyDraw(month: string, actorId: number, seed: s
       general_shortage: d.shortage.general + d.shortage.driver, // 운전 부족은 "일반" 부족에 합쳐 저장 (기존 방식과 같음)
       assignments: [
         ...d.wanted.map((w) => ({ member_id: w.memberId, post_id: w.postId, source: "wanted" })),
-        // 진료실·운전은 자리까지 정해져 바로 명단에 들어감. 일반(동)은 동 배정 후에 명단에 들어감
+        // 순번으로 뽑힌 사람은 자리(동 포함)까지 정해져 바로 명단에 들어감 (자리가 없는 경우만 관리자가 동을 배정)
         ...d.picks.filter((p) => p.postId !== null).map((p) => ({ member_id: p.memberId, post_id: p.postId, source: "rotation" })),
       ],
       picks: d.picks.map((p) => ({ pool: p.pool, member_id: p.memberId, post_id: p.postId })),

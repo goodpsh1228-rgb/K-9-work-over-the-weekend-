@@ -20,10 +20,14 @@ const day = (date: string, extra: Partial<MDayInput> = {}): MDayInput => ({
 const picks = (p: ReturnType<typeof planMonth>, date: string, pool: string) =>
   p.days.find((d) => d.date === date)!.picks.filter((x) => x.pool === pool).map((x) => x.memberId);
 
-// 1) 아무도 투표 안 함: 일반 3자리·진료실 1·운전 1 모두 순번 (높은 기수부터), 일반은 동 미배정
+// 1) 아무도 투표 안 함: 일반 3자리·진료실 1·운전 1 모두 순번 (높은 기수부터), 동도 랜덤으로 바로 배정
 let p = planMonth([day("2026-12-05")], members, fresh, rng);
 assert.deepStrictEqual(picks(p, "2026-12-05", "general"), [1, 2, 3]);
-assert.ok(p.days[0].picks.filter((x) => x.pool === "general").every((x) => x.postId === null));
+// 일반은 빈 동 자리에 랜덤 배정됨 (정원 200:2, 300:1 → 3자리 모두 채워짐)
+const gp0 = p.days[0].picks.filter((x) => x.pool === "general");
+assert.ok(gp0.every((x) => x.postId === 200 || x.postId === 300));
+assert.strictEqual(gp0.filter((x) => x.postId === 200).length, 2);
+assert.strictEqual(gp0.filter((x) => x.postId === 300).length, 1);
 assert.deepStrictEqual(picks(p, "2026-12-05", "clinic"), [11]);
 assert.strictEqual(p.days[0].picks.find((x) => x.pool === "clinic")!.postId, 100); // 진료실은 자리까지 확정
 assert.deepStrictEqual(picks(p, "2026-12-05", "driver"), [6]);
