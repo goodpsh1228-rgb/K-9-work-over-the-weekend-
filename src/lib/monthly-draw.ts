@@ -59,12 +59,15 @@ export function planMonth(
     const working: Record<RotPool, number[]> = { general: [], clinic: [], driver: [] };
     const passed: Record<RotPool, number[]> = { general: [], clinic: [], driver: [] };
     const postById = new Map(day.posts.map((p) => [p.id, p]));
+    // 전역 면제: 전역일 1개월 전부터(전역일이 지난 뒤 포함) 순번에서 완전히 빠지고 희망도 받지 않음 — 면제 기록 또는 전역일로 판단
+    const exempt = new Set<number>(day.exempt ?? []);
+    for (const m of members) if (m.dischargeDate && day.date >= dischargeRange(m.dischargeDate).start) exempt.add(m.id);
 
     // 동·진료실 희망: 있는 자리여야 하고, 진료실은 진료반만, 제외자는 무시
     const wantersByPost = new Map<number, number[]>(day.posts.filter((p) => p.pool !== "driver").map((p) => [p.id, []]));
     for (const m of members) {
       const r = day.responses.get(m.id);
-      if (r?.choice !== "want" || r.postId === null || day.excluded.has(m.id)) continue;
+      if (r?.choice !== "want" || r.postId === null || day.excluded.has(m.id) || exempt.has(m.id)) continue;
       const post = postById.get(r.postId);
       if (!post || post.pool === "driver") continue;
       if (post.pool === "clinic" && !m.clinic) continue;
@@ -90,7 +93,7 @@ export function planMonth(
     // 운전: 지정 → 운전 희망(정원 초과면 랜덤) → 남은 자리는 순번
     const designated = [...new Set(day.designated)].filter((id) => memberById.get(id)?.driver);
     const driveWanters = shuffle(
-      members.filter((m) => m.driver && day.driveWants.has(m.id) && !day.excluded.has(m.id) && !designated.includes(m.id)).map((m) => m.id),
+      members.filter((m) => m.driver && day.driveWants.has(m.id) && !day.excluded.has(m.id) && !exempt.has(m.id) && !designated.includes(m.id)).map((m) => m.id),
       rng,
     );
     const designatedQueue = [...designated];
@@ -119,9 +122,6 @@ export function planMonth(
       if (m) working[m.clinic ? "clinic" : "general"].push(id);
     }
 
-    // 전역 면제: 전역일 1개월 전부터(전역일이 지난 뒤 포함) 순번에서 완전히 빠짐 — 면제 기록 또는 전역일로 판단
-    const exempt = new Set<number>(day.exempt ?? []);
-    for (const m of members) if (m.dischargeDate && day.date >= dischargeRange(m.dischargeDate).start) exempt.add(m.id);
     for (const id of exempt) for (const pool of ["general", "clinic", "driver"] as RotPool[]) passed[pool].push(id);
 
     // 출근 불가 사유 (운전 지정자는 출근하므로, 전역 면제자는 순번에서 빠지므로 제외 목록에서 뺌)

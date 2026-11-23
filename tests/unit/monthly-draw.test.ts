@@ -98,4 +98,10 @@ assert.strictEqual(p.rotation.general.skips.length, 0);
 // 반대로 휴가로 제외된 사람은 지금처럼 건너뛰고 빚
 p = planMonth([day("2026-12-05", { excluded: new Set([1]) })], members, fresh, rng);
 assert.deepStrictEqual(p.rotation.general.skips.map((x) => x.memberId), [1]);
+
+// 10) 전역일이 지난 뒤 날짜: 희망을 눌러 둬도 확정되지 않고, 순번에도 안 걸림
+const gone: MMember[] = members.map((m) => (m.id === 1 ? { ...m, dischargeDate: "2026-12-10" } : m));
+p = planMonth([day("2026-12-12", { responses: new Map([[1, { choice: "want" as const, postId: 200 }]]) })], gone, fresh, rng);
+assert.ok(!p.days[0].wanted.some((w) => w.memberId === 1), "전역한 사람의 희망이 확정됨");
+assert.ok(!picks(p, "2026-12-12", "general").includes(1), "전역한 사람이 순번에 뽑힘");
 console.log("ALL OK");
