@@ -15,7 +15,7 @@ export async function monthlyDrawAction(formData: FormData) {
   let kind: "msg" | "error" = "msg";
   let text: string;
   try {
-    const r = await executeMonthlyDraw(month, me.id, formData.get("force") === "1"); // force = 투표 마감 전 차출
+    const r = await executeMonthlyDraw(month, me.id);
     if (r.status === "not-ready") {
       kind = "error";
       text = r.reason;

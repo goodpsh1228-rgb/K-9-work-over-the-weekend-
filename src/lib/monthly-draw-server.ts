@@ -12,7 +12,7 @@ import { computeDutyDays } from "@/lib/duty-days";
 import { getOverrides } from "@/lib/duty-days-server";
 import { getDriverIds, getDriveWants, getDriverIdsOn } from "@/lib/drivers";
 import { votingStatus } from "@/lib/voting";
-import { addDays } from "@/lib/kst";
+import { addDays, todayKST } from "@/lib/kst";
 import { writeAudit } from "@/lib/audit";
 import { planMonth, type MDayInput, type MMember, type PoolState, type RotPool } from "@/lib/monthly-draw";
 import { rotationBoard, type RotLogRow } from "@/lib/rotation";
@@ -99,17 +99,17 @@ export type MonthlyResult =
   | { status: "already" }
   | { status: "not-ready"; reason: string };
 
-// force = true: 투표 마감 전이라도 관리자가 지금 차출 (그 뒤에는 그 달 근무일의 투표가 마감 처리됨)
-export async function executeMonthlyDraw(month: string, actorId: number, force = false): Promise<MonthlyResult> {
+export async function executeMonthlyDraw(month: string, actorId: number): Promise<MonthlyResult> {
   if (!isValidMonth(month)) return { status: "not-ready", reason: "잘못된 달입니다." };
   const st = await getMonthStatus(month);
   if (st.days.length === 0) return { status: "not-ready", reason: "그 달에는 근무일이 없습니다." };
   if (st.executedAt) return { status: "already" };
-  if (st.stillVoting.length > 0 && !force) {
+  if (st.stillVoting.length > 0) {
     return { status: "not-ready", reason: `아직 투표 중인 근무일이 있습니다. (${st.stillVoting.length}일 · 마감 후에 차출할 수 있습니다)` };
   }
-  const targets = st.undrawn; // 예전 방식으로 이미 추첨된 날은 건드리지 않음
-  if (targets.length === 0) return { status: "not-ready", reason: "차출할 날이 없습니다. (모두 추첨 완료)" };
+  // 예전 방식으로 이미 추첨된 날과, 이미 지나간 날(오늘 이전)은 순번을 쓰지 않도록 건드리지 않음
+  const targets = st.undrawn.filter((d) => d >= todayKST());
+  if (targets.length === 0) return { status: "not-ready", reason: "차출할 날이 없습니다. (모두 추첨 완료되었거나 이미 지난 날입니다)" };
 
   const db = getSupabaseAdmin();
   const [members, state, { data: resp }] = await Promise.all([
@@ -183,7 +183,7 @@ export async function executeMonthlyDraw(month: string, actorId: number, force =
 
   const picked = plan.days.reduce((s, d) => s + d.picks.length, 0);
   const unassignedDong = plan.days.reduce((s, d) => s + d.picks.filter((p) => p.postId === null).length, 0);
-  await writeAudit({ actorId, action: "draw.monthly", details: { month, days: plan.days.length, picked, shortage, early: force && st.stillVoting.length > 0 } });
+  await writeAudit({ actorId, action: "draw.monthly", details: { month, days: plan.days.length, picked, shortage } });
   return { status: "done", days: plan.days.length, picked, unassignedDong, shortage };
 }
 
