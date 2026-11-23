@@ -55,9 +55,6 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
 
       <section className="mt-3 space-y-1 rounded-[18px] border border-hairline bg-card p-4 text-sm">
         <p>근무일 <b>{st.days.length}일</b> · 추첨 완료 {st.drawn.length}일 · 추첨 전 {st.undrawn.length}일</p>
-        {st.undrawn.some((d) => d < todayKST()) && (
-          <p className="text-muted">이미 지난 날 {st.undrawn.filter((d) => d < todayKST()).length}일은 차출 대상에서 제외됩니다.</p>
-        )}
         {st.stillVoting.length > 0 ? (
           <p className="text-orange-700">
             아직 투표 중이거나 열리기 전인 근무일이 {st.stillVoting.length}일 있습니다. ({formatShort(st.stillVoting[0])} …) 투표가 마감되면 차출할 수 있습니다.
@@ -67,12 +64,6 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
         ) : null}
         {st.executedAt && <p className="text-muted">이미 차출했습니다. ({st.executedAt.slice(0, 16).replace("T", " ")} UTC)</p>}
       </section>
-
-      {st.days.length > 0 && (
-        <Link href={`/admin/draw/preview?month=${month}`} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-full border border-blue-600 px-[22px] text-base font-semibold text-link">
-          차출 미리보기 (저장 안 됨)
-        </Link>
-      )}
 
       {canRun && (
         <section className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-4">
