@@ -13,7 +13,7 @@ import { updateMyCohortAction, updateMyRankAction } from "./actions";
 import { effectiveSquad } from "@/lib/squads";
 import { Card, Notice } from "@/components/ui";
 import { CountdownCard } from "@/components/countdown-card";
-import { addDays, formatShort, kstMoment, mondayOf, todayKST } from "@/lib/kst";
+import { addDays, formatShort, kstMoment, todayKST } from "@/lib/kst";
 import { getMyStates, type MyState } from "@/lib/day-board";
 import { STATUS_LABEL, votingStatus, votingWindow } from "@/lib/voting";
 import { getFridayChecker } from "@/lib/duty-days-server";
@@ -103,7 +103,7 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
     countdown =
       myStatus(nextOpen.date) === "open"
         ? {
-            title: "이번 주 투표 마감까지",
+            title: "이번 달 투표 마감까지",
             target: win.closesAt,
             sub: `${formatShort(win.closeDate)} 21:00 마감 · ${cover}`,
           }
@@ -119,11 +119,13 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
               sub: `${formatShort(win.openDate)} 00:00 시작 · ${cover}`,
             };
   } else {
-    const monday = addDays(mondayOf(todayKST()), 7);
+    // 다음 달 1일 00:00 에 다음 투표가 열림 (매월 1일 ~ 처음 돌아오는 금요일 21:00)
+    const [ty, tm] = todayKST().split("-").map(Number);
+    const nextFirst = tm === 12 ? `${ty + 1}-01-01` : `${ty}-${String(tm + 1).padStart(2, "0")}-01`;
     countdown = {
       title: "다음 투표 시작까지",
-      target: kstMoment(monday, 0),
-      sub: `${formatShort(monday)} 00:00 시작`,
+      target: kstMoment(nextFirst, 0),
+      sub: `${formatShort(nextFirst)} 00:00 시작 · 다음 달 근무일 전체`,
     };
   }
 
@@ -165,8 +167,6 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
               휴가 계산기
             </Link>
             에서 입대일을 입력하면 계급이 매월 1일 자동으로 진급됩니다.
-            {me.rank === null &&
-              " (계급이 없으면 화요일부터만 투표할 수 있습니다)"}
           </Notice>
         </div>
       )}

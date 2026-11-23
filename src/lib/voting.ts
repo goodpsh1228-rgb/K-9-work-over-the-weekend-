@@ -1,34 +1,51 @@
 // ─────────────────────────────────────────────────────────────
-// 주간 투표 일정 계산 (순수 계산)
+// 월 투표 일정 계산 (순수 계산) — 2026-11-23 순번제 전환
 //
-// 투표는 매주 한 번 열립니다. (한국 시간 기준)
-//   · 기본       : 월 00:00 ~ 수 21:00
-//                  대상 근무일 = 그 주 토·일 + 다음 주 월~목의 공휴일(근무일)
-//   · 그 주 금요일이 공휴일(근무일)이면
-//                : 월 00:00 ~ 화 21:00
-//                  대상 근무일 = 그 주 금·토·일 + 다음 주 월~목의 공휴일(근무일)
-//   → 근무일 하나는 정확히 한 주의 투표에 속합니다.
-//     (그 주 금요일 ~ 다음 주 목요일 = 월요일로부터 4~10일 뒤)
-//
-// 계급별 시작 시각
-//   · 상병·병장         : 월요일 00:00부터
-//   · 일병·이병(·미지정) : 화요일 00:00부터
+// 투표는 매달 한 번, 다음 달 한 달치를 미리 받습니다. (한국 시간 기준)
+//   · 열림 : 매월 1일 00:00
+//   · 마감 : 1일 뒤 처음 돌아오는 금요일 21:00
+//            (1일이 금요일이면 그날이 아니라 다음 주 금요일)
+//   · 대상 : 다음 달의 모든 근무일
+//   예) 2026-12 근무일 → 11/1(일) 00:00 ~ 11/6(금) 21:00
+//       2027-02 근무일 → 2027-01-01(금) 00:00 ~ 2027-01-08(금) 21:00
+//   → 계급과 상관없이 모두 같은 시각에 열립니다.
 // ─────────────────────────────────────────────────────────────
-import { addDays, kstMoment, mondayOf } from "./kst";
+import { addDays, kstMoment, mondayOf, weekday } from "./kst";
 
 export type Rank = "이병" | "일병" | "상병" | "병장";
 export const RANKS: Rank[] = ["이병", "일병", "상병", "병장"];
 export const SENIOR_RANKS: Rank[] = ["상병", "병장"];
 export const CLOSE_HOUR = 21;
+const FRIDAY = 5;
+
+// 근무일이 속한 달의 "앞 달 1일" = 그 근무일을 투표하는 달 ('YYYY-MM-01')
+export function voteMonthStart(dutyDate: string): string {
+  const [y, m] = dutyDate.split("-").map(Number);
+  const py = m === 1 ? y - 1 : y;
+  const pm = m === 1 ? 12 : m - 1;
+  return `${py}-${String(pm).padStart(2, "0")}-01`;
+}
+
+// 1일 뒤 처음 돌아오는 금요일 (1일이 금요일이면 7일 뒤)
+export function firstFridayAfter(firstOfMonth: string): string {
+  const delta = (FRIDAY - weekday(firstOfMonth) + 7) % 7 || 7;
+  return addDays(firstOfMonth, delta);
+}
+
+// 그 근무일이 속한 달의 첫날과 마지막날 (대상 근무일 범위 표시용)
+function monthRange(dutyDate: string): { from: string; to: string } {
+  const [y, m] = dutyDate.split("-").map(Number);
+  const from = `${y}-${String(m).padStart(2, "0")}-01`;
+  const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  return { from, to: addDays(next, -1) };
+}
 
 export type VotingStatus = "before" | "open" | "closed"; // 열리기 전 / 투표 중 / 마감
 
-// 근무일이 속한 투표 주의 월요일: (근무일 - 4일)이 속한 주의 월요일
+// (예전 주간 투표용 — 근무일이 속한 투표 주의 월요일/금요일. 근무일 목록 계산 등 일부가 아직 사용)
 export function voteMonday(dutyDate: string): string {
   return mondayOf(addDays(dutyDate, -4));
 }
-
-// 그 투표 주의 금요일 (이 날이 근무일이면 마감이 하루 당겨짐)
 export function voteFriday(dutyDate: string): string {
   return addDays(voteMonday(dutyDate), 4);
 }
@@ -42,21 +59,23 @@ export const VOTING_OVERRIDES: Record<string, { seniorFrom: string; juniorFrom: 
   "2026-10-25": { seniorFrom: "2026-10-21", juniorFrom: "2026-10-22", closeDate: "2026-10-22" },
 };
 
-// fridayIsDuty: 그 주 금요일이 근무일(공휴일 등)인지 — 데이터베이스 설정을 봐야 해서 밖에서 넣어 줌
-export function votingWindow(dutyDate: string, fridayIsDuty: boolean) {
-  const monday = voteMonday(dutyDate);
+// fridayIsDuty 는 예전 주간 투표 때 쓰던 값이라 이제 영향이 없습니다 (호출하는 쪽 호환용)
+export function votingWindow(dutyDate: string, _fridayIsDuty: boolean = false) {
   const ov = VOTING_OVERRIDES[dutyDate];
-  const closeDate = ov ? ov.closeDate : addDays(monday, fridayIsDuty ? 1 : 2); // 화 또는 수 (연장 시 그 날)
+  const start = voteMonthStart(dutyDate);
+  const openDate = ov ? ov.seniorFrom : start;
+  const closeDate = ov ? ov.closeDate : firstFridayAfter(start);
+  const cover = monthRange(dutyDate);
   return {
-    monday,
-    openDate: ov ? ov.seniorFrom : monday, // 투표가 처음 열리는 날 (화면 표시용)
-    juniorDate: ov ? ov.juniorFrom : addDays(monday, 1), // 일병·이병 시작일 (화면 표시용)
-    seniorOpensAt: kstMoment(ov ? ov.seniorFrom : monday, 0), // 월 00:00 (상병·병장)
-    juniorOpensAt: kstMoment(ov ? ov.juniorFrom : addDays(monday, 1), 0), // 화 00:00 (일병·이병)
-    closesAt: kstMoment(closeDate, CLOSE_HOUR), // 화 또는 수 21:00
+    monday: start, // (예전 이름 유지) 투표가 시작되는 달의 1일
+    openDate, // 투표가 처음 열리는 날 (화면 표시용)
+    juniorDate: ov ? ov.juniorFrom : openDate, // 일병·이병 시작일 — 월 투표에서는 모두 같음 (연장 예외만 다름)
+    seniorOpensAt: kstMoment(openDate, 0),
+    juniorOpensAt: kstMoment(ov ? ov.juniorFrom : openDate, 0),
+    closesAt: kstMoment(closeDate, CLOSE_HOUR),
     closeDate,
-    coverFrom: fridayIsDuty ? addDays(monday, 4) : addDays(monday, 5), // 대상 근무일 범위 (금 또는 토 ~ 다음 주 목)
-    coverTo: addDays(monday, 10),
+    coverFrom: cover.from, // 대상 근무일 범위 = 근무일이 속한 달 전체
+    coverTo: cover.to,
   };
 }
 

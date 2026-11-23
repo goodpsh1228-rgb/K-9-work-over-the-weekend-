@@ -1,60 +1,63 @@
 import assert from "node:assert";
-import { votingStatus, votingWindow, voteMonday } from "../../src/lib/voting";
-import { mondayOf } from "../../src/lib/kst";
+import { votingStatus, votingWindow, voteMonthStart, firstFridayAfter } from "../../src/lib/voting";
 const at = (kst: string) => new Date(kst + "+09:00");
+const s = (d: string, t: string, rank?: string | null) => votingStatus(d, false, at(t), rank);
 
-assert.strictEqual(mondayOf("2026-09-29"), "2026-09-28"); // 화 → 월
-assert.strictEqual(mondayOf("2026-10-04"), "2026-09-28"); // 일 → 같은 주 월
-assert.strictEqual(mondayOf("2026-10-05"), "2026-10-05"); // 월 → 그대로
+// 근무일은 "앞 달"에 투표 (해 넘김 포함)
+assert.strictEqual(voteMonthStart("2026-12-05"), "2026-11-01");
+assert.strictEqual(voteMonthStart("2027-01-03"), "2026-12-01");
 
-// 어떤 근무일이 어느 주 투표에 속하는지 (그 주 금 ~ 다음 주 목)
-const M = "2026-09-28";
-for (const d of ["2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-08"]) assert.strictEqual(voteMonday(d), M, d);
-assert.strictEqual(voteMonday("2026-10-01"), "2026-09-21"); // 이번 주 목요일 → 앞 주 투표
-assert.strictEqual(voteMonday("2026-10-09"), "2026-10-05"); // 다음 주 금요일 → 다음 주 투표
+// 1일 뒤 처음 돌아오는 금요일, 1일이 금요일이면 다음 주 금요일
+assert.strictEqual(firstFridayAfter("2026-11-01"), "2026-11-06"); // 일 → 같은 주 금
+assert.strictEqual(firstFridayAfter("2026-12-01"), "2026-12-04"); // 화
+assert.strictEqual(firstFridayAfter("2026-10-01"), "2026-10-02"); // 목
+assert.strictEqual(firstFridayAfter("2027-01-01"), "2027-01-08"); // 금 → 다음 주 금
+assert.strictEqual(firstFridayAfter("2026-05-01"), "2026-05-08"); // 금(2026-05-01 은 금요일)
+assert.strictEqual(firstFridayAfter("2026-08-01"), "2026-08-07"); // 토 → 다음 금
+assert.strictEqual(firstFridayAfter("2026-06-01"), "2026-06-05"); // 월
 
-// 기본: 월 00:00 ~ 수 21:00
-let w = votingWindow("2026-10-03", false);
-assert.strictEqual(w.closeDate, "2026-09-30"); assert.strictEqual(w.coverFrom, "2026-10-03"); assert.strictEqual(w.coverTo, "2026-10-08");
-const s = (d: string, fri: boolean, t: string, rank?: string | null) => votingStatus(d, fri, at(t), rank);
-assert.strictEqual(s("2026-10-03", false, "2026-09-27T23:59:59"), "before");
-assert.strictEqual(s("2026-10-03", false, "2026-09-28T00:00:00", "병장"), "open");
-assert.strictEqual(s("2026-10-03", false, "2026-09-28T00:00:00", "상병"), "open");
-assert.strictEqual(s("2026-10-03", false, "2026-09-28T12:00:00", "일병"), "before"); // 월요일엔 일병 불가
-assert.strictEqual(s("2026-10-03", false, "2026-09-28T23:59:59", "이병"), "before");
-assert.strictEqual(s("2026-10-03", false, "2026-09-28T23:59:59", null), "before"); // 계급 미지정 = 화요일부터
-assert.strictEqual(s("2026-10-03", false, "2026-09-29T00:00:00", "이병"), "open");
-assert.strictEqual(s("2026-10-03", false, "2026-09-30T20:59:59", "이병"), "open");
-assert.strictEqual(s("2026-10-03", false, "2026-09-30T21:00:00", "병장"), "closed");
-assert.strictEqual(s("2026-10-03", false, "2026-09-30T21:01:00"), "closed");
-// 서버 시계(UTC)로도 같은 결과: 한국 수 21:00 = UTC 수 12:00
-assert.strictEqual(votingStatus("2026-10-03", false, new Date("2026-09-30T11:59:59Z"), "이병"), "open");
-assert.strictEqual(votingStatus("2026-10-03", false, new Date("2026-09-30T12:00:00Z"), "이병"), "closed");
-// 한국 월 00:00 = UTC 일 15:00
-assert.strictEqual(votingStatus("2026-10-03", false, new Date("2026-09-27T14:59:59Z"), "병장"), "before");
-assert.strictEqual(votingStatus("2026-10-03", false, new Date("2026-09-27T15:00:00Z"), "병장"), "open");
+// 12월 근무일: 11/1 00:00 ~ 11/6 21:00, 대상 = 12월 전체
+let w = votingWindow("2026-12-12", false);
+assert.strictEqual(w.openDate, "2026-11-01");
+assert.strictEqual(w.closeDate, "2026-11-06");
+assert.strictEqual(w.coverFrom, "2026-12-01");
+assert.strictEqual(w.coverTo, "2026-12-31");
+// 같은 달 근무일은 모두 같은 일정
+assert.strictEqual(votingWindow("2026-12-01", false).closeDate, "2026-11-06");
+assert.strictEqual(votingWindow("2026-12-31", false).closeDate, "2026-11-06");
+// 1월 근무일은 12월에 투표 (해 넘김), 2월 근무일은 1/1(금) 시작 → 1/8 마감
+assert.strictEqual(votingWindow("2027-01-09", false).openDate, "2026-12-01");
+assert.strictEqual(votingWindow("2027-01-09", false).closeDate, "2026-12-04");
+w = votingWindow("2027-02-06", false);
+assert.strictEqual(w.openDate, "2027-01-01");
+assert.strictEqual(w.closeDate, "2027-01-08");
+assert.strictEqual(w.coverTo, "2027-02-28");
 
-// 금요일 공휴일(10/9 한글날): 10/5(월) 00:00 ~ 10/6(화) 21:00, 대상 10/9 금 ~ 10/15 목
-w = votingWindow("2026-10-09", true);
-assert.strictEqual(w.monday, "2026-10-05"); assert.strictEqual(w.closeDate, "2026-10-06"); assert.strictEqual(w.coverFrom, "2026-10-09");
-assert.strictEqual(votingWindow("2026-10-10", true).closeDate, "2026-10-06"); // 같은 주 토요일도 화요일 마감
-assert.strictEqual(s("2026-10-10", true, "2026-10-06T20:59:59", "이병"), "open");
-assert.strictEqual(s("2026-10-10", true, "2026-10-06T21:00:00", "이병"), "closed");
-assert.strictEqual(s("2026-10-10", true, "2026-10-05T10:00:00", "일병"), "before"); // 화요일에만 일병 가능
-assert.strictEqual(s("2026-10-10", true, "2026-10-05T10:00:00", "상병"), "open");
-console.log("ALL OK");
+// 경계 시각 (한국 시간): 12월 근무일
+assert.strictEqual(s("2026-12-12", "2026-10-31T23:59:59"), "before");
+assert.strictEqual(s("2026-12-12", "2026-11-01T00:00:00"), "open");
+assert.strictEqual(s("2026-12-12", "2026-11-06T20:59:59"), "open");
+assert.strictEqual(s("2026-12-12", "2026-11-06T21:00:00"), "closed");
+// 계급과 상관없이 같은 시각에 열림
+for (const rank of ["병장", "상병", "일병", "이병", null]) {
+  assert.strictEqual(s("2026-12-12", "2026-11-01T00:00:00", rank), "open", String(rank));
+  assert.strictEqual(s("2026-12-12", "2026-10-31T23:59:59", rank), "before", String(rank));
+}
+// 서버 시계(UTC)로도 같은 결과: 한국 금 21:00 = UTC 금 12:00, 한국 1일 00:00 = UTC 전날 15:00
+assert.strictEqual(votingStatus("2026-12-12", false, new Date("2026-11-06T11:59:59Z")), "open");
+assert.strictEqual(votingStatus("2026-12-12", false, new Date("2026-11-06T12:00:00Z")), "closed");
+assert.strictEqual(votingStatus("2026-12-12", false, new Date("2026-10-31T14:59:59Z")), "before");
+assert.strictEqual(votingStatus("2026-12-12", false, new Date("2026-10-31T15:00:00Z")), "open");
+// 1일이 금요일: 1/1 00:00 열림, 1/1 21:00 에도 열려 있고 1/8 21:00 마감
+assert.strictEqual(s("2027-02-06", "2027-01-01T21:30:00"), "open");
+assert.strictEqual(s("2027-02-06", "2027-01-08T20:59:59"), "open");
+assert.strictEqual(s("2027-02-06", "2027-01-08T21:00:00"), "closed");
 
 // 특정 근무일 투표 연장 (VOTING_OVERRIDES): 10/24·10/25 — 10/21 상병·병장, 10/22 일병·이병, 10/22 21:00 마감
-{
-  const at = (s: string) => new Date(`${s}+09:00`);
-  for (const d of ["2026-10-24", "2026-10-25"]) {
-    assert.strictEqual(votingStatus(d, false, at("2026-10-21T12:00:00"), "병장"), "open");
-    assert.strictEqual(votingStatus(d, false, at("2026-10-21T21:30:00"), "상병"), "open"); // 원래 마감(수 21:00) 지나도 열림
-    assert.strictEqual(votingStatus(d, false, at("2026-10-21T21:30:00"), "일병"), "before"); // 일병·이병은 내일부터
-    assert.strictEqual(votingStatus(d, false, at("2026-10-22T00:00:00"), "이병"), "open");
-    assert.strictEqual(votingStatus(d, false, at("2026-10-22T20:59:59"), "일병"), "open");
-    assert.strictEqual(votingStatus(d, false, at("2026-10-22T21:00:00"), "병장"), "closed");
-  }
-  assert.strictEqual(votingStatus("2026-10-31", false, at("2026-10-26T12:00:00"), "병장"), "open"); // 다른 주는 기본 일정 그대로
-  console.log("✔ 10/24·25 투표 연장: 10/21 상병·병장, 10/22 일병·이병, 10/22 21:00 마감 / 다른 주는 기본");
+for (const d of ["2026-10-24", "2026-10-25"]) {
+  assert.strictEqual(s(d, "2026-10-21T12:00:00", "병장"), "open");
+  assert.strictEqual(s(d, "2026-10-21T21:30:00", "일병"), "before");
+  assert.strictEqual(s(d, "2026-10-22T00:00:00", "이병"), "open");
+  assert.strictEqual(s(d, "2026-10-22T21:00:00", "병장"), "closed");
 }
+console.log("ALL OK");
