@@ -35,6 +35,7 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
     }
   }
   const canRun = !st.executedAt && st.stillVoting.length === 0 && st.undrawn.length > 0;
+  const canRunEarly = !st.executedAt && st.stillVoting.length > 0 && st.undrawn.length > 0; // 투표 마감 전 관리자 차출
 
   return (
     <Page title="한 달 차출">
@@ -81,6 +82,27 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
               className="min-h-12 w-full rounded-full bg-red-600 px-[22px] text-base font-semibold text-white"
             >
               한 달 차출하기
+            </ConfirmButton>
+          </form>
+        </section>
+      )}
+
+      {canRunEarly && (
+        <section className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-4">
+          <p className="text-lg font-black">지금 바로 {month.replace("-", "년 ")}월 차출하기 (투표 마감 전)</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
+            <li>지금까지의 희망·미희망·휴가 입력을 기준으로 한 달치를 순번으로 채웁니다.</li>
+            <li>차출한 날은 투표가 바로 마감됩니다. 이후 투표·변경은 [명단 수정]으로 처리해야 합니다.</li>
+            <li>한 번만 실행되고 되돌릴 수 없습니다. 아직 투표하지 않은 사람은 미희망으로 보고 순번에 들어갑니다.</li>
+          </ul>
+          <form action={monthlyDrawAction} className="mt-3">
+            <input type="hidden" name="month" value={month} />
+            <input type="hidden" name="force" value="1" />
+            <ConfirmButton
+              message={`투표가 아직 끝나지 않았지만 ${month} 근무일 ${st.undrawn.length}일을 지금 차출합니다. 한 번만 실행되고 되돌릴 수 없으며, 이후에는 투표할 수 없게 됩니다. 진행할까요?`}
+              className="min-h-12 w-full rounded-full bg-red-600 px-[22px] text-base font-semibold text-white"
+            >
+              지금 차출하기
             </ConfirmButton>
           </form>
         </section>

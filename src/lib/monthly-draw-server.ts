@@ -99,12 +99,13 @@ export type MonthlyResult =
   | { status: "already" }
   | { status: "not-ready"; reason: string };
 
-export async function executeMonthlyDraw(month: string, actorId: number): Promise<MonthlyResult> {
+// force = true: 투표 마감 전이라도 관리자가 지금 차출 (그 뒤에는 그 달 근무일의 투표가 마감 처리됨)
+export async function executeMonthlyDraw(month: string, actorId: number, force = false): Promise<MonthlyResult> {
   if (!isValidMonth(month)) return { status: "not-ready", reason: "잘못된 달입니다." };
   const st = await getMonthStatus(month);
   if (st.days.length === 0) return { status: "not-ready", reason: "그 달에는 근무일이 없습니다." };
   if (st.executedAt) return { status: "already" };
-  if (st.stillVoting.length > 0) {
+  if (st.stillVoting.length > 0 && !force) {
     return { status: "not-ready", reason: `아직 투표 중인 근무일이 있습니다. (${st.stillVoting.length}일 · 마감 후에 차출할 수 있습니다)` };
   }
   const targets = st.undrawn; // 예전 방식으로 이미 추첨된 날은 건드리지 않음
@@ -182,7 +183,7 @@ export async function executeMonthlyDraw(month: string, actorId: number): Promis
 
   const picked = plan.days.reduce((s, d) => s + d.picks.length, 0);
   const unassignedDong = plan.days.reduce((s, d) => s + d.picks.filter((p) => p.postId === null).length, 0);
-  await writeAudit({ actorId, action: "draw.monthly", details: { month, days: plan.days.length, picked, shortage } });
+  await writeAudit({ actorId, action: "draw.monthly", details: { month, days: plan.days.length, picked, shortage, early: force && st.stillVoting.length > 0 } });
   return { status: "done", days: plan.days.length, picked, unassignedDong, shortage };
 }
 
@@ -211,11 +212,12 @@ export async function getUnassignedPicks(date: string) {
 // 관리자 안내용
 // ─────────────────────────────────────────────────────────────
 
-// 투표가 모두 마감됐는데 아직 한 달 차출을 하지 않은 달 (이번 달 ~ 2달 뒤까지 확인)
+// 투표가 모두 마감됐는데 아직 한 달 차출을 하지 않은 달 (다음 달 ~ 3달 뒤까지 확인)
 export async function getPendingMonths(today: string, now: Date = new Date()): Promise<string[]> {
   const out: string[] = [];
   const [y, m] = today.slice(0, 7).split("-").map(Number);
-  for (let i = 0; i < 3; i++) {
+  // 다음 달부터 확인: 이번 달 근무일은 예전 주간 투표로 이미 운영됐으므로 한 달 차출 대상으로 안내하지 않음
+  for (let i = 1; i <= 3; i++) {
     const t = y * 12 + (m - 1) + i;
     const month = `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
     const st = await getMonthStatus(month, now);
