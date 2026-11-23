@@ -88,7 +88,7 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
       )}
 
       {canRun && (
-        <section className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-4">
+        <section className="mt-3 rounded-[18px] border border-red-300 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30">
           <p className="text-lg font-black">{month.replace("-", "년 ")}월 {st.executedAt ? "추가 차출하기" : "차출하기"}</p>
           {st.executedAt && <p className="mt-1 text-sm text-orange-700">이미 차출한 달이지만, 그 뒤에 추가된 근무일 {futureUndrawn.length}일이 아직 차출되지 않았습니다. 그 날만 차출합니다.</p>}
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">

@@ -125,7 +125,7 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
 
       {/* 순번으로 뽑혔지만 동이 아직 없는 사람: 동 배정 */}
       {unassigned.length > 0 && (
-        <section className="mt-3 rounded-[18px] border-2 border-orange-400 bg-card p-3">
+        <section className="mt-3 rounded-[18px] border border-orange-300 bg-orange-50 p-3 dark:border-orange-900 dark:bg-orange-950/30">
           <p className="text-sm font-semibold">동 배정 필요 ({unassigned.length}명) — 순번으로 뽑힌 사람</p>
           <ul className="mt-2 divide-y divide-hairline">
             {unassigned.map((u) => (
