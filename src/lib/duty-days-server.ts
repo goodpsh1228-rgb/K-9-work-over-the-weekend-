@@ -6,7 +6,7 @@ import "server-only";
 import { cache } from "react";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { computeDays, computeDutyDays, VIEW_DAYS, type Override } from "@/lib/duty-days";
-import { addDays, mondayOf, todayKST } from "@/lib/kst";
+import { addDays, todayKST } from "@/lib/kst";
 import { voteFriday, votingStatus, votingWindow } from "@/lib/voting";
 
 // 화면에 보여 줄 기간 (오늘 ~ 60일 뒤, 한국 날짜 기준)
@@ -15,10 +15,14 @@ export function viewRange() {
   return { from, to: addDays(from, VIEW_DAYS) };
 }
 
-// 홈 화면 "다가오는 근무일" 기간: 오늘 ~ 다음 주 일요일 (이번 주·다음 주 투표 대상이 모두 들어감)
+// 홈 화면 "다가오는 근무일" 기간: 오늘 ~ 다음 달 마지막 날 (한국 날짜)
+//   월 투표(순번제)는 다음 달 한 달치를 미리 받으므로, 이번 달 남은 날 + 다음 달 전체가 보여야 합니다.
 export function homeRange() {
   const from = todayKST();
-  return { from, to: addDays(mondayOf(from), 13) };
+  const [y, m] = from.slice(0, 7).split("-").map(Number);
+  const t = y * 12 + (m - 1) + 2; // 다다음 달 1일의 전날 = 다음 달 마지막 날
+  const afterNext = `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}-01`;
+  return { from, to: addDays(afterNext, -1) };
 }
 
 // 근무일 수동 설정 전체 (몇십 줄 수준이라 통째로 읽음).
