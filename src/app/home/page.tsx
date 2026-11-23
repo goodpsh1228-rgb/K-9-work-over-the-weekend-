@@ -19,6 +19,7 @@ import { STATUS_LABEL, votingStatus, votingWindow } from "@/lib/voting";
 import { getFridayChecker } from "@/lib/duty-days-server";
 import { runVisitTasksSafely } from "@/lib/draw-server";
 import { getPendingMonths, getRosterConflicts, type RosterConflict } from "@/lib/monthly-draw-server";
+import { isLegacyDrawDate } from "@/lib/legacy-draw-server";
 import { getLineup } from "@/lib/lineup";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 
@@ -61,6 +62,10 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
   const todayLineup = await getLineup(lineupDate); // 내일 라인업 요약 (출근·불참 인원 수, 1차탑승)
   const todayAbsent = new Set(todayLineup.absent.map((a) => a.id)).size;
   // 투표가 마감됐는데 아직 차출하지 않은 근무일 (관리자에게 안내)
+  // 이번 달(예전 랜덤 방식) 근무일 중 투표가 마감됐는데 아직 차출하지 않은 날
+  const pendingLegacy = days
+    .filter((d) => isLegacyDrawDate(d.date) && d.date >= todayKST() && !(drawRows ?? []).some((r) => r.duty_date === d.date) && votingStatus(d.date, fridayIsDuty(d.date), now) === "closed")
+    .map((d) => d.date);
   // 관리자 안내: 투표가 모두 마감됐지만 아직 한 달 차출을 하지 않은 달 / 확정 뒤 출근 불가가 된 사람
   const [pendingMonths, conflicts] = me.is_admin
     ? await Promise.all([getPendingMonths(todayKST(), now).catch(() => [] as string[]), getRosterConflicts(todayKST()).catch(() => [] as RosterConflict[])])
@@ -186,6 +191,19 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
       )}
 
       {/* 관리자: 투표가 마감됐는데 아직 차출하지 않은 날 → 차출하기 안내 (추첨은 자동으로 하지 않음) */}
+      {me.is_admin && pendingLegacy.length > 0 && (
+        <div className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-3">
+          <p className="text-sm font-black text-red-600">주말출근 차출 대기 {pendingLegacy.length}일 (이번 달 · 랜덤 방식)</p>
+          <p className="mt-0.5 text-xs text-muted">투표가 마감됐습니다. 날짜를 눌러 [주말출근 차출하기]를 실행해 주세요.</p>
+          <p className="mt-2 flex flex-wrap gap-2">
+            {pendingLegacy.map((d) => (
+              <Link key={d} href={`/day/${d}`} className="rounded-full bg-red-600 px-3 py-1 text-sm font-semibold text-white">
+                {formatShort(d)} 차출하기 ›
+              </Link>
+            ))}
+          </p>
+        </div>
+      )}
       {me.is_admin && pendingMonths.length > 0 && (
         <div className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-3">
           <p className="text-sm font-black text-red-600">한 달 차출 대기 {pendingMonths.length}달</p>
