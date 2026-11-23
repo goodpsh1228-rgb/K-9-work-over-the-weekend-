@@ -1,14 +1,12 @@
 // ─────────────────────────────────────────────────────────────
 // 근무일 화면 (/day/2026-10-10 같은 주소)
-//   1) 맨 위 주황색: 아직 응답하지 않은 사람
-//   2) 투표 기간 안내 + 내 투표 (희망할 동 선택 / 이날은 어려워요 / 취소)
-//   3) 자리(진료실·각 동)별 희망 인원 / 정원 과 희망자 이름
-//   4) 미희망·제외 인원
+//   1) 투표 기간 안내 + 내 투표 (희망할 동 선택 / 이날은 어려워요 / 취소)
+//   2) 자리(진료실·각 동)별 희망 인원 / 정원 과 희망자 이름
+//   3) 미희망·제외 인원
 //   추첨이 끝난 날은 맨 위에 "확정 명단"이 나옵니다 (희망 확정 / 차출 / 관리자 수정 꼬리표).
 //   관리자: 마감 후 "지금 추첨" 버튼, 투표 중에는 "추첨 미리보기"(저장 안 됨)
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { requireMember } from "@/lib/session";
 import { addDays, dateRange, formatLong, formatShort, isValidDate } from "@/lib/kst";
@@ -59,7 +57,6 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   const workPosts = board.posts.filter((p) => p.pool === "general" || p.pool === "clinic");
   const drawWanted = workPosts.reduce((s, p) => s + Math.min(p.required, p.wanters.length), 0);
   const drawNeed = workPosts.reduce((s, p) => s + p.required, 0) - drawWanted;
-  const excusedIdSet = new Set(board.excluded.filter((m) => board.nonVoters.some((n) => n.id === m.id)).map((m) => m.id)); // 미참여 중 스크리닝으로 빠진 사람
   const screenPool = [...board.unanswered.map((m) => ({ ...m, declined: false })), ...board.declines.map((m) => ({ ...m, declined: true }))];
 
   // 추첨 결과 (있으면)
@@ -75,16 +72,6 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
     .filter((r) => r.memberId === me.id)
     .map((r) => board.posts.find((p) => p.id === r.postId)?.name ?? "?");
   const myAssignment = myPostNames.length > 0;
-
-  // 미응답자 독촉 문구 (예: [10/3(토) 출근 투표 미응답 3명] … 9/30(수) 21:00 마감 + 바로가기 주소)
-  const h = await headers();
-  const siteUrl = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host") ?? ""}`;
-  const reminderText = [
-    `[${formatShort(date)} 출근 투표 미응답 ${board.unanswered.length}명]`,
-    board.unanswered.map((m) => m.name).join(", "),
-    `투표 마감: ${formatShort(win.closeDate)} 21:00`,
-    `${siteUrl}/day/${date}`,
-  ].join("\n");
 
   // 관리자가 이 날만 뺀 사람(관리자 제외) 목록
   const excusedRows = (
@@ -190,58 +177,6 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           </p>
         </section>
       )}
-
-      {/* 1-0) 추첨 뒤: 투표 미참여자 (마감 때까지 응답하지 않은 사람) — 접어 둠 */}
-      {draw && board.nonVoters.length > 0 && (
-        <details className="mb-4 rounded-[11px] border border-orange-300 bg-orange-50 p-3 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100">
-          <summary className="cursor-pointer font-semibold">투표 미참여 {board.nonVoters.length}명 ▾</summary>
-          <p className="mt-1 text-sm leading-6">
-            {board.nonVoters.map((m) => `${m.name}${excusedIdSet.has(m.id) ? "(추첨 제외)" : ""}`).join(", ")}
-          </p>
-          <p className="mt-1 text-xs opacity-80">마감까지 희망·미희망을 누르지 않은 사람입니다. (추첨 제외) = 관리자가 스크리닝에서 뺀 사람</p>
-        </details>
-      )}
-
-      {/* 1) 미응답자 — 최상단 주황색 (추첨 전까지) */}
-      {!draw && board.unanswered.length > 0 && (
-        <section className="mb-4 rounded-[11px] border border-orange-300 bg-orange-50 p-3 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100">
-          <p className="font-semibold">아직 응답하지 않은 사람 ({board.unanswered.length}명)</p>
-          <p className="mt-1 text-sm leading-6">{board.unanswered.map((m) => m.name).join(", ")}</p>
-          {excusedIdSet.size > 0 && (
-            <p className="mt-1 text-xs opacity-80">
-              응답 없이 관리자가 이 날 추첨에서 뺀 사람: {board.nonVoters.filter((m) => excusedIdSet.has(m.id)).map((m) => m.name).join(", ")}
-            </p>
-          )}
-          {/* 단톡방에 붙여넣을 독촉 문구 (투표 중일 때) */}
-          {overall === "open" && (
-            <div className="mt-2">
-              <CopyButton text={reminderText} label="미응답자 독촉 문구 복사" />
-            </div>
-          )}
-          {/* 관리자: 투표를 깜빡했지만 이 날 출근하지 않는 사람을 골라 이 날 추첨에서만 빼기 */}
-          {me.is_admin && (
-            <details className="mt-2 rounded-[18px] bg-white/70 dark:bg-black/20">
-              <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">관리자: 이 날 추첨에서 뺄 사람 고르기</summary>
-              <form action={excuseUnansweredAction} className="space-y-2 px-3 pb-3">
-                <input type="hidden" name="date" value={date} />
-                <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-                  {board.unanswered.map((m) => (
-                    <label key={m.id} className="flex items-center gap-1.5 text-sm">
-                      <input type="checkbox" name="ids" value={m.id} className="h-4 w-4" />
-                      {m.name}
-                    </label>
-                  ))}
-                </div>
-                <button type="submit" className="h-11 w-full rounded-full bg-orange-600 text-sm font-semibold text-white">
-                  선택한 사람 이 날 추첨에서 빼기
-                </button>
-                <p className="text-xs opacity-80">이 날 하루만 빠집니다. 아래 &quot;제외&quot; 목록에서 되돌릴 수 있습니다.</p>
-              </form>
-            </details>
-          )}
-        </section>
-      )}
-
 
       {/* 2) 투표 기간 + 내 투표 */}
       <section className="mt-3 rounded-[18px] border border-hairline bg-card p-4">

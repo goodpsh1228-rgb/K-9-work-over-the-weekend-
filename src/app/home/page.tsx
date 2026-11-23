@@ -138,20 +138,18 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
   }
 
   // 근무일을 달별로, 이어진 날끼리(토·일 등) 묶기
-  const months: { key: string; groups: (typeof days)[number][][]; deadline: string; todo: number }[] = [];
+  const months: { key: string; groups: (typeof days)[number][][]; deadline: string }[] = [];
   for (const d of days) {
     const key = d.date.slice(0, 7);
     let m = months.find((x) => x.key === key);
     if (!m) {
       const w = votingWindow(d.date, fridayIsDuty(d.date));
-      m = { key, groups: [], deadline: overall(d.date) === "closed" ? "투표 마감" : `${formatShort(w.closeDate)} 21:00 마감`, todo: 0 };
+      m = { key, groups: [], deadline: overall(d.date) === "closed" ? "투표 마감" : `${formatShort(w.closeDate)} 21:00 마감` };
       months.push(m);
     }
     const last = m.groups[m.groups.length - 1];
     if (last && addDays(last[last.length - 1].date, 1) === d.date) last.push(d);
     else m.groups.push([d]);
-    // 내가 아직 안 한 날: 투표 중이고(내 계급 기준), 추첨 전이고, 응답도 제외도 아닌 날
-    if (!drawn.has(d.date) && myStatus(d.date) === "open" && myState(d.date).kind === "none") m.todo++;
   }
 
   const renderRow = (d: (typeof days)[number]) => (
@@ -383,7 +381,6 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
                 <span className="text-lg font-black tracking-[-0.02em]">{Number(m.key.slice(5))}월</span>
                 <span className="text-xs text-muted">
                   {m.deadline}
-                  {m.todo > 0 && <b className="ml-1.5 text-orange-600">내 미응답 {m.todo}일</b>}
                 </span>
               </p>
               {/* 이어진 날(토·일, 금·토·일)은 한 카드에 묶어서 보여 줌. 눌러서 각 날짜로 들어감 */}
