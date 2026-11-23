@@ -137,6 +137,80 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
     };
   }
 
+  // 근무일을 달별로, 이어진 날끼리(토·일 등) 묶기
+  const months: { key: string; groups: (typeof days)[number][][]; deadline: string; todo: number }[] = [];
+  for (const d of days) {
+    const key = d.date.slice(0, 7);
+    let m = months.find((x) => x.key === key);
+    if (!m) {
+      const w = votingWindow(d.date, fridayIsDuty(d.date));
+      m = { key, groups: [], deadline: overall(d.date) === "closed" ? "투표 마감" : `${formatShort(w.closeDate)} 21:00 마감`, todo: 0 };
+      months.push(m);
+    }
+    const last = m.groups[m.groups.length - 1];
+    if (last && addDays(last[last.length - 1].date, 1) === d.date) last.push(d);
+    else m.groups.push([d]);
+    // 내가 아직 안 한 날: 투표 중이고(내 계급 기준), 추첨 전이고, 응답도 제외도 아닌 날
+    if (!drawn.has(d.date) && myStatus(d.date) === "open" && myState(d.date).kind === "none") m.todo++;
+  }
+
+  const renderRow = (d: (typeof days)[number]) => (
+    <li key={d.date}>
+      <Link
+        href={`/day/${d.date}`}
+        className="flex min-h-[68px] items-center justify-between gap-3 px-5 py-3"
+      >
+        <span className="min-w-0">
+          <span className="block text-base font-semibold tracking-[-0.02em]">
+            {formatShort(d.date)}
+          </span>
+          <span className="block truncate text-sm text-muted">
+            {d.label}
+          </span>
+        </span>
+        <span className="flex shrink-0 flex-col items-end gap-1">
+          {drawn.has(d.date) ? (
+            <>
+              {myPost.has(d.date) ? (
+                <Chip tone="solid">출근·{myPost.get(d.date)}</Chip>
+              ) : (
+                <Chip tone="gray">미출근</Chip>
+              )}
+              {me.is_admin &&
+                drawn.get(d.date)!.clinic_shortage +
+                  drawn.get(d.date)!.general_shortage >
+                  0 && (
+                  <Chip tone="red">
+                    부족{" "}
+                    {drawn.get(d.date)!.clinic_shortage +
+                      drawn.get(d.date)!.general_shortage}
+                  </Chip>
+                )}
+              <span className="text-xs text-muted">추첨 완료</span>
+            </>
+          ) : (
+            <>
+              <StateBadge
+                state={myState(d.date)}
+                status={myStatus(d.date)}
+              />
+              <span className="text-xs text-muted">
+                {overall(d.date) === "open" &&
+                myStatus(d.date) === "before"
+                  ? `${formatShort(votingWindow(d.date, fridayIsDuty(d.date)).juniorDate)}부터`
+                  : overall(d.date) === "closed"
+                    ? me.is_admin
+                      ? "마감 · 차출 대기"
+                      : "마감 · 추첨 대기"
+                    : STATUS_LABEL[overall(d.date)]}
+              </span>
+            </>
+          )}
+        </span>
+      </Link>
+    </li>
+  );
+
   return (
     <Page title={`${me.name} 님`}>
       {/* 내 구분: 계급(직접 바꿀 수 있음, 입대일이 있으면 매월 1일 자동 진급) + 역할 칩 */}
@@ -301,66 +375,28 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
           다음 주 일요일까지 근무일이 없습니다.
         </p>
       ) : (
-        <Card className="overflow-hidden">
-          <ul className="divide-y divide-hairline">
-            {days.map((d) => (
-              <li key={d.date}>
-                <Link
-                  href={`/day/${d.date}`}
-                  className="flex min-h-[68px] items-center justify-between gap-3 px-5 py-3"
-                >
-                  <span className="min-w-0">
-                    <span className="block text-base font-semibold tracking-[-0.02em]">
-                      {formatShort(d.date)}
-                    </span>
-                    <span className="block truncate text-sm text-muted">
-                      {d.label}
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 flex-col items-end gap-1">
-                    {drawn.has(d.date) ? (
-                      <>
-                        {myPost.has(d.date) ? (
-                          <Chip tone="solid">출근·{myPost.get(d.date)}</Chip>
-                        ) : (
-                          <Chip tone="gray">미출근</Chip>
-                        )}
-                        {me.is_admin &&
-                          drawn.get(d.date)!.clinic_shortage +
-                            drawn.get(d.date)!.general_shortage >
-                            0 && (
-                            <Chip tone="red">
-                              부족{" "}
-                              {drawn.get(d.date)!.clinic_shortage +
-                                drawn.get(d.date)!.general_shortage}
-                            </Chip>
-                          )}
-                        <span className="text-xs text-muted">추첨 완료</span>
-                      </>
-                    ) : (
-                      <>
-                        <StateBadge
-                          state={myState(d.date)}
-                          status={myStatus(d.date)}
-                        />
-                        <span className="text-xs text-muted">
-                          {overall(d.date) === "open" &&
-                          myStatus(d.date) === "before"
-                            ? `${formatShort(votingWindow(d.date, fridayIsDuty(d.date)).juniorDate)}부터`
-                            : overall(d.date) === "closed"
-                              ? me.is_admin
-                                ? "마감 · 차출 대기"
-                                : "마감 · 추첨 대기"
-                              : STATUS_LABEL[overall(d.date)]}
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Card>
+        <div className="space-y-5">
+          {months.map((m) => (
+            <div key={m.key}>
+              {/* 달 제목: 마감 시각과 내가 아직 안 한 날 수를 한 번만 보여 줌 */}
+              <p className="mb-2 flex items-baseline justify-between px-1">
+                <span className="text-lg font-black tracking-[-0.02em]">{Number(m.key.slice(5))}월</span>
+                <span className="text-xs text-muted">
+                  {m.deadline}
+                  {m.todo > 0 && <b className="ml-1.5 text-orange-600">내 미응답 {m.todo}일</b>}
+                </span>
+              </p>
+              {/* 이어진 날(토·일, 금·토·일)은 한 카드에 묶어서 보여 줌. 눌러서 각 날짜로 들어감 */}
+              <div className="space-y-2">
+                {m.groups.map((g) => (
+                  <Card key={g[0].date} className="overflow-hidden">
+                    <ul className="divide-y divide-hairline">{g.map((d) => renderRow(d))}</ul>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* ───── 2순위: 라인업 파일 확인 ───── */}
