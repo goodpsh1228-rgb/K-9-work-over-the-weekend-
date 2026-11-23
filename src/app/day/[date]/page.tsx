@@ -46,7 +46,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   const mine = myStateFrom(board, me.id);
   // 투표 상태: status = 내 계급 기준, overall = 투표 전체 기준(월요일 시작)
   const { status, overall, window: win, fridayIsDuty } = voteInfo;
-  const canVote = status === "open" && mine.kind !== "excluded";
+  const canVote = status === "open" && !draw && mine.kind !== "excluded"; // 차출이 끝난 날은 투표 불가
   // 희망할 수 있는 자리: 모든 동 + (진료반이면 진료실). 주말 운전은 운전병만, 아래 운전 버튼으로 따로
   const myPosts = board.posts.filter((p) => (p.pool === "general" || (p.pool === "clinic" && me.is_clinic)) && p.required > 0);
   const clinicPosts = board.posts.filter((p) => p.pool === "clinic");

@@ -52,17 +52,17 @@ assert.strictEqual(s("2027-02-06", "2027-01-01T21:30:00"), "open");
 assert.strictEqual(s("2027-02-06", "2027-01-08T20:59:59"), "open");
 assert.strictEqual(s("2027-02-06", "2027-01-08T21:00:00"), "closed");
 
-// 12월 근무일 전체: 이번만 11/23 00:00 ~ 12/26 21:00 (모든 계급 같은 시각)
+// 12월 근무일 전체: 이번만 11/23 00:00 ~ 11/27 21:00 (모든 계급 같은 시각)
 for (const d of ["2026-12-01", "2026-12-12", "2026-12-31"]) {
   for (const rank of ["병장", "일병", "이병", null]) {
     assert.strictEqual(s(d, "2026-11-22T23:59:59", rank), "before", d);
     assert.strictEqual(s(d, "2026-11-23T00:00:00", rank), "open", d);
-    assert.strictEqual(s(d, "2026-12-26T20:59:59", rank), "open", d);
-    assert.strictEqual(s(d, "2026-12-26T21:00:00", rank), "closed", d);
+    assert.strictEqual(s(d, "2026-11-27T20:59:59", rank), "open", d);
+    assert.strictEqual(s(d, "2026-11-27T21:00:00", rank), "closed", d);
   }
 }
 assert.strictEqual(votingWindow("2026-12-12", false).openDate, "2026-11-23");
-assert.strictEqual(votingWindow("2026-12-12", false).closeDate, "2026-12-26");
+assert.strictEqual(votingWindow("2026-12-12", false).closeDate, "2026-11-27");
 // 1월 근무일은 기본 월 일정 (12/1 ~ 12/4 21:00)
 assert.strictEqual(votingWindow("2027-01-09", false).closeDate, "2026-12-04");
 console.log("ALL OK");
