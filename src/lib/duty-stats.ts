@@ -8,7 +8,7 @@
 // ─────────────────────────────────────────────────────────────
 import { addDays } from "./kst";
 
-export type StatRow = { member_id: number; duty_date: string; source: "wanted" | "drafted" | "admin" | "rotation"; pool: string };
+export type StatRow = { member_id: number; duty_date: string; source: "wanted" | "drafted" | "admin"; pool: string };
 export type MemberStat = {
   days: number;
   wanted: number;
@@ -28,7 +28,7 @@ export function computeStats(rows: StatRow[], today: string): Map<number, Member
     out.set(r.member_id, s);
     if (r.pool === "driver") s.drive++;
     else if (r.pool === "escort") s.escort++;
-    else s[r.source === "rotation" ? "drafted" : r.source]++; // 순번 차출은 통계에서 "차출"로 셈
+    else s[r.source]++;
     // 출근일은 날짜당 한 번만 (선탑만 있는 날은 거의 없지만, 있어도 출근으로 셈)
     const seen = daysSeen.get(r.member_id) ?? new Set<string>();
     daysSeen.set(r.member_id, seen);

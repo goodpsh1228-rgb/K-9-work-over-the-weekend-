@@ -37,8 +37,6 @@ const LABELS: Record<string, string> = {
   "drive.add": "운전 지정",
   "drive.delete": "운전 지정 삭제",
   "draw.run": "추첨 실행",
-  "draw.monthly": "한 달 순번 차출",
-  "roster.assign_post": "순번 차출자 동 배정",
   "roster.add": "명단에 추가",
   "roster.escort_draw": "선탑 추첨",
   "roster.remove": "명단에서 삭제",
@@ -123,10 +121,6 @@ export function detailText(action: string, d: Record<string, unknown>): string {
       return `${s(d.name)} (${s(d.post)})`;
     case "roster.replace":
       return `${s(d.post)}: ${s(d.from)} → ${s(d.to)}${d.excluded ? " (휴가·부상 중)" : ""}`;
-    case "draw.monthly":
-      return `${s(d.month)} · ${s(d.days)}일 · 순번 ${s(d.picked)}명`;
-    case "roster.assign_post":
-      return `${s(d.name)} → ${s(d.post)}`;
     case "roster.redraw":
       return `${s(d.post)}: ${s(d.from)} → ${s(d.to)} (랜덤 · ${s(d.pool)} ${s(d.candidates)}명 중)`;
     default: {

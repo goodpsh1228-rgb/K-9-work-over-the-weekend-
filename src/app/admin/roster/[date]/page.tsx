@@ -1,8 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // 확정 명단 수정 화면 (/admin/roster/2026-10-03) — 관리자 전용
 //   자리별로 확정된 사람과 꼬리표를 보여 주고,
-//   순번으로 뽑혔지만 동이 없는 사람은 맨 위 "동 배정" 카드에서 동을 정해 줍니다.
-//   각 사람마다 [교체] [삭제], 자리마다 빈자리가 있으면 [추가]를 할 수 있습니다.
+//   각 사람마다 [다시 뽑기](동·진료실) [교체] [삭제], 자리마다 빈자리가 있으면 [추가]를 할 수 있습니다.
 //   후보 목록에서 휴가·부상 중인 사람은 "⚠ 휴가·부상"으로 표시되고, 고르면 경고 확인창이 뜹니다.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
@@ -18,14 +17,12 @@ import { ConfirmButton, WarnSelectForm } from "@/components/confirm-button";
 import { EscortDrawForm, escortWorkers } from "@/components/escort-draw-form";
 import { EscortAutoForm } from "@/components/escort-auto-form";
 import { getEscortPlan } from "@/lib/escort-server";
-import { getUnassignedPicks } from "@/lib/monthly-draw-server";
-import { addAssignmentAction, assignRotationPostAction, autoEscortAction, drawEscortAction, removeAssignmentAction, replaceAssignmentAction } from "./actions";
+import { addAssignmentAction, autoEscortAction, drawEscortAction, redrawOneAction, removeAssignmentAction, replaceAssignmentAction } from "./actions";
 
-const SOURCE_LABEL = { wanted: "희망 확정", drafted: "차출", rotation: "순번", admin: "관리자 수정" } as const;
+const SOURCE_LABEL = { wanted: "희망 확정", drafted: "차출", admin: "관리자 수정" } as const;
 const SOURCE_COLOR = {
   wanted: "bg-blue-100 text-blue-800",
   drafted: "bg-hairline/60 text-foreground/80",
-  rotation: "bg-orange-100 text-orange-800",
   admin: "bg-foreground text-background",
 } as const;
 const selectClass =
@@ -111,7 +108,6 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
   };
 
   // 선탑 대상자 후보 = 그날 동·진료실 출근자 (계급 높은 순 → 가나다)
-  const unassigned = await getUnassignedPicks(date);
   const escortPlan = await getEscortPlan(date);
   const workers = escortWorkers(roster, new Set(posts.filter((p) => p.pool === "clinic" || p.pool === "general").map((p) => p.id)));
 
@@ -122,41 +118,6 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
         {msg && <Notice kind="success">{msg}</Notice>}
         {error && <Notice kind="error">{error}</Notice>}
       </div>
-
-      {/* 순번으로 뽑혔지만 동이 아직 없는 사람: 동 배정 */}
-      {unassigned.length > 0 && (
-        <section className="mt-3 rounded-[18px] border-2 border-orange-400 bg-card p-3">
-          <p className="text-sm font-semibold">동 배정 필요 ({unassigned.length}명) — 순번으로 뽑힌 사람</p>
-          <ul className="mt-2 divide-y divide-hairline">
-            {unassigned.map((u) => (
-              <li key={u.id} className="py-2">
-                <form action={assignRotationPostAction} className="flex items-center gap-1.5">
-                  <input type="hidden" name="date" value={date} />
-                  <input type="hidden" name="pick_id" value={u.id} />
-                  <span className="w-24 shrink-0 text-sm">
-                    {u.rank ? `${u.rank} ` : ""}{u.name}
-                    {excluded.has(u.memberId) && <span className="block text-xs text-red-600">⚠ 제외</span>}
-                  </span>
-                  <select name="post_id" required defaultValue="" className={selectClass}>
-                    <option value="" disabled>동 선택</option>
-                    {posts
-                      .filter((p) => p.pool === "general")
-                      .map((p) => {
-                        const left = p.required - roster.filter((r) => r.postId === p.id).length;
-                        return (
-                          <option key={p.id} value={p.id} disabled={left <= 0}>
-                            {p.name} (남은 자리 {Math.max(0, left)})
-                          </option>
-                        );
-                      })}
-                  </select>
-                  <button type="submit" className="shrink-0 rounded bg-blue-600 px-2 py-1.5 text-xs font-semibold text-white">배정</button>
-                </form>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       <ul className="mt-3 space-y-3">
         {posts
@@ -182,6 +143,20 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
                           {excluded.has(r.memberId) && <span className="ml-1 text-xs text-red-600">⚠ 휴가·부상</span>}
                         </span>
                         <span className="flex shrink-0 gap-1.5">
+                          {/* 이 사람만 빼고 같은 자리를 랜덤으로 다시 채움 */}
+                          {(p.pool === "clinic" || p.pool === "general") && (
+                            <form action={redrawOneAction}>
+                              <input type="hidden" name="date" value={date} />
+                              <input type="hidden" name="member_id" value={r.memberId} />
+                              <input type="hidden" name="post_id" value={p.id} />
+                              <ConfirmButton
+                                message={`${r.name} 을(를) 빼고 ${p.name} 자리를 랜덤으로 다시 뽑을까요? (이 자리 희망자 → 없으면 미응답·미희망 중에서)`}
+                                className="rounded border border-blue-600 px-2 py-1 text-xs text-link"
+                              >
+                                다시 뽑기
+                              </ConfirmButton>
+                            </form>
+                          )}
                           <form action={removeAssignmentAction}>
                             <input type="hidden" name="date" value={date} />
                             <input type="hidden" name="member_id" value={r.memberId} />
