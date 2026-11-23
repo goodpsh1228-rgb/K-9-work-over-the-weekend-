@@ -5,6 +5,7 @@
 //   · 마감이 지난 날만, 한 번만 실행 (record_draw 함수가 중복을 막음)
 //   · 서버의 암호학적 난수로 추첨, 추첨과 함께 선탑도 자동 지정
 // ─────────────────────────────────────────────────────────────
+import { getOfficerIds } from "@/lib/officers";
 import "server-only";
 import { randomInt } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
@@ -26,6 +27,7 @@ export function isLegacyDrawDate(date: string): boolean {
 // 추첨 입력 모으기 (실제 추첨과 관리자 미리보기가 같이 씀)
 export async function buildDrawInput(date: string): Promise<DrawInput> {
   const db = getSupabaseAdmin();
+  const officers = await getOfficerIds(); // 간부는 추첨 대상이 아님
   const [allPosts, excluded, drivers, driveWants, designatedNow, { data: members }, { data: responses }] = await Promise.all([
     getPostsForDate(date),
     getExcludedIds(date), // 휴가·부상 등 + 그날 운전이 지정된 운전병
@@ -40,12 +42,13 @@ export async function buildDrawInput(date: string): Promise<DrawInput> {
   // 선탑(escort)은 추첨하지 않음 (추첨 후 관리자가 지정)
   const drawable = allPosts.filter((p): p is typeof p & { pool: "clinic" | "general" | "driver" } => p.pool !== "escort");
   const posts = driveWants.ok ? drawable : drawable.filter((p) => p.pool !== "driver");
-  const activeIds = new Set((members ?? []).map((m) => m.id as number));
+  const people = (members ?? []).filter((m) => !officers.has(m.id as number));
+  const activeIds = new Set(people.map((m) => m.id as number));
   return {
     driveWants: driveWants.ids,
     designated: [...designatedNow.ids].filter((id) => drivers.has(id) && activeIds.has(id)), // 지정된 활성 운전병은 "주말 운전" 자리를 먼저 채움
     posts: posts.map((p) => ({ id: p.id, pool: p.pool, required: p.required })),
-    members: (members ?? [])
+    members: people
       .filter((m) => !excluded.has(m.id)) // 제외자(휴가·부상, 운전 지정자)는 동·진료실 풀에 넣지 않음
       // 진료반(진료반 여부 또는 반이 "진료반")은 진료실 풀에만 → 투표를 안 해도 다른 동으로는 절대 차출되지 않음
       .map((m) => ({ id: m.id as number, pool: m.is_clinic || (m as { squad?: string | null }).squad === "진료반" ? "clinic" : "general", driver: drivers.has(m.id) })),

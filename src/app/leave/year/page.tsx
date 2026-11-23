@@ -4,14 +4,14 @@
 //   휴가 계산기 화면 위쪽의 작은 "연간 달력" 링크로 들어옵니다.
 // ─────────────────────────────────────────────────────────────
 import Link from "next/link";
-import { requireMember } from "@/lib/session";
+import { requireSoldier } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { todayKST } from "@/lib/kst";
 import { Page } from "@/components/ui";
 import { YearCalendar, type YearLeave } from "./year-calendar";
 
 export default async function LeaveYearPage() {
-  const me = await requireMember();
+  const me = await requireSoldier();
   const db = getSupabaseAdmin();
   // 계획 칸(SQL 0013)이 아직 없으면 계획 없이 읽음
   let rows = await db.from("leaves").select("kind, start_date, end_date, planned").eq("member_id", me.id).order("start_date");

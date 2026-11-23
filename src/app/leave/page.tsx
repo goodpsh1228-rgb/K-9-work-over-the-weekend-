@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { SquadCalendar, type SquadLeave } from "./squad-calendar";
 import { regularSchedule, nextRegular, comfortDate } from "@/lib/regular-leave";
-import { requireMember } from "@/lib/session";
+import { requireSoldier } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { Card, Notice, Page } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
@@ -51,7 +51,7 @@ const subLabel = (kind: string, sub: string | null) => SUBKINDS[kind]?.find((s) 
 const inputClass = "h-12 min-w-0 w-full rounded-full border border-hairline bg-input px-4 text-base text-foreground outline-none focus:border-blue-500";
 
 export default async function LeavePage({ searchParams }: PageProps<"/leave">) {
-  const me = await requireMember();
+  const me = await requireSoldier();
   const sp = await searchParams;
   const msg = typeof sp.msg === "string" ? sp.msg : null;
   const error = typeof sp.error === "string" ? sp.error : null;

@@ -389,3 +389,7 @@ begin
   return true;
 end;
 $$;
+
+-- 0023 간부 계정
+alter table members add column if not exists is_officer boolean not null default false;
+comment on column members.is_officer is '간부 계정: 관리자 기능 사용 가능, 주말출근·순번·기수·전역일·휴가 계산기 대상 아님';

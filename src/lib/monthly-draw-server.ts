@@ -4,6 +4,7 @@
 //   - 계산은 monthly-draw.ts(순수 계산), 저장은 record_monthly_draw 함수(한 번에, 딱 한 번만)
 //   - 뽑힌 사람은 빈 자리(동은 랜덤)에 바로 배정되어 동별 명단(견사표)이 한 번에 완성됩니다. 바꿀 사람은 [명단 수정]에서 교체합니다.
 // ─────────────────────────────────────────────────────────────
+import { getOfficerIds } from "@/lib/officers";
 import "server-only";
 import { randomInt } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
@@ -83,11 +84,11 @@ async function loadRotationState(): Promise<Record<RotPool, PoolState>> {
 
 async function loadMembers(): Promise<MMember[]> {
   const db = getSupabaseAdmin();
-  const drivers = await getDriverIds();
+  const [drivers, officers] = await Promise.all([getDriverIds(), getOfficerIds()]);
   // 기수·반 칸(SQL 0015)이 없으면 기수 없이 읽음
   let r = await db.from("members").select("id, is_clinic, squad, cohort, enlist_date, discharge_date").eq("is_active", true);
   if (r.error) r = (await db.from("members").select("id, is_clinic").eq("is_active", true)) as typeof r;
-  return ((r.data ?? []) as { id: number; is_clinic: boolean; squad?: string | null; cohort?: number | null; enlist_date?: string | null; discharge_date?: string | null }[]).map((m) => ({
+  return ((r.data ?? []) as { id: number; is_clinic: boolean; squad?: string | null; cohort?: number | null; enlist_date?: string | null; discharge_date?: string | null }[]).filter((m) => !officers.has(m.id)).map((m) => ({
     dischargeDate: m.discharge_date ?? null,
     id: m.id,
     cohort: m.cohort ?? null,
@@ -378,7 +379,8 @@ export async function getRotationBoards() {
 
 // 기수를 입력하지 않은 활성 인원 (순번에서 맨 뒤로 가므로 차출 전에 입력하도록 안내)
 export async function getMissingCohorts(): Promise<string[]> {
-  const { data, error } = await getSupabaseAdmin().from("members").select("name, cohort").eq("is_active", true);
+  const { data, error } = await getSupabaseAdmin().from("members").select("id, name, cohort").eq("is_active", true);
   if (error) return []; // 기수 칸(SQL 0015)이 없으면 안내하지 않음
-  return (data ?? []).filter((m) => m.cohort === null).map((m) => m.name as string);
+  const officers = await getOfficerIds();
+  return (data ?? []).filter((m) => m.cohort === null && !officers.has(m.id as number)).map((m) => m.name as string); // 간부는 기수가 없는 것이 정상
 }

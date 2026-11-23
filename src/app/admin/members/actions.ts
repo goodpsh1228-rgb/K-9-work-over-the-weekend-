@@ -134,8 +134,9 @@ export async function addMemberAction(formData: FormData) {
   const squad = squadRaw === "" ? null : squadRaw;
   const cohortRaw = String(formData.get("cohort") ?? "").trim();
   const cohort = cohortRaw === "" ? null : Number(cohortRaw);
-  const isClinic = squad === "진료반" || formData.get("is_clinic") === "on"; // 진료반으로 지정하면 진료반 여부도 켬
-  const isDriver = formData.get("is_driver") === "on";
+  const isOfficer = formData.get("is_officer") === "on"; // 간부 계정: 관리자 기능 사용, 병사 기능(계급·기수·반·운전·진료반) 없음
+  const isClinic = !isOfficer && (squad === "진료반" || formData.get("is_clinic") === "on"); // 진료반으로 지정하면 진료반 여부도 켬
+  const isDriver = !isOfficer && formData.get("is_driver") === "on";
   if (!name || name.length > 30) back("error", "이름을 1~30자로 입력해 주세요.");
   if (rank !== null && !RANKS.includes(rank as (typeof RANKS)[number])) back("error", "계급을 다시 선택해 주세요.");
   if (squad !== null && !isSquad(squad)) back("error", "반을 다시 선택해 주세요.");
@@ -143,21 +144,23 @@ export async function addMemberAction(formData: FormData) {
 
   const base = {
       name,
-      rank,
+      rank: isOfficer ? null : rank,
       is_clinic: isClinic,
+      ...(isOfficer ? { is_admin: true, is_officer: true } : {}), // 간부 = 관리자 권한 + 간부 표시
       ...(isDriver ? { is_driver: true } : {}), // 운전병일 때만 (0006 SQL 전에도 일반 추가는 되도록)
       password_hash: await hashPassword(DEFAULT_INITIAL_PASSWORD),
       must_change_password: true,
   };
-  const extra = { ...(squad ? { squad } : {}), ...(cohort !== null ? { cohort } : {}) }; // 기수·반 (SQL 0015 후)
+  const extra = isOfficer ? {} : { ...(squad ? { squad } : {}), ...(cohort !== null ? { cohort } : {}) }; // 기수·반 (SQL 0015 후)
   const db = getSupabaseAdmin();
   let { data, error } = await db.from("members").insert({ ...base, ...extra }).select("id").single();
   if (error && Object.keys(extra).length && error.code !== "23505") {
     ({ data, error } = await db.from("members").insert(base).select("id").single()); // 0015 전이면 기수·반 없이 추가
   }
+  if (isOfficer && error?.code && error.code !== "23505") back("error", "간부 계정을 만들려면 먼저 추가 SQL(supabase/migrations/0023_officer.sql)을 Supabase SQL Editor에서 실행해 주세요.");
   if (error || !data) back("error", error?.code === "23505" ? `"${name}" 은(는) 이미 있는 이름입니다. (동명이인은 ${name}B 처럼)` : "저장 중 오류: " + (error?.message ?? ""));
-  await writeAudit({ actorId: me.id, action: "member.add", targetMemberId: data.id, details: { name, rank, is_clinic: isClinic, is_driver: isDriver, squad, cohort } });
-  back("msg", `${name} 을(를) 추가했습니다. 초기 비밀번호는 ${DEFAULT_INITIAL_PASSWORD} 입니다.`);
+  await writeAudit({ actorId: me.id, action: "member.add", targetMemberId: data.id, details: { name, rank, is_clinic: isClinic, is_driver: isDriver, squad, cohort, officer: isOfficer } });
+  back("msg", `${name} ${isOfficer ? "간부 계정을" : "을(를)"} 추가했습니다. 초기 비밀번호는 ${DEFAULT_INITIAL_PASSWORD} 입니다.`);
 }
 
 // 진료반 여부 바꾸기

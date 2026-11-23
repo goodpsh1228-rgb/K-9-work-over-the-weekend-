@@ -46,7 +46,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
   const mine = myStateFrom(board, me.id);
   // 투표 상태: status = 내 계급 기준, overall = 투표 전체 기준(월요일 시작)
   const { status, overall, window: win, fridayIsDuty } = voteInfo;
-  const canVote = status === "open" && !draw && mine.kind !== "excluded"; // 차출이 끝난 날은 투표 불가
+  const canVote = status === "open" && !draw && mine.kind !== "excluded" && !me.is_officer; // 간부는 투표 대상이 아님 // 차출이 끝난 날은 투표 불가
   // 희망할 수 있는 자리: 모든 동 + (진료반이면 진료실). 주말 운전은 운전병만, 아래 운전 버튼으로 따로
   const myPosts = board.posts.filter((p) => (p.pool === "general" || (p.pool === "clinic" && me.is_clinic)) && p.required > 0);
   const clinicPosts = board.posts.filter((p) => p.pool === "clinic");
@@ -188,9 +188,13 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
             ? `이 날은 이번에만 ${formatShort(win.openDate)}부터 ${formatShort(win.closeDate)} 21:00까지 투표합니다.`
             : `매달 1일부터 처음 돌아오는 금요일 21:00까지, 다음 달 근무일 전체를 미리 투표합니다. (${formatShort(win.coverFrom)} ~ ${formatShort(win.coverTo)} 근무일)`}
         </p>
-        <p className="mt-2 font-semibold">
-          내 상태: <MyStateText state={mine} />
-        </p>
+        {me.is_officer ? (
+          <p className="mt-2 text-sm text-muted">간부 계정은 주말출근 투표·차출 대상이 아닙니다. 아래 희망 현황을 확인하고, 차출 후에는 [명단 수정]으로 출근 인원을 바꿀 수 있습니다.</p>
+        ) : (
+          <p className="mt-2 font-semibold">
+            내 상태: <MyStateText state={mine} />
+          </p>
+        )}
 
         {mine.kind === "excluded" && (
           <p className="mt-1 text-sm text-zinc-500">이 날은 추첨에서 제외됩니다. (휴가·부상 등 제외 기간, 관리자 지정 제외, 또는 운전 지정)</p>

@@ -5,6 +5,7 @@
 //   각 사람마다 [교체] [삭제], 자리마다 빈자리가 있으면 [추가]를 할 수 있습니다.
 //   후보 목록에서 휴가·부상 중인 사람은 "⚠ 휴가·부상"으로 표시되고, 고르면 경고 확인창이 뜹니다.
 // ─────────────────────────────────────────────────────────────
+import { getOfficerIds } from "@/lib/officers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/session";
@@ -70,7 +71,8 @@ export default async function RosterEditPage({ params, searchParams }: PageProps
 
   // 후보 = 명단에 없는 활성 인원. 이름 옆에 진료반·응답·휴가 표시.
   //   동 자리 후보: 동 명단에 없는 사람 / 운전 자리 후보: 운전 명단에 없는 운전병
-  const allCandidates = (members ?? [])
+  const officers = await getOfficerIds(); // 간부는 출근 후보가 아님
+  const allCandidates = (members ?? []).filter((m) => !officers.has(m.id as number))
     .map((m) => {
       const tags = [
         inPostRoster.has(m.id) ? "동 출근" : null, // 선탑 고를 때 참고

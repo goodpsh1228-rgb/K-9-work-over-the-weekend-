@@ -5,6 +5,7 @@
 //   - 관리자: 인원을 골라 대신 입력, 모든 사람의 기록을 보고 삭제 가능
 //   - 끝난 지 30일이 지난 기록은 목록에서 숨깁니다(데이터는 남아 있음).
 // ─────────────────────────────────────────────────────────────
+import { withoutOfficers } from "@/lib/officers";
 import Link from "next/link";
 import { requireMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
@@ -48,7 +49,7 @@ export default async function AbsencesPage({ searchParams }: PageProps<"/absence
           action={addAbsenceAction}
           defaultDate={today}
           myId={me.id}
-          members={me.is_admin ? (members ?? []).filter((m) => m.is_active).map((m) => ({ id: m.id, name: m.name })) : undefined}
+          members={me.is_admin ? (await withoutOfficers(members)).filter((m) => m.is_active).map((m) => ({ id: m.id, name: m.name })) : undefined}
         />
         <p className="mt-2 text-xs font-semibold text-link">{deadlineNotice()}{me.is_admin && " (관리자는 마감 뒤에도 입력할 수 있습니다)"}</p>
         <p className="mt-2 text-xs text-zinc-500">

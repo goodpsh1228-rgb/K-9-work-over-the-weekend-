@@ -6,6 +6,7 @@
 //   - 로그인한 사람 본인의 상태
 // 모든 인원 목록은 "활성" 인원만 대상입니다 (비활성 = 전출·전역).
 // ─────────────────────────────────────────────────────────────
+import { getOfficerIds } from "@/lib/officers";
 import "server-only";
 import { cache } from "react";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
@@ -83,7 +84,8 @@ export async function getDayBoard(date: string): Promise<DayBoard> {
   const excusedIds = new Set((excusedRows ?? []).map((r) => r.member_id as number));
   const allResponded = new Set((responses ?? []).map((r) => r.member_id as number));
 
-  const active = (members ?? []) as MemberLite[];
+  const officers = await getOfficerIds(); // 간부는 투표·추첨 대상이 아님
+  const active = ((members ?? []) as MemberLite[]).filter((m) => !officers.has(m.id));
   const byId = new Map(active.map((m) => [m.id, m]));
   const responded = new Set<number>();
   const slots: PostSlot[] = posts.map((p) => ({ ...p, wanters: [] }));

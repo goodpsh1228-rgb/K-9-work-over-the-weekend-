@@ -12,6 +12,8 @@ import { MyRankSelect } from "@/components/my-rank-select";
 import { updateMyCohortAction, updateMyRankAction } from "./actions";
 import { effectiveSquad } from "@/lib/squads";
 import { Card, Notice } from "@/components/ui";
+import { Chip } from "@/components/chip";
+import { OfficerHome } from "./officer-home";
 import { CountdownCard } from "@/components/countdown-card";
 import { addDays, formatShort, kstMoment, todayKST } from "@/lib/kst";
 import { getMyStates, type MyState } from "@/lib/day-board";
@@ -30,6 +32,8 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
   const me = await requireMember();
   // 접속 시 하는 일: 계급 자동 진급·전역 자동 비활성화 (추첨은 자동으로 하지 않음 — 관리자가 [주말출근 차출하기]로 실행)
   await runVisitTasksSafely();
+  // 간부 계정: 병사용 홈(투표·휴가·기수 등) 대신 간부 전용 홈
+  if (me.is_officer) return <OfficerHome me={me} msg={msg} error={error} />;
   const { from, to } = homeRange(); // 오늘 ~ 다음 달 마지막 날 (한국 날짜)
   // 필요한 정보를 동시에(병렬로) 읽어 기다리는 시간을 줄임
   const db = getSupabaseAdmin();
@@ -455,32 +459,6 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
         </form>
       </nav>
     </Page>
-  );
-}
-
-// 작은 알약 표시 (역할·상태). tone: blue=연한 파랑(희망), solid=진한 파랑, gray=회색, outline=윤곽(미응답), orange=주황(지금 해야 할 일·경고), red=빨강
-function Chip({
-  tone,
-  children,
-  aligned = false,
-}: {
-  tone: "blue" | "solid" | "gray" | "outline" | "orange" | "red";
-  children: React.ReactNode;
-  aligned?: boolean; // 목록 행의 상태 배지: 최소 폭을 맞춰 왼쪽 끝선을 정돈
-}) {
-  const color = {
-    blue: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
-    solid: "bg-blue-600 text-white",
-    gray: "bg-hairline/60 text-foreground/80",
-    outline: "border border-hairline text-muted", // 미응답: 눈에 덜 띄는 윤곽
-    orange:
-      "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200",
-    red: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
-  }[tone];
-  return (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs ${aligned ? "inline-block min-w-[4.5rem] text-center" : ""} ${color}`}>
-      {children}
-    </span>
   );
 }
 
