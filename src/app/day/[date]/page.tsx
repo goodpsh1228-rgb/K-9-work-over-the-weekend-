@@ -184,7 +184,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
           )}
           <p className="text-xs text-zinc-500">
             추첨: {new Date(draw.executed_at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })} ·{" "}
-            {{ cron: "자동(정기)", visit: "자동(접속 시)", manual: "관리자 수동" }[draw.triggered_by]}
+            {{ cron: "자동(정기)", visit: "자동(접속 시)", manual: "관리자 수동", rotation: "한 달 순번 차출" }[draw.triggered_by]}
           </p>
         </section>
       )}
