@@ -15,13 +15,14 @@ import { getSupabaseAdmin } from "./supabase-server";
 import { addDays, dateRange, weekday } from "./kst";
 import { dotsRange } from "./spans";
 import { getDutyDays } from "./duty-days-server";
-import { isLineupAbsent } from "./absence-kinds";
+import { isLineupAbsent, LINEUP_ABSENT_KINDS } from "./absence-kinds";
+import { mergeAbsenceChain, reasonOf, type AbsRec } from "./absence-merge";
 import { pickBoardingWithReserve } from "./squads";
 import { getDriverIdsOn } from "./drivers";
 import { lastWorkdayBefore } from "./workdays";
 
 export type LineupPerson = { id: number; name: string; rank: string | null; cohort: number | null; tag?: string };
-export type LineupAbsent = LineupPerson & { kind: string; detail: string | null; start: string; end: string; isNew: boolean }; // isNew: 직전 평일은 출근이었는데 이 날은 불참
+export type LineupAbsent = LineupPerson & { kind: string; detail: string | null; reason: string; start: string; end: string; isNew: boolean }; // reason: 합친 사유 문구(예: "위로휴가 → 포상휴가") // isNew: 직전 평일은 출근이었는데 이 날은 불참
 export type Lineup = {
   isDutyDay: boolean;
   dutyLabel: string | null;
@@ -84,6 +85,7 @@ export async function getLineup(date: string): Promise<Lineup> {
   const absent: LineupAbsent[] = [];
   const absentIds = new Set<number>();
   const tagOf = new Map<number, string>();
+  const covering = new Map<number, typeof rows>(); // 이 날을 포함하는 불참 기록 (사람별)
   // 직전 평일에도 불참이던 사람 (이 날 "새로 불참"이 아닌 사람)
   const prevAbsent = new Set(rows.filter((r) => isLineupAbsent(r.kind) && r.start_date <= prevDate && prevDate <= r.end_date).map((r) => r.member_id));
   for (const r of rows) {
@@ -92,9 +94,41 @@ export async function getLineup(date: string): Promise<Lineup> {
     if (!p) continue;
     if (isLineupAbsent(r.kind)) {
       absentIds.add(p.id);
-      absent.push({ ...p, kind: r.kind, detail: r.detail ?? null, start: r.start_date, end: r.end_date, isNew: !prevAbsent.has(p.id) });
+      covering.set(p.id, [...(covering.get(p.id) ?? []), r]); // 사람마다 한 줄로 합치기 위해 모아 둠
     } else if (r.kind === "injury") tagOf.set(p.id, "부상");
     else if (r.kind === "outing") tagOf.set(p.id, "외출·면회");
+  }
+  // 한 사람 = 한 줄: 겹치거나 바로 이어지는 불참(휴가 종류가 바뀌어 이어 쓰는 경우, 같은 기간 중복 입력 포함)을 하나의 기간으로 합침
+  //   앞뒤로 이어지는 기록까지 보려고 ±120일 범위의 불참 기록을 한 번 더 읽음 (실패하면 오늘 걸친 기록만으로 표시)
+  type ChainRow = AbsRec & { memberId: number };
+  const chainRows: ChainRow[] = [];
+  if (absentIds.size > 0) {
+    const cols = detailSupported ? "member_id, kind, detail, start_date, end_date" : "member_id, kind, start_date, end_date";
+    const { data: more } = await db
+      .from("absences")
+      .select(cols)
+      .in("member_id", [...absentIds])
+      .in("kind", [...LINEUP_ABSENT_KINDS])
+      .lte("start_date", addDays(date, 120))
+      .gte("end_date", addDays(date, -120));
+    for (const x of (more ?? []) as unknown as { member_id: number; kind: string; detail?: string | null; start_date: string; end_date: string }[]) {
+      chainRows.push({ memberId: x.member_id, kind: x.kind, detail: x.detail ?? null, start: x.start_date, end: x.end_date });
+    }
+  }
+  for (const [id, recs] of covering) {
+    const p = person.get(id)!;
+    const all: AbsRec[] = chainRows.filter((x) => x.memberId === id);
+    const merged = mergeAbsenceChain(all.length ? all : recs.map((r) => ({ kind: r.kind, detail: r.detail ?? null, start: r.start_date, end: r.end_date })), date);
+    const first = recs[0];
+    absent.push({
+      ...p,
+      kind: merged?.kind ?? first.kind,
+      detail: first.detail ?? null,
+      reason: merged?.reason ?? reasonOf(first.kind, first.detail),
+      start: merged?.start ?? first.start_date,
+      end: merged?.end ?? first.end_date,
+      isNew: !prevAbsent.has(id),
+    });
   }
   // 높은 기수(작은 숫자)부터, 기수가 같거나 없으면 계급·이름 순
   absent.sort((a, b) => (a.cohort ?? 99999) - (b.cohort ?? 99999) || byRankName(a, b) || a.start.localeCompare(b.start));
@@ -155,7 +189,7 @@ export function lineupText(date: string, shortDate: string, l: Lineup): string {
   lines.push(`■ 불참 (높은 기수 순${l.absent.some((x) => x.isNew) ? ", ★=새로 불참" : ""})`);
   if (l.absent.length === 0) lines.push("- 없음");
   for (const a of l.absent) {
-    const reason = `${KIND_TEXT[a.kind] ?? a.kind}${a.detail ? `(${a.detail})` : ""}`;
+    const reason = a.reason;
     lines.push(`- ${a.isNew ? "★" : ""}${a.cohort ? `${a.cohort}기 ` : ""}${nm(a)} ${dotsRange(a.start, a.end)} ${reason}`);
   }
   if (l.returning.length) lines.push(`■ 다시 출근${l.restKind === "weekend" ? "(주말 불참)" : l.restKind === "rest" ? "(쉬는 날 불참)" : ""} (${l.returning.length}명): ${l.returning.map((p) => p.name).join(", ")}`);
@@ -184,4 +218,3 @@ export function lineupText(date: string, shortDate: string, l: Lineup): string {
   void date;
   return lines.join("\n");
 }
-const KIND_TEXT: Record<string, string> = { leave: "휴가", training: "교육", duty_off: "당직오프", work_off: "근무오프", outpatient: "외진", lineup: "기타 불참" };

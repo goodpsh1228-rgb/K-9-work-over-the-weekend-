@@ -56,6 +56,17 @@ export async function addAbsenceAction(formData: FormData) {
   const { data: target } = await db.from("members").select("id, name, is_active").eq("id", targetId).maybeSingle();
   if (!target || !target.is_active) done("error", "인원을 찾을 수 없습니다.");
 
+  // 같은 사람·종류·기간을 또 입력하면(더블 클릭, 같은 기록 재입력) 중복으로 쌓이지 않게 막음
+  const { data: dup } = await db
+    .from("absences")
+    .select("id")
+    .eq("member_id", targetId)
+    .eq("kind", kind)
+    .eq("start_date", start)
+    .eq("end_date", end)
+    .limit(1);
+  if ((dup ?? []).length > 0) done("error", `${target.name} 님의 같은 기간 ${KIND_LABEL[kind] ?? kind} 기록이 이미 있습니다.`);
+
   const { error } = await db
     .from("absences")
     .insert({ member_id: targetId, kind, start_date: start, end_date: end, created_by: me.id, ...(detail ? { detail } : {}) });
@@ -96,14 +107,18 @@ export async function deleteAbsenceAction(formData: FormData) {
   const me = await requireMember();
   const rawBack = String(formData.get("back") ?? "");
   const to = BACK_OK.test(rawBack) ? rawBack : PAGE;
-  const id = Number(formData.get("id"));
+  // ids = "3,8,9" (라인업에서 한 줄로 합쳐 보이는 기록 여러 개) 또는 id = 하나
+  const ids = [...new Set(String(formData.get("ids") ?? formData.get("id") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 20);
+  if (ids.length === 0) back("error", "기록을 찾을 수 없습니다.", to);
   const db = getSupabaseAdmin();
-  const { data: row } = await db.from("absences").select("id, member_id, kind, start_date, end_date").eq("id", id).maybeSingle();
-  if (!row) back("error", "기록을 찾을 수 없습니다.", to);
-  if (row.member_id !== me.id && !me.is_admin) back("error", "본인 기록만 삭제할 수 있습니다.", to);
-  if (lineupLocked(row.kind, row.start_date, row.end_date, me.is_admin)) back("error", lockText("삭제"), to);
-
-  await db.from("absences").delete().eq("id", id);
-  await writeAudit({ actorId: me.id, action: "absence.delete", targetMemberId: row.member_id, details: row });
-  back("msg", "기록을 삭제했습니다.", to);
+  const { data: rows } = await db.from("absences").select("id, member_id, kind, start_date, end_date").in("id", ids);
+  if (!rows || rows.length === 0) back("error", "기록을 찾을 수 없습니다.", to);
+  // 하나라도 권한이 없거나 마감이 지났으면 아무것도 지우지 않음
+  for (const row of rows) {
+    if (row.member_id !== me.id && !me.is_admin) back("error", "본인 기록만 삭제할 수 있습니다.", to);
+    if (lineupLocked(row.kind, row.start_date, row.end_date, me.is_admin)) back("error", lockText("삭제"), to);
+  }
+  await db.from("absences").delete().in("id", rows.map((r) => r.id));
+  for (const row of rows) await writeAudit({ actorId: me.id, action: "absence.delete", targetMemberId: row.member_id, details: row });
+  back("msg", rows.length > 1 ? `기록 ${rows.length}건을 삭제했습니다.` : "기록을 삭제했습니다.", to);
 }

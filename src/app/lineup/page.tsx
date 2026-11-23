@@ -15,7 +15,7 @@ import { AbsenceForm } from "@/components/absence-form";
 import { addAbsenceAction, deleteAbsenceAction } from "@/app/absences/actions";
 import { addDays, formatLong, formatShort, isValidDate, todayKST } from "@/lib/kst";
 import { getLineup, lineupText, RANK_ORDER, rankIndex, type LineupPerson } from "@/lib/lineup";
-import { KIND_BADGE, KIND_LABEL, LINEUP_ABSENT_KINDS } from "@/lib/absence-kinds";
+import { KIND_BADGE, LINEUP_ABSENT_KINDS } from "@/lib/absence-kinds";
 import { deadlineNotice, lineupLocked } from "@/lib/lineup-deadline";
 
 export default async function LineupPage({ searchParams }: PageProps<"/lineup">) {
@@ -44,9 +44,14 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
     .lte("start_date", date)
     .gte("end_date", date)
     .in("kind", [...LINEUP_ABSENT_KINDS]);
-  const deletable = new Map<string, number>(); // "인원번호:종류" → 기록 번호
+  // 인원번호 → 이 날에 걸친 지울 수 있는 기록 번호들 (불참은 사람마다 한 줄로 합쳐 보이므로, ✕ 는 이 날에 걸친 기록을 모두 지움)
+  const deletable = new Map<number, number[]>();
   // 라인업 마감(전날 21:15)이 지난 기록은 일반 인원이 지울 수 없음 (관리자는 가능)
-  for (const r of delRows ?? []) if ((me.is_admin || r.member_id === me.id) && !lineupLocked(r.kind, r.start_date, r.end_date, me.is_admin)) deletable.set(`${r.member_id}:${r.kind}`, r.id as number);
+  for (const r of delRows ?? []) {
+    if ((me.is_admin || r.member_id === me.id) && !lineupLocked(r.kind, r.start_date, r.end_date, me.is_admin)) {
+      deletable.set(r.member_id as number, [...(deletable.get(r.member_id as number) ?? []), r.id as number]);
+    }
+  }
 
   return (
     <Page title="라인업">
@@ -116,7 +121,7 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
           <ul className="divide-y divide-hairline">
             {l.absent.map((a) => {
               // 사유: "라인업 불참"은 직접 쓴 사유만, 나머지는 종류(+상세)
-              const reason = a.kind === "lineup" ? (a.detail ?? "불참") : `${KIND_LABEL[a.kind]}${a.detail ? `·${a.detail}` : ""}`;
+              const reason = a.reason; // 이어 쓰는 불참은 한 줄로 합친 사유 (예: 위로휴가 → 포상휴가)
               const longReason = reason.length > 7; // 긴 사유는 잘리지 않게 아랫줄에 전체를 보여 줌
               const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
               return (
@@ -134,9 +139,9 @@ export default async function LineupPage({ searchParams }: PageProps<"/lineup">)
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-foreground/80">{a.start === a.end ? md(a.start) : `${md(a.start)}~${md(a.end)}`}</span>
                   {!longReason && <span className={`max-w-[34%] shrink-0 truncate rounded-full px-2 py-0.5 text-xs font-bold ${KIND_BADGE[a.kind]}`}>{reason}</span>}
-                  {deletable.has(`${a.id}:${a.kind}`) && (
+                  {deletable.has(a.id) && (
                     <form action={deleteAbsenceAction} className="shrink-0">
-                      <input type="hidden" name="id" value={deletable.get(`${a.id}:${a.kind}`)} />
+                      <input type="hidden" name="ids" value={deletable.get(a.id)!.join(",")} />
                       <input type="hidden" name="back" value={`/lineup?date=${date}`} />
                       <button type="submit" aria-label={`${a.name} 불참 삭제`} className="px-1 text-xs text-muted">
                         ✕
