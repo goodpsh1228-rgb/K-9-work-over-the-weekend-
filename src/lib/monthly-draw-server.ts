@@ -155,6 +155,8 @@ async function buildMonthPlan(month: string, seed: string) {
 
 export async function executeMonthlyDraw(month: string, actorId: number, seed: string = newSeed()): Promise<MonthlyResult> {
   if (!isValidMonth(month)) return { status: "not-ready", reason: "잘못된 달입니다." };
+  // 이번 달 이전은 예전 주간 투표로 운영된 달이라 순번 차출 대상이 아님 (다음 달부터)
+  if (month <= todayKST().slice(0, 7)) return { status: "not-ready", reason: "이번 달 이전은 순번 차출 대상이 아닙니다. 다음 달부터 사용할 수 있어요." };
   const { st, plan } = await buildMonthPlan(month, seed);
   if (st.days.length === 0) return { status: "not-ready", reason: "그 달에는 근무일이 없습니다." };
   if (st.executedAt) return { status: "already" };
