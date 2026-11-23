@@ -10,7 +10,7 @@
 //       2027-02 근무일 → 2027-01-01(금) 00:00 ~ 2027-01-08(금) 21:00
 //   → 계급과 상관없이 모두 같은 시각에 열립니다.
 // ─────────────────────────────────────────────────────────────
-import { addDays, kstMoment, mondayOf, weekday } from "./kst";
+import { addDays, dateRange, kstMoment, mondayOf, weekday } from "./kst";
 
 export type Rank = "이병" | "일병" | "상병" | "병장";
 export const RANKS: Rank[] = ["이병", "일병", "상병", "병장"];
@@ -50,13 +50,19 @@ export function voteFriday(dutyDate: string): string {
   return addDays(voteMonday(dutyDate), 4);
 }
 
-// ── 특정 근무일만 투표 기간을 따로 정하기 (관리자 요청으로 연장할 때) ──
-//   근무일 → { 상병·병장 시작일, 일병·이병 시작일, 마감일 } (모두 00:00 시작 / 마감은 21:00, 한국 시간)
-//   여기 적힌 근무일만 기본 주간 일정 대신 이 일정을 씁니다. 지나간 항목은 지워도 됩니다.
-export const VOTING_OVERRIDES: Record<string, { seniorFrom: string; juniorFrom: string; closeDate: string }> = {
-  // 2026-10-21 요청: 10/24·10/25 투표 연장 — 10/21(수) 상병·병장, 10/22(목) 일병·이병, 10/22(목) 21:00 마감
-  "2026-10-24": { seniorFrom: "2026-10-21", juniorFrom: "2026-10-22", closeDate: "2026-10-22" },
-  "2026-10-25": { seniorFrom: "2026-10-21", juniorFrom: "2026-10-22", closeDate: "2026-10-22" },
+// ── 특정 근무일만 투표 기간을 따로 정하기 (관리자 요청으로 열거나 연장할 때) ──
+//   근무일 → { 시작일, 마감일 } (시작은 00:00, 마감은 21:00, 한국 시간. 모든 계급 같은 시각)
+//   여기 적힌 근무일만 기본 월 일정 대신 이 일정을 씁니다. 지나간 항목은 지워도 됩니다.
+//   (seniorFrom/juniorFrom 은 예전 계급별 시차용 이름이고, 지금은 항상 같은 날짜를 씁니다)
+type VotingOverride = { seniorFrom: string; juniorFrom: string; closeDate: string };
+export const VOTING_OVERRIDES: Record<string, VotingOverride> = {
+  // 2026-11-23 요청: 월 투표 전환 직후라 12월 근무일 전체를 11/23(월) 00:00 ~ 12/26(토) 21:00 까지 받음
+  ...Object.fromEntries(
+    dateRange("2026-12-01", "2026-12-31").map((d): [string, VotingOverride] => [
+      d,
+      { seniorFrom: "2026-11-23", juniorFrom: "2026-11-23", closeDate: "2026-12-26" },
+    ]),
+  ),
 };
 
 // fridayIsDuty 는 예전 주간 투표 때 쓰던 값이라 이제 영향이 없습니다 (호출하는 쪽 호환용)

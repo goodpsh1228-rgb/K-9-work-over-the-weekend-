@@ -258,7 +258,7 @@ export default async function DayPage({ params, searchParams }: PageProps<"/day/
         </p>
         <p className="mt-1 text-xs text-zinc-500">
           {VOTING_OVERRIDES[date]
-            ? `이 날은 투표 기간이 연장되었습니다: ${formatShort(win.openDate)}은 상병·병장만, ${formatShort(win.juniorDate)}부터 일병·이병도 투표할 수 있습니다.`
+            ? `이 달 근무일은 이번에만 ${formatShort(win.openDate)}부터 ${formatShort(win.closeDate)} 21:00까지 투표합니다. (${formatShort(win.coverFrom)} ~ ${formatShort(win.coverTo)} 근무일)`
             : `매달 1일부터 처음 돌아오는 금요일 21:00까지, 다음 달 근무일 전체를 미리 투표합니다. (${formatShort(win.coverFrom)} ~ ${formatShort(win.coverTo)} 근무일)`}
         </p>
         <p className="mt-2 font-semibold">
