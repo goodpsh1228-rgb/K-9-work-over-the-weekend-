@@ -8,7 +8,7 @@ import { requireAdmin } from "@/lib/session";
 import { Notice, Page } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
 import { formatShort, todayKST } from "@/lib/kst";
-import { getMonthStatus, getUnassignedPicks, isValidMonth } from "@/lib/monthly-draw-server";
+import { getMissingCohorts, getMonthStatus, getUnassignedPicks, isValidMonth } from "@/lib/monthly-draw-server";
 import { monthlyDrawAction } from "./actions";
 
 function shiftMonth(month: string, n: number): string {
@@ -35,7 +35,9 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
     }
   }
   const isPastMonth = month <= thisMonth; // 이번 달 이전은 예전 주간 투표로 운영된 달 → 순번 차출 대상 아님
-  const canRun = !isPastMonth && !st.executedAt && st.stillVoting.length === 0 && st.undrawn.length > 0;
+  const futureUndrawn = st.undrawn.filter((d) => d >= todayKST());
+  const canRun = !isPastMonth && st.stillVoting.length === 0 && futureUndrawn.length > 0; // 차출 뒤 추가된 근무일이 있으면 그 날만 추가 차출
+  const missingCohorts = isPastMonth ? [] : await getMissingCohorts();
 
   return (
     <Page title="한 달 차출">
@@ -54,6 +56,13 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
         <Link href={`/admin/draw?month=${shiftMonth(month, 1)}`} className="px-2 py-1 text-lg text-link" aria-label="다음 달">›</Link>
       </div>
 
+      {missingCohorts.length > 0 && (
+        <div className="mt-3">
+          <Notice kind="warn">
+            기수를 입력하지 않은 인원 {missingCohorts.length}명이 있습니다. 순번 맨 뒤로 가니 차출 전에 인원 관리에서 입력해 주세요. ({missingCohorts.slice(0, 8).join(", ")}{missingCohorts.length > 8 ? " 외" : ""})
+          </Notice>
+        </div>
+      )}
       <section className="mt-3 space-y-1 rounded-[18px] border border-hairline bg-card p-4 text-sm">
         <p>근무일 <b>{st.days.length}일</b> · 추첨 완료 {st.drawn.length}일 · 추첨 전 {st.undrawn.length}일</p>
         {st.undrawn.some((d) => d < todayKST()) && (
@@ -66,7 +75,7 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
         ) : st.days.length > 0 ? (
           <p className="text-green-700">모든 근무일의 투표가 마감되었습니다.</p>
         ) : null}
-        {st.executedAt && <p className="text-muted">이미 차출했습니다. ({st.executedAt.slice(0, 16).replace("T", " ")} UTC)</p>}
+        {st.executedAt && <p className="text-muted">차출했습니다. ({st.executedAt.slice(0, 16).replace("T", " ")} UTC)</p>}
       </section>
 
       {isPastMonth && (
@@ -80,7 +89,8 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
 
       {canRun && (
         <section className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-4">
-          <p className="text-lg font-black">{month.replace("-", "년 ")}월 차출하기</p>
+          <p className="text-lg font-black">{month.replace("-", "년 ")}월 {st.executedAt ? "추가 차출하기" : "차출하기"}</p>
+          {st.executedAt && <p className="mt-1 text-sm text-orange-700">이미 차출한 달이지만, 그 뒤에 추가된 근무일 {futureUndrawn.length}일이 아직 차출되지 않았습니다. 그 날만 차출합니다.</p>}
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
             <li>희망 확정 → 남은 공석을 순번(미희망·미응답자)으로 채웁니다.</li>
             <li>휴가·부상·교육 등으로 못 하는 순번은 자동으로 다음 사람에게 넘기고 빚으로 기록합니다.</li>
@@ -90,7 +100,7 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
           <form action={monthlyDrawAction} className="mt-3">
             <input type="hidden" name="month" value={month} />
             <ConfirmButton
-              message={`${month} 한 달치 근무일 ${st.undrawn.length}일을 순번으로 차출합니다. 한 번만 실행되고 되돌릴 수 없습니다. 진행할까요?`}
+              message={`${month} 근무일 ${futureUndrawn.length}일을 순번으로 차출합니다. 한 번만 실행되고 되돌릴 수 없습니다. 진행할까요?`}
               className="min-h-12 w-full rounded-full bg-red-600 px-[22px] text-base font-semibold text-white"
             >
               한 달 차출하기

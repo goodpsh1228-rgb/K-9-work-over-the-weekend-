@@ -18,6 +18,7 @@ import { planMonth, type MDayInput, type MMember, type PoolState, type RotPool }
 import { rotationBoard, type RotLogRow } from "@/lib/rotation";
 import { KIND_LABEL, dischargeRange } from "@/lib/absence-kinds";
 import { syncServiceStatusSafely } from "@/lib/service-sync";
+import { autoAssignEscort } from "@/lib/escort-server";
 
 const POOLS: RotPool[] = ["general", "clinic", "driver"];
 
@@ -97,7 +98,7 @@ async function loadMembers(): Promise<MMember[]> {
 }
 
 export type MonthlyResult =
-  | { status: "done"; days: number; picked: number; unassignedDong: number; shortage: Record<string, number> }
+  | { status: "done"; days: number; picked: number; unassignedDong: number; shortage: Record<string, number>; escortOk: number; escortFail: number }
   | { status: "already" }
   | { status: "not-ready"; reason: string };
 
@@ -164,11 +165,14 @@ export async function executeMonthlyDraw(month: string, actorId: number, seed: s
   if (month <= todayKST().slice(0, 7)) return { status: "not-ready", reason: "이번 달 이전은 순번 차출 대상이 아닙니다. 다음 달부터 사용할 수 있어요." };
   const { st, plan } = await buildMonthPlan(month, seed);
   if (st.days.length === 0) return { status: "not-ready", reason: "그 달에는 근무일이 없습니다." };
-  if (st.executedAt) return { status: "already" };
   if (st.stillVoting.length > 0) {
     return { status: "not-ready", reason: `아직 투표 중인 근무일이 있습니다. (${st.stillVoting.length}일 · 마감 후에 차출할 수 있습니다)` };
   }
-  if (!plan) return { status: "not-ready", reason: "차출할 날이 없습니다. (모두 추첨 완료되었거나 이미 지난 날입니다)" };
+  if (!plan) {
+    // 이미 한 달 차출을 했고 남은 날이 없으면 "이미 끝남", 아니면 대상 없음
+    if (st.executedAt) return { status: "already" };
+    return { status: "not-ready", reason: "차출할 날이 없습니다. (모두 추첨 완료되었거나 이미 지난 날입니다)" };
+  }
   const db = getSupabaseAdmin();
 
   // 저장용 모양으로 변환
@@ -211,10 +215,19 @@ export async function executeMonthlyDraw(month: string, actorId: number, seed: s
   if (error) throw new Error("한 달 차출 저장 실패 (0021 SQL을 실행했는지 확인해 주세요): " + error.message);
   if (saved !== true) return { status: "already" };
 
+  // 선탑: 동·진료실 명단이 완성됐으니 날짜마다 규칙대로 자동 지정 (운전병보다 기수가 같거나 높은 출근자 중 랜덤).
+  //   못 정해도 차출 결과는 그대로이고, 관리자가 [명단 수정]에서 다시 뽑을 수 있음
+  let escortOk = 0;
+  let escortFail = 0;
+  for (const d of plan.days) {
+    const r = await autoAssignEscort(d.date, actorId, "draw").catch(() => ({ ok: false as const }));
+    if (r.ok) escortOk++;
+    else escortFail++;
+  }
   const picked = plan.days.reduce((s, d) => s + d.picks.length, 0);
   const unassignedDong = plan.days.reduce((s, d) => s + d.picks.filter((p) => p.postId === null).length, 0);
   await writeAudit({ actorId, action: "draw.monthly", details: { month, days: plan.days.length, picked, shortage } });
-  return { status: "done", days: plan.days.length, picked, unassignedDong, shortage };
+  return { status: "done", days: plan.days.length, picked, unassignedDong, shortage, escortOk, escortFail };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -297,7 +310,7 @@ export async function getPendingMonths(today: string, now: Date = new Date()): P
     const t = y * 12 + (m - 1) + i;
     const month = `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
     const st = await getMonthStatus(month, now);
-    if (!st.executedAt && st.days.length > 0 && st.stillVoting.length === 0 && st.undrawn.some((d) => d >= today)) out.push(month);
+    if (st.days.length > 0 && st.stillVoting.length === 0 && st.undrawn.some((d) => d >= today)) out.push(month); // 차출 전이거나, 차출 뒤 근무일이 추가된 달
   }
   return out;
 }
@@ -351,4 +364,11 @@ export async function getRotationBoards() {
     driver: staying.filter((m) => m.driver),
   };
   return POOLS.map((pool) => ({ pool, board: rotationBoard(poolMembers[pool], state[pool].log, state[pool].cycle), info, cohortOf: new Map(members.map((m) => [m.id, m.cohort])) }));
+}
+
+// 기수를 입력하지 않은 활성 인원 (순번에서 맨 뒤로 가므로 차출 전에 입력하도록 안내)
+export async function getMissingCohorts(): Promise<string[]> {
+  const { data, error } = await getSupabaseAdmin().from("members").select("name, cohort").eq("is_active", true);
+  if (error) return []; // 기수 칸(SQL 0015)이 없으면 안내하지 않음
+  return (data ?? []).filter((m) => m.cohort === null).map((m) => m.name as string);
 }

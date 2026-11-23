@@ -84,8 +84,7 @@ export default async function DutyDaysPage({ searchParams }: PageProps<"/admin/d
           공휴일 추가
         </button>
         <p className="text-xs text-zinc-500">
-          금요일을 추가하면 그 주 투표는 화요일 21:00에 마감됩니다. 투표 기간이 이미 지난 날을 추가하면 곧바로 자동
-          추첨(전원 차출)됩니다.
+          투표는 월 단위(매월 1일 ~ 처음 돌아오는 금요일)로 진행됩니다. 한 달 차출을 마친 뒤 근무일을 추가하면, 그 날은 [한 달 차출] 화면에서 &quot;추가 차출&quot;로 순번에 따라 채웁니다.
         </p>
       </form>
 

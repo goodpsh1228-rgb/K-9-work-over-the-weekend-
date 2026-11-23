@@ -52,7 +52,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/admin/me
         {msg && <Notice kind="success">{msg}</Notice>}
         {error && <Notice kind="error">{error}</Notice>}
         {noRank > 0 && (
-          <Notice kind="warn">계급이 없는 인원 {noRank}명 — 계급이 없으면 화요일부터만 투표할 수 있습니다.</Notice>
+          <Notice kind="warn">계급이 없는 인원 {noRank}명 — 계급을 입력해 주세요.</Notice>
         )}
       </div>
 

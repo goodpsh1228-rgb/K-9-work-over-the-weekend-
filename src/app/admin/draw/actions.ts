@@ -31,7 +31,9 @@ export async function monthlyDrawAction(formData: FormData) {
       text =
         `${month} 차출을 완료했습니다. ${r.days}일 · 순번으로 ${r.picked}명 뽑힘.` +
         (r.unassignedDong > 0 ? ` 동을 정해야 하는 사람 ${r.unassignedDong}명 → 각 날짜 [명단 수정]에서 배정해 주세요.` : " 동도 자동으로 배정되었습니다. 바꿀 사람은 각 날짜 [명단 수정]에서 교체하세요.") +
-        (short > 0 ? ` ⚠️ 인원 부족 ${short}명.` : "");
+        (short > 0 ? ` ⚠️ 인원 부족 ${short}명.` : "") +
+        (r.escortOk > 0 ? ` 선탑 ${r.escortOk}일 자동 지정.` : "") +
+        (r.escortFail > 0 ? ` ⚠️ 선탑을 못 정한 날 ${r.escortFail}일 → [명단 수정]에서 [규칙대로 선탑 다시 뽑기]` : "");
     }
   } catch (e) {
     kind = "error";
