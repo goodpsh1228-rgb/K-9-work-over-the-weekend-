@@ -156,15 +156,17 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
     <li key={d.date}>
       <Link
         href={`/day/${d.date}`}
-        className="flex min-h-[68px] items-center justify-between gap-3 px-5 py-3"
+        className="flex min-h-[60px] items-center justify-between gap-3 px-5 py-3"
       >
         <span className="min-w-0">
           <span className="block text-base font-semibold tracking-[-0.02em]">
             {formatShort(d.date)}
           </span>
-          <span className="block truncate text-sm text-muted">
-            {d.label}
-          </span>
+          {d.label !== "주말" && (
+            <span className="block truncate text-sm text-muted">
+              {d.label}
+            </span>
+          )}
         </span>
         <span className="flex shrink-0 flex-col items-end gap-1">
           {drawn.has(d.date) ? (
@@ -192,16 +194,20 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
                 state={myState(d.date)}
                 status={myStatus(d.date)}
               />
-              <span className="text-xs text-muted">
-                {overall(d.date) === "open" &&
-                myStatus(d.date) === "before"
-                  ? `${formatShort(votingWindow(d.date, fridayIsDuty(d.date)).juniorDate)}부터`
-                  : overall(d.date) === "closed"
+              {/* 보조 글은 달 제목과 다를 때만: 투표 중이면 마감 시각이 달 제목에 있으므로 생략 */}
+              {(() => {
+                const sub =
+                  overall(d.date) === "closed"
                     ? me.is_admin
                       ? "마감 · 차출 대기"
                       : "마감 · 추첨 대기"
-                    : STATUS_LABEL[overall(d.date)]}
-              </span>
+                    : overall(d.date) === "open"
+                      ? myStatus(d.date) === "before"
+                        ? `${formatShort(votingWindow(d.date, fridayIsDuty(d.date)).juniorDate)}부터`
+                        : null
+                      : STATUS_LABEL[overall(d.date)];
+                return sub ? <span className="text-xs text-muted">{sub}</span> : null;
+              })()}
             </>
           )}
         </span>
@@ -424,18 +430,19 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
   );
 }
 
-// 작은 알약 표시 (역할·상태). tone: blue=연한 파랑, solid=진한 파랑, gray=회색, orange=주황(미응답 경고), red=빨강
+// 작은 알약 표시 (역할·상태). tone: blue=연한 파랑(희망), solid=진한 파랑, gray=회색, outline=윤곽(미응답), orange=주황(지금 해야 할 일·경고), red=빨강
 function Chip({
   tone,
   children,
 }: {
-  tone: "blue" | "solid" | "gray" | "orange" | "red";
+  tone: "blue" | "solid" | "gray" | "outline" | "orange" | "red";
   children: React.ReactNode;
 }) {
   const color = {
     blue: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
     solid: "bg-blue-600 text-white",
     gray: "bg-hairline/60 text-foreground/80",
+    outline: "border border-hairline text-muted", // 미응답: 눈에 덜 띄는 윤곽
     orange:
       "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200",
     red: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
@@ -447,7 +454,7 @@ function Chip({
   );
 }
 
-// 내 응답 표시: 희망(동 이름) / 미희망 / 제외 / 미응답(투표 중일 때만 주황색으로 강조)
+// 내 응답 표시: 희망(동 이름) / 미희망 / 제외 / 미응답(투표 중일 때만, 눈에 덜 띄는 윤곽으로)
 function StateBadge({
   state,
   status,
@@ -459,6 +466,6 @@ function StateBadge({
     return <Chip tone="blue">희망·{state.postName}</Chip>;
   if (state.kind === "decline") return <Chip tone="gray">미희망</Chip>;
   if (state.kind === "excluded") return <Chip tone="gray">제외</Chip>;
-  if (status === "open") return <Chip tone="orange">미응답</Chip>;
+  if (status === "open") return <Chip tone="outline">미응답</Chip>;
   return null;
 }

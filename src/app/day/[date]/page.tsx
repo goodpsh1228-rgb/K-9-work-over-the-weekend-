@@ -375,7 +375,7 @@ const SOURCE_LABEL = { wanted: "희망 확정", drafted: "차출", rotation: "�
 const SOURCE_COLOR = {
   wanted: "bg-blue-100 text-blue-800",
   drafted: "bg-hairline/60 text-foreground/80",
-  rotation: "bg-orange-100 text-orange-800",
+  rotation: "bg-violet-100 text-violet-800",
   admin: "bg-foreground text-background",
 } as const;
 function RosterView({ title, posts, roster, driving = [] }: { title: string; posts: PostSlot[]; roster: RosterEntry[]; driving?: number[] }) {

@@ -11,11 +11,11 @@ import { Notice, Page } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
 import { getSupabaseAdmin } from "@/lib/supabase-server";
 import { formatShort, todayKST, weekday } from "@/lib/kst";
-import { getMissingCohorts, isValidMonth, newSeed, previewMonthlyDraw, type PreviewPerson } from "@/lib/monthly-draw-server";
+import { getMissingCohorts, isValidMonth, newSeed, previewMonthlyDraw } from "@/lib/monthly-draw-server";
 import { excludeFromDayAction, monthlyDrawAction, undoExcludeAction } from "../actions";
 
 const DOW = ["일", "월", "화", "수", "목", "금", "토"];
-const POOL = { general: "일반 (동 랜덤 배정)", clinic: "진료실", driver: "주말 운전" } as const;
+const POOL = { general: "일반", clinic: "진료실", driver: "주말 운전" } as const;
 
 export default async function PreviewPage({ searchParams }: PageProps<"/admin/draw/preview">) {
   await requireAdmin();
@@ -36,7 +36,6 @@ export default async function PreviewPage({ searchParams }: PageProps<"/admin/dr
   const { data: names } = await getSupabaseAdmin().from("members").select("id, name");
   const nameOf = new Map((names ?? []).map((m) => [m.id as number, m.name as string]));
 
-  const label = (p: PreviewPerson) => `${p.rank ? `${p.rank} ` : ""}${p.name}${p.cohort != null ? ` (${p.cohort}기)` : ""}`;
   const canRun = pv.stillVoting === 0 && pv.days.length > 0;
   const missingCohorts = await getMissingCohorts();
   const totalPicks = pv.days.reduce((s, d) => s + d.picks.length, 0);
@@ -45,7 +44,7 @@ export default async function PreviewPage({ searchParams }: PageProps<"/admin/dr
   return (
     <Page title="차출 미리보기">
       <p className="-mt-4 mb-4 text-sm text-zinc-500">
-        {month.replace("-", "년 ")}월 · 저장되지 않습니다. 결과가 이상한 사람은 [이 날 빼기]로 바꿔 보세요.
+        {month.replace("-", "년 ")}월 · 저장되지 않습니다. 이름 옆 × 를 누르면 그 사람을 이 날 순번에서 뺍니다. (희망 확정은 파랑, 순번 배정은 보라)
       </p>
       <div className="space-y-3">
         {msg && <Notice kind="success">{msg}</Notice>}
@@ -74,33 +73,48 @@ export default async function PreviewPage({ searchParams }: PageProps<"/admin/dr
                 <span className={d.shortage > 0 ? "text-red-600" : "text-muted"}>{d.shortage > 0 ? `인원 부족 ${d.shortage}` : "충족"}</span>
               </p>
               <div className="space-y-2 px-3 py-2 text-sm">
+                {/* 희망 확정: 파랑 칩 (투표로 정해진 사람) */}
                 {d.wanted.length > 0 && (
-                  <p><b className="text-blue-700">희망 확정</b> {d.wanted.map((w) => `${w.name}(${w.post})`).join(", ")}</p>
+                  <div>
+                    <p className="text-xs font-semibold text-blue-700">희망 확정</p>
+                    <p className="mt-1 flex flex-wrap gap-1.5">
+                      {d.wanted.map((w) => (
+                        <span key={`${w.id}-${w.post}`} className="rounded-full bg-blue-100 px-2.5 py-1 text-xs text-blue-800">
+                          {w.name}
+                          <i className="ml-1 not-italic opacity-70">{w.post}</i>
+                        </span>
+                      ))}
+                    </p>
+                  </div>
                 )}
+                {/* 순번 배정: 보라 칩. 작은 × 를 누르면(확인창 뒤) 그 사람을 이 날 순번에서 뺌 */}
                 {(["general", "clinic", "driver"] as const).map((pool) => {
                   const rows = d.picks.filter((x) => x.pool === pool);
                   if (rows.length === 0) return null;
                   return (
                     <div key={pool}>
-                      <p className="text-xs font-semibold text-orange-700">순번 · {POOL[pool]}</p>
-                      <ul className="mt-1 divide-y divide-hairline">
+                      <p className="text-xs font-semibold text-violet-700">순번 · {POOL[pool]}</p>
+                      <p className="mt-1 flex flex-wrap gap-1.5">
                         {rows.map((x) => (
-                          <li key={x.id} className="flex items-center justify-between gap-2 py-1.5">
-                            <span>{label(x)}{x.post && <span className="text-muted"> · {x.post}</span>}</span>
-                            {(
-                              <form action={excludeFromDayAction}>
-                                <input type="hidden" name="month" value={month} />
-                                <input type="hidden" name="seed" value={seed} />
-                                <input type="hidden" name="date" value={d.date} />
-                                <input type="hidden" name="member_id" value={x.id} />
-                                <ConfirmButton message={`${x.name} 을(를) ${formatShort(d.date)} 순번에서 뺄까요? 다음 순번 사람이 대신 뽑히고, ${x.name}은(는) 빚으로 기록되어 다음에 먼저 배정됩니다.`} className="shrink-0 rounded border border-red-300 px-2 py-1 text-xs text-red-700">
-                                  이 날 빼기
-                                </ConfirmButton>
-                              </form>
-                            )}
-                          </li>
+                          <form key={x.id} action={excludeFromDayAction} className="inline-flex items-center rounded-full bg-violet-100 pl-2.5 text-xs text-violet-800">
+                            <input type="hidden" name="month" value={month} />
+                            <input type="hidden" name="seed" value={seed} />
+                            <input type="hidden" name="date" value={d.date} />
+                            <input type="hidden" name="member_id" value={x.id} />
+                            <span className="py-1">
+                              {x.name}
+                              {x.cohort != null && <i className="ml-1 not-italic opacity-60">{x.cohort}기</i>}
+                              {x.post && <i className="ml-1 not-italic opacity-70">{x.post}</i>}
+                            </span>
+                            <ConfirmButton
+                              message={`${x.name} 을(를) ${formatShort(d.date)} 순번에서 뺄까요? 다음 순번 사람이 대신 뽑히고, ${x.name}은(는) 빚으로 기록되어 다음에 먼저 배정됩니다.`}
+                              className="px-2 py-1 text-violet-500 hover:text-red-600"
+                            >
+                              <span aria-label={`${x.name} 이 날 빼기`}>×</span>
+                            </ConfirmButton>
+                          </form>
                         ))}
-                      </ul>
+                      </p>
                     </div>
                   );
                 })}
