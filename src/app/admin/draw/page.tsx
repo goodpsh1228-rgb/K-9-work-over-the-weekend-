@@ -68,6 +68,12 @@ export default async function MonthlyDrawPage({ searchParams }: PageProps<"/admi
         {st.executedAt && <p className="text-muted">이미 차출했습니다. ({st.executedAt.slice(0, 16).replace("T", " ")} UTC)</p>}
       </section>
 
+      {st.days.length > 0 && (
+        <Link href={`/admin/draw/preview?month=${month}`} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-full border border-blue-600 px-[22px] text-base font-semibold text-link">
+          차출 미리보기 (저장 안 됨)
+        </Link>
+      )}
+
       {canRun && (
         <section className="mt-3 rounded-[18px] border-2 border-red-600 bg-card p-4">
           <p className="text-lg font-black">{month.replace("-", "년 ")}월 차출하기</p>

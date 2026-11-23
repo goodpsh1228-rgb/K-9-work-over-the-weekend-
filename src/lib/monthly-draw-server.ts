@@ -99,17 +99,30 @@ export type MonthlyResult =
   | { status: "already" }
   | { status: "not-ready"; reason: string };
 
-export async function executeMonthlyDraw(month: string, actorId: number): Promise<MonthlyResult> {
-  if (!isValidMonth(month)) return { status: "not-ready", reason: "잘못된 달입니다." };
+// 같은 시드(seed)면 같은 난수열: 미리보기에서 본 "희망자 초과 추첨" 결과를 실행 때 똑같이 재현하기 위해 씁니다.
+function seededRng(seed: string): (n: number) => number {
+  let h = 1779033703 ^ seed.length;
+  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 3432918353), (h = (h << 13) | (h >>> 19));
+  let a = h >>> 0;
+  return (n: number) => {
+    a = (a + 0x6d2b79f5) >>> 0; // mulberry32
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return Math.floor((((t ^ (t >>> 14)) >>> 0) / 4294967296) * n);
+  };
+}
+
+export function newSeed(): string {
+  return randomInt(0, 2 ** 31).toString(36) + randomInt(0, 2 ** 31).toString(36);
+}
+
+// 한 달 차출 계획 만들기 (저장하지 않음 — 미리보기와 실제 실행이 똑같이 씀)
+async function buildMonthPlan(month: string, seed: string) {
   const st = await getMonthStatus(month);
-  if (st.days.length === 0) return { status: "not-ready", reason: "그 달에는 근무일이 없습니다." };
-  if (st.executedAt) return { status: "already" };
-  if (st.stillVoting.length > 0) {
-    return { status: "not-ready", reason: `아직 투표 중인 근무일이 있습니다. (${st.stillVoting.length}일 · 마감 후에 차출할 수 있습니다)` };
-  }
   // 예전 방식으로 이미 추첨된 날과, 이미 지나간 날(오늘 이전)은 순번을 쓰지 않도록 건드리지 않음
   const targets = st.undrawn.filter((d) => d >= todayKST());
-  if (targets.length === 0) return { status: "not-ready", reason: "차출할 날이 없습니다. (모두 추첨 완료되었거나 이미 지난 날입니다)" };
+  if (targets.length === 0) return { st, targets, plan: null, members: [] as MMember[] };
 
   const db = getSupabaseAdmin();
   const [members, state, { data: resp }] = await Promise.all([
@@ -118,7 +131,6 @@ export async function executeMonthlyDraw(month: string, actorId: number): Promis
     db.from("responses").select("duty_date, member_id, choice, post_id").in("duty_date", targets),
   ]);
 
-  // 날짜별 입력 모으기
   const inputs: MDayInput[] = [];
   for (const date of targets) {
     const [posts, excluded, driveWants, designated] = await Promise.all([
@@ -138,8 +150,19 @@ export async function executeMonthlyDraw(month: string, actorId: number): Promis
       excluded,
     });
   }
+  return { st, targets, plan: planMonth(inputs, members, state, seededRng(seed)), members };
+}
 
-  const plan = planMonth(inputs, members, state, (n) => randomInt(n));
+export async function executeMonthlyDraw(month: string, actorId: number, seed: string = newSeed()): Promise<MonthlyResult> {
+  if (!isValidMonth(month)) return { status: "not-ready", reason: "잘못된 달입니다." };
+  const { st, plan } = await buildMonthPlan(month, seed);
+  if (st.days.length === 0) return { status: "not-ready", reason: "그 달에는 근무일이 없습니다." };
+  if (st.executedAt) return { status: "already" };
+  if (st.stillVoting.length > 0) {
+    return { status: "not-ready", reason: `아직 투표 중인 근무일이 있습니다. (${st.stillVoting.length}일 · 마감 후에 차출할 수 있습니다)` };
+  }
+  if (!plan) return { status: "not-ready", reason: "차출할 날이 없습니다. (모두 추첨 완료되었거나 이미 지난 날입니다)" };
+  const db = getSupabaseAdmin();
 
   // 저장용 모양으로 변환
   const shortage: Record<string, number> = {};
@@ -185,6 +208,52 @@ export async function executeMonthlyDraw(month: string, actorId: number): Promis
   const unassignedDong = plan.days.reduce((s, d) => s + d.picks.filter((p) => p.postId === null).length, 0);
   await writeAudit({ actorId, action: "draw.monthly", details: { month, days: plan.days.length, picked, shortage } });
   return { status: "done", days: plan.days.length, picked, unassignedDong, shortage };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 차출 미리보기 (저장하지 않음): 지금 데이터로 차출하면 어떻게 되는지 날짜별로 보여 줌
+//   같은 seed 로 [차출하기]를 누르면 희망자 초과 추첨까지 미리보기와 같은 결과가 나옵니다.
+//   (그 사이에 투표·휴가 입력이 바뀌면 결과도 달라질 수 있습니다)
+// ─────────────────────────────────────────────────────────────
+export type PreviewPerson = { id: number; name: string; rank: string | null; cohort: number | null };
+export type MonthPreview = {
+  month: string;
+  seed: string;
+  executedAt: string | null;
+  stillVoting: number;
+  skippedPast: number; // 이미 지난 날 수
+  days: {
+    date: string;
+    wanted: (PreviewPerson & { post: string })[];
+    picks: (PreviewPerson & { pool: RotPool; post: string | null })[];
+    rested: PreviewPerson[];
+    skips: (PreviewPerson & { pool: RotPool; reason: string })[];
+    shortage: number;
+  }[];
+};
+
+export async function previewMonthlyDraw(month: string, seed: string): Promise<MonthPreview> {
+  const { st, targets, plan, members } = await buildMonthPlan(month, seed);
+  const base = { month, seed, executedAt: st.executedAt, stillVoting: st.stillVoting.length, skippedPast: st.undrawn.length - targets.length };
+  if (!plan) return { ...base, days: [] };
+  const db = getSupabaseAdmin();
+  let m = await db.from("members").select("id, name, rank, cohort");
+  if (m.error) m = (await db.from("members").select("id, name, rank")) as typeof m;
+  const info = new Map(((m.data ?? []) as { id: number; name: string; rank: string | null; cohort?: number | null }[]).map((x) => [x.id, x]));
+  const person = (id: number): PreviewPerson => ({ id, name: info.get(id)?.name ?? "?", rank: info.get(id)?.rank ?? null, cohort: info.get(id)?.cohort ?? members.find((x) => x.id === id)?.cohort ?? null });
+  const postName = new Map<number, string>();
+  for (const date of targets.slice(0, 1)) for (const p of await getPostsForDate(date)) postName.set(p.id, p.name);
+  return {
+    ...base,
+    days: plan.days.map((d) => ({
+      date: d.date,
+      wanted: d.wanted.map((w) => ({ ...person(w.memberId), post: postName.get(w.postId) ?? "?" })),
+      picks: d.picks.map((x) => ({ ...person(x.memberId), pool: x.pool, post: x.postId === null ? null : (postName.get(x.postId) ?? "?") })),
+      rested: d.rested.map(person),
+      skips: POOLS.flatMap((pool) => plan.rotation[pool].skips.filter((x) => x.date === d.date).map((x) => ({ ...person(x.memberId), pool, reason: x.reason }))),
+      shortage: d.shortage.general + d.shortage.clinic + d.shortage.driver,
+    })),
+  };
 }
 
 // 한 근무일에서 아직 동이 정해지지 않은 순번 뽑힘 (관리자가 동을 배정해야 함)
