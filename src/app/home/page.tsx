@@ -30,7 +30,7 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
   const me = await requireMember();
   // 접속 시 하는 일: 계급 자동 진급·전역 자동 비활성화 (추첨은 자동으로 하지 않음 — 관리자가 [주말출근 차출하기]로 실행)
   await runVisitTasksSafely();
-  const { from, to } = homeRange(); // 오늘 ~ 다음 주 일요일 (한국 날짜)
+  const { from, to } = homeRange(); // 오늘 ~ 다음 달 마지막 날 (한국 날짜)
   // 필요한 정보를 동시에(병렬로) 읽어 기다리는 시간을 줄임
   const db = getSupabaseAdmin();
   const [
