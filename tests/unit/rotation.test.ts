@@ -81,3 +81,11 @@ r = planRotation([M(7, null), M(1, 10), M(2, 20)], [], 1, [day("q", 3)]);
 assert.deepStrictEqual(ids(r), [1, 2, 7]);
 
 console.log("ALL OK");
+
+// 11) passed: 그날 조용히 빠짐 — 빚도 근무 인정도 없고, 다음 근무일에는 순번이 그대로 돌아옴
+r = planRotation(five, [], 1, [{ date: "p1", needed: 2, working: [], unavailable: {}, passed: [1] }, day("p2", 1)]);
+assert.deepStrictEqual(ids(r, "p1"), [2, 3]);
+assert.deepStrictEqual(ids(r, "p2"), [1]);
+assert.strictEqual(r.skips.length, 0);
+assert.strictEqual(r.volunteers.length, 0);
+console.log("ALL OK");

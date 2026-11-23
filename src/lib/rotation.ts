@@ -38,6 +38,7 @@ export type RotDay = {
   needed: number; // 순번으로 채울 공석 수
   working: number[]; // 희망 확정 등으로 이미 그날 출근하는 사람 (후보 아님, 이번 바퀴 근무로 인정)
   unavailable: Record<number, string>; // 출근 불가 사람 id → 사유 (휴가·부상·교육·관리자 제외 등)
+  passed?: number[]; // 그날 순번에서 조용히 빠지는 사람 (빚도, 근무 인정도 없음. 예: 희망했다가 정원 초과로 떨어져 쉬는 사람)
 };
 
 export type RotPick = { date: string; memberId: number; cycle: number; viaDebt: boolean };
@@ -88,6 +89,7 @@ export function planRotation(
 
   for (const day of sortedDays) {
     const working = new Set(day.working);
+    const passed = new Set(day.passed ?? []);
     // ⓪ 자발 출근자: 이번 바퀴 근무로 인정하고, 빚이 있으면 함께 갚음
     for (const id of working) {
       if (!ids.has(id)) continue;
@@ -100,7 +102,7 @@ export function planRotation(
       }
     }
     const takenToday = new Set<number>(); // 오늘 이미 뽑힌 사람 (같은 날 두 자리 금지)
-    const canWork = (id: number) => !working.has(id) && !(id in day.unavailable) && !takenToday.has(id);
+    const canWork = (id: number) => !working.has(id) && !passed.has(id) && !(id in day.unavailable) && !takenToday.has(id);
     let remaining = day.needed;
 
     // ① 빚이 있는 사람 먼저 (오늘 출근 가능하면)
@@ -120,13 +122,13 @@ export function planRotation(
     let rolled = false; // 오늘 이미 바퀴를 한 번 넘겼는지(무한 반복 방지)
     while (remaining > 0) {
       const next = order.find(
-        (m) => !done.has(m.id) && !working.has(m.id) && !takenToday.has(m.id) && !(m.id in day.unavailable),
+        (m) => !done.has(m.id) && !working.has(m.id) && !passed.has(m.id) && !takenToday.has(m.id) && !(m.id in day.unavailable),
       );
       // 건너뛸 사람(출근 불가)을 먼저 처리: 순서상 next 보다 앞서 있는 불가자는 빚 기록
       const skipUpTo = next ? order.indexOf(next) : order.length;
       for (let i = 0; i < skipUpTo; i++) {
         const m = order[i];
-        if (done.has(m.id) || working.has(m.id) || takenToday.has(m.id)) continue;
+        if (done.has(m.id) || working.has(m.id) || passed.has(m.id) || takenToday.has(m.id)) continue;
         if (m.id in day.unavailable) {
           const reason = day.unavailable[m.id];
           res.skips.push({ date: day.date, memberId: m.id, cycle: res.cycle, reason });
