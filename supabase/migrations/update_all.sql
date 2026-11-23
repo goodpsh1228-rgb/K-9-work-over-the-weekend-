@@ -226,3 +226,8 @@ alter table assignments add constraint assignments_source_check
 alter table draws drop constraint if exists draws_triggered_by_check;
 alter table draws add constraint draws_triggered_by_check
   check (triggered_by in ('cron', 'visit', 'manual', 'rotation'));
+
+-- 0020 자발 출근 인정
+alter table rotation_log drop constraint if exists rotation_log_kind_check;
+alter table rotation_log add constraint rotation_log_kind_check
+  check (kind in ('served', 'skipped', 'volunteered'));

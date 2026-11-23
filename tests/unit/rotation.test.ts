@@ -51,14 +51,20 @@ r = planRotation(five, log6, 1, [day("d2", 1, [], { 2: "교육" })]);
 assert.deepStrictEqual(ids(r), [4]);
 assert.strictEqual(r.repaidDebts.length, 0);
 
-// 7) 희망 확정자(working)는 그날 조용히 지나감: 빚 없음, 근무 기록 없음
-r = planRotation(five, [], 1, [day("2026-12-05", 2, [1])]);
-assert.deepStrictEqual(ids(r), [2, 3]);
-assert.strictEqual(r.skips.length, 0);
-// → 1은 이번 바퀴에서 아직 남아 있어 다음 근무일에 순번이 돌아옴
+// 7) 자발 출근(B): 희망 확정자는 이번 바퀴 근무로 인정 → 같은 바퀴에서는 순번에 안 걸림
 r = planRotation(five, [], 1, [day("x", 2, [1]), day("y", 2)]);
 assert.deepStrictEqual(ids(r, "x"), [2, 3]);
-assert.deepStrictEqual(ids(r, "y"), [1, 4]);
+assert.deepStrictEqual(ids(r, "y"), [4, 5]); // 1은 이미 인정됨
+assert.deepStrictEqual(r.volunteers.map((v) => v.memberId), [1]);
+assert.strictEqual(r.skips.length, 0);
+// 같은 바퀴에서 여러 번 자원해도 인정은 1회(기록도 1건)
+r = planRotation(five, [], 1, [day("x", 0, [1]), day("y", 0, [1])]);
+assert.strictEqual(r.volunteers.length, 1);
+// 빚이 있는 사람이 자원하면 빚도 갚아짐
+const log7: RotLogRow[] = [{ memberId: 2, dutyDate: "d1", cycle: 1, kind: "skipped", reason: "휴가", repaid: false }];
+r = planRotation(five, log7, 1, [day("d2", 1, [2])]);
+assert.deepStrictEqual(r.repaidDebts, [{ memberId: 2, skippedDate: "d1" }]);
+assert.deepStrictEqual(ids(r), [1]); // 2는 자원으로 근무 중이라 순번 배정은 1번
 
 // 8) 후보가 모자라면 채운 만큼만, 인원 부족 보고
 r = planRotation([M(1, 10), M(2, 20)], [], 1, [day("z", 3, [], { 2: "휴가" })]);

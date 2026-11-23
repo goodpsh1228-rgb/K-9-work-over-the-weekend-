@@ -11,7 +11,8 @@
 //             모두 한 번씩 지나가면 다음 바퀴로 넘어가고, 바퀴는 달이 바뀌어도 이어짐.
 //  3. 건너뜀: 순번이 왔는데 그날 출근 불가(휴가 등)면 자동으로 건너뛰고 "빚" 기록.
 //  4. 빚    : 빚이 있는 사람은 출근 가능한 날이 되면 일반 순번보다 먼저(오래된 빚부터) 배정되어 빚이 갚아짐.
-//  5. 희망  : 그날 희망이 확정되어 이미 출근하는 사람(working)은 그날 조용히 지나감(빚도, 근무 기록도 없음).
+//  5. 자발  : 그날 희망이 확정되어 출근하는 사람(working)은 이번 바퀴에서 근무 1회로 인정(volunteered 기록).
+//             같은 바퀴에서 여러 번 자원해도 인정은 1회이고 다음 바퀴로 이월되지 않음. 빚이 있으면 함께 갚아짐.
 // ─────────────────────────────────────────────────────────────
 
 export type RotMember = {
@@ -26,7 +27,7 @@ export type RotLogRow = {
   memberId: number;
   dutyDate: string;
   cycle: number;
-  kind: "served" | "skipped";
+  kind: "served" | "skipped" | "volunteered";
   reason?: string | null;
   repaid: boolean; // skipped 일 때: 이미 갚았는가
 };
@@ -35,15 +36,18 @@ export type RotLogRow = {
 export type RotDay = {
   date: string;
   needed: number; // 순번으로 채울 공석 수
-  working: number[]; // 희망 확정 등으로 이미 그날 출근하는 사람 (후보 아님, 빚 없음)
+  working: number[]; // 희망 확정 등으로 이미 그날 출근하는 사람 (후보 아님, 이번 바퀴 근무로 인정)
   unavailable: Record<number, string>; // 출근 불가 사람 id → 사유 (휴가·부상·교육·관리자 제외 등)
 };
 
 export type RotPick = { date: string; memberId: number; cycle: number; viaDebt: boolean };
 export type RotSkip = { date: string; memberId: number; cycle: number; reason: string };
 
+export type RotVolunteer = { date: string; memberId: number; cycle: number };
+
 export type RotResult = {
   picks: RotPick[]; // 새로 배정된 사람
+  volunteers: RotVolunteer[]; // 자발 출근으로 이번 바퀴 근무 인정된 사람
   skips: RotSkip[]; // 새로 생긴 빚
   repaidDebts: { memberId: number; skippedDate: string }[]; // 이번에 갚은 빚
   shortage: Record<string, number>; // 날짜 → 못 채운 자리 수
@@ -79,11 +83,22 @@ export function planRotation(
     .sort((a, b) => (a.dutyDate < b.dutyDate ? -1 : a.dutyDate > b.dutyDate ? 1 : 0))
     .map((r) => ({ memberId: r.memberId, skippedDate: r.dutyDate }));
 
-  const res: RotResult = { picks: [], skips: [], repaidDebts: [], shortage: {}, cycle };
+  const res: RotResult = { picks: [], volunteers: [], skips: [], repaidDebts: [], shortage: {}, cycle };
   const sortedDays = [...days].sort((a, b) => (a.date < b.date ? -1 : 1));
 
   for (const day of sortedDays) {
     const working = new Set(day.working);
+    // ⓪ 자발 출근자: 이번 바퀴 근무로 인정하고, 빚이 있으면 함께 갚음
+    for (const id of working) {
+      if (!ids.has(id)) continue;
+      if (!done.has(id)) {
+        done.add(id);
+        res.volunteers.push({ date: day.date, memberId: id, cycle: res.cycle });
+      }
+      for (let i = debts.length - 1; i >= 0; i--) {
+        if (debts[i].memberId === id) res.repaidDebts.push(...debts.splice(i, 1));
+      }
+    }
     const takenToday = new Set<number>(); // 오늘 이미 뽑힌 사람 (같은 날 두 자리 금지)
     const canWork = (id: number) => !working.has(id) && !(id in day.unavailable) && !takenToday.has(id);
     let remaining = day.needed;
@@ -142,6 +157,7 @@ export function planRotation(
 export function toLogRows(r: RotResult): RotLogRow[] {
   return [
     ...r.picks.map((p) => ({ memberId: p.memberId, dutyDate: p.date, cycle: p.cycle, kind: "served" as const, repaid: false })),
+    ...r.volunteers.map((v) => ({ memberId: v.memberId, dutyDate: v.date, cycle: v.cycle, kind: "volunteered" as const, repaid: false })),
     ...r.skips.map((s) => ({ memberId: s.memberId, dutyDate: s.date, cycle: s.cycle, kind: "skipped" as const, reason: s.reason, repaid: false })),
   ];
 }
